@@ -70,6 +70,16 @@ namespace MysticUI.Controls
         {
             ContentChanged?.Invoke(this, EventArgs.Empty);
         }
+        
+        /// <inheritdoc/>
+        protected override void OnFontChanged()
+        {
+            base.OnFontChanged();
+            if (Child != null)
+            {
+                Child.Font = Font;
+            }
+        }
 
         /// <inheritdoc/>
         protected internal override void ResetChildInternal()

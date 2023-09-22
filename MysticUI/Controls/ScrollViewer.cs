@@ -206,6 +206,7 @@ namespace MysticUI.Controls
         {
             ClipToBounds = true;
             CaptureMouseRoll = true;
+            AcceptFocus = false;
             horizontalScrollingOn = verticalScrollingOn == false;
             ShowVerticalScrollbar = ShowHorizontalScrollbar == true;
             HorizontalAlignment = HorizontalAlignment.Stretch;

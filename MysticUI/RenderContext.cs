@@ -312,8 +312,16 @@ namespace MysticUI
         /// <inheritdoc/>
         public void Dispose()
         {
-            ((IDisposable)renderer).Dispose();
+            renderer?.Dispose();
             GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Destroys the renderer.
+        /// </summary>
+        ~RenderContext()
+        {
+            renderer?.Dispose();
         }
     }
 }

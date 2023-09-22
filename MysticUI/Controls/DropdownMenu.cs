@@ -8,14 +8,69 @@ namespace MysticUI.Controls
     /// </summary>
     public class DropdownMenu : ContentControl
     {
+        /// <summary>
+        /// The name of the expand button style.
+        /// </summary>
+        public const string ExpandButtonStyleName = "ExpandButtonStyle";
+
         private readonly ToggleButton button;
         private readonly StackPanel panel;
         private Control? child;
+        private int minimalExpandedHeight;
 
         /// <summary>
         /// Determines whether the menu is expanded.
         /// </summary>
-        public bool IsExpanded => button.IsChecked == true;
+        public bool IsExpanded
+        {
+            get => button.IsChecked == true;
+            set
+            {
+                if (value == button.IsChecked) return;
+                button.IsChecked = value;
+                InvalidateHierarchy();
+                NotifyPropertyChanged(nameof(IsExpanded));
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the height of the button in the dropdown menu.
+        /// </summary>
+        public int ButtonHeight
+        {
+            get => button.Height;
+            set
+            {
+                if (value == button.Height) return;
+                button.Height = value;
+                InvalidateHierarchy();
+                NotifyPropertyChanged(nameof(ButtonHeight));
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the minimal height of the expanded dropdown menu.
+        /// </summary>
+        public int MinimalExpandedHeight
+        {
+            get => minimalExpandedHeight;
+            set
+            {
+                if (value == minimalExpandedHeight) return;
+                minimalExpandedHeight = value;
+                InvalidateHierarchy();
+                NotifyPropertyChanged(nameof(MinimalExpandedHeight));
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the text of the expand button.
+        /// </summary>
+        public string? Text
+        {
+            get => button.Content?.ToString();
+            set => button.Content = value;
+        }
 
         /// <summary>
         /// Gets or sets the menu orientation.
@@ -44,10 +99,17 @@ namespace MysticUI.Controls
         /// </summary>
         public DropdownMenu()
         {
-            button = new ToggleButton().WithDefaultStyle();
+            button = new ToggleButton()
+            {
+                StyleName = ExpandButtonStyleName
+            };
             button.CheckedChanged += Button_CheckedChanged;
-            panel = new();
+            panel = new()
+            {
+                Parent = this
+            };
             Orientation = default;
+            ResetChildInternal();
         }
 
         /// <inheritdoc/>
@@ -60,7 +122,8 @@ namespace MysticUI.Controls
                 panel.Clear();
                 panel.Add(button);
                 SetContent();
-                //Desktop?.InvalidateLayout();
+                Child = panel;
+                InvalidateHierarchy();
             }
         }
 
@@ -69,7 +132,19 @@ namespace MysticUI.Controls
         {
             var result = base.MeasureInternal(availableSize);
             var test = panel.TestMeasure();
-            return new(Math.Max(result.X, test.X), Math.Max(result.Y, test.Y));
+            if (test.X > result.X) 
+                result.X = test.X;
+            if (test.Y > result.Y)
+                result.Y = test.Y;
+            if (IsExpanded && MinimalExpandedHeight > result.Y)
+                result.Y = MinimalExpandedHeight;
+            return result;
+        }
+
+        /// <inheritdoc/>
+        public override void InvalidateMeasure()
+        {
+            base.InvalidateMeasure();
         }
 
         private void Button_CheckedChanged(object? sender, EventArgs e)
@@ -87,7 +162,14 @@ namespace MysticUI.Controls
                     panel.Add(child);
                 }
             }
+            InvalidateHierarchy();
+        }
+
+        private void InvalidateHierarchy()
+        {
             InvalidateMeasure();
+            //Desktop?.Root?.InvalidateArrange();
+            //Desktop?.Root?.InvalidateMeasure();
         }
     }
 }

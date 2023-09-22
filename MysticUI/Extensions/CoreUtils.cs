@@ -66,20 +66,29 @@ namespace MysticUI.Extensions
             Type? result = null;
             try
             {
-                result = Type.GetType(name);
+                // Try to get the type from the one of the most actual assemblies to find: default, current (MysticUI) or calling.
+                result = Type.GetType(name) ?? 
+                    TryGetType(Assembly.GetExecutingAssembly(), name) ?? 
+                    TryGetType(Assembly.GetCallingAssembly(), name);
+                // Try to use the full search if the finding option is unavailable.
                 if (result == null)
                 {
                     foreach (var assembly in AssemblyRegistry.FindAll())
                     {
-                        result = assembly.GetType(name);
-                        if (result != null) break;
-                        result = assembly.GetTypes().Where(x => x.GetConstructor(Array.Empty<Type>()) != null).FirstOrDefault(x => x.Name == name || x.FullName == name);
+                        result = TryGetType(assembly, name);
                         if (result != null) break;
                     }
                 }
             }
             catch { }
             return result;
+        }
+
+        private static Type? TryGetType(Assembly targetAssembly, string name)
+        {
+            return targetAssembly.GetType(name) ?? targetAssembly.GetTypes()
+                .Where(x => x.GetConstructor(Array.Empty<Type>()) != null)
+                .FirstOrDefault(x => x.Name == name || x.FullName == name);
         }
     }
 }

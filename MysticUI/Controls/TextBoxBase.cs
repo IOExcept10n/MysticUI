@@ -596,7 +596,7 @@ namespace MysticUI.Controls
                 position--;
                 if (char.IsWhiteSpace(Text[position])) return;
             }
-            int start = Text.LastIndexOf(' ', 0, position);
+            int start = Text.LastIndexOf(' ', position, position);
             int end = Text.IndexOf(' ', position);
             if (start < 0) start = 0;
             if (end < 0) end = Text.Length;
@@ -695,6 +695,7 @@ namespace MysticUI.Controls
             width -= CursorWidth;
             Point result = textLayout.Measure(TextWrapping ? width : null);
             if (result.Y > Font.LineHeight) result.Y = Font.LineHeight;
+            else if (result.Y == 0) result.Y = Font.LineHeight;
             if (CaretBrush != null)
             {
                 result.X += CursorWidth;

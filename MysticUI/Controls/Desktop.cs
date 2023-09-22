@@ -349,7 +349,7 @@ namespace MysticUI.Controls
         /// Gets the <see cref="MysticUI.Dispatcher"/> instance for the current <see cref="Desktop"/> instance.
         /// </summary>
         /// <remarks>
-        /// THe dispatchers are used to synchronize UI update when using multithreading access or detaching elements inside of the update process.
+        /// The dispatchers are used to synchronize UI update when using multithreading access or detaching elements inside of the update process.
         /// </remarks>
         public Dispatcher Dispatcher { get; } = new();
 

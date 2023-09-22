@@ -39,6 +39,7 @@ namespace MysticUI.Controls
         private int maxHeight;
         private int width;
         private int height;
+        private Size2 sizeConstraints;
         private Thickness margin;
         private Thickness padding;
         private Thickness borderThickness = new(1);
@@ -111,7 +112,9 @@ namespace MysticUI.Controls
             {
                 if (styleName == value) return;
                 styleName = value;
-                if (!string.IsNullOrEmpty(styleName)) SetStyle(styleName);
+                if (!string.IsNullOrEmpty(styleName) && Stylesheet.Default.ContainsKey(styleName)) SetStyle(styleName);
+                else if (Stylesheet.Default.ContainsKey(GetType().Name + "Style")) this.WithDefaultStyle();
+                else if (Stylesheet.Default.ContainsKey("ControlStyle")) SetStyle("ControlStyle");
                 NotifyPropertyChanged(nameof(StyleName));
             }
         }
@@ -243,7 +246,7 @@ namespace MysticUI.Controls
             set
             {
                 if (width == value) return;
-                width = value;
+                width = sizeConstraints.Width = value;
                 InvalidateMeasure();
                 FireSizeChanged();
                 NotifyPropertyChanged(nameof(Width));
@@ -260,11 +263,26 @@ namespace MysticUI.Controls
             set
             {
                 if (height == value) return;
-                height = value;
+                height = sizeConstraints.Height = value;
                 InvalidateMeasure();
                 FireSizeChanged();
                 NotifyPropertyChanged(nameof(Height));
             }
+        }
+
+        /// <summary>
+        /// Gets the constraints of the actual size computations set by user.
+        /// </summary>
+        /// <remarks>
+        /// These values can be set by manual set of <see cref="Height"/> or <see cref="Width"/> properties.
+        /// </remarks>
+        /// <value>
+        /// Used to calculate artificial target size of the control.
+        /// </value>
+        [XmlIgnore, Browsable(false)]
+        internal protected Size2 SizeConstraints
+        {
+            get => sizeConstraints;
         }
 
         /// <summary>
@@ -966,8 +984,10 @@ namespace MysticUI.Controls
             {
                 X = value.X;
                 Y = value.Y;
-                Width = value.Width;
-                Height = value.Height;
+                width = value.Width;
+                height = value.Height;
+                NotifyPropertyChanged(nameof(Width));
+                NotifyPropertyChanged(nameof(Height));
             }
         }
 
@@ -1444,18 +1464,18 @@ namespace MysticUI.Controls
             }
 
             Point result;
-            if (Width != 0 && availableSize.X > Width)
+            if (SizeConstraints.Width != 0 && availableSize.X > SizeConstraints.Width)
             {
-                availableSize.X = Width;
+                availableSize.X = SizeConstraints.Width;
             }
             else if (MaxWidth != 0 && availableSize.X > MaxWidth)
             {
                 availableSize.X = MaxWidth;
             }
 
-            if (Height != 0 && availableSize.Y > Height)
+            if (SizeConstraints.Height != 0 && availableSize.Y > SizeConstraints.Height)
             {
-                availableSize.Y = Height;
+                availableSize.Y = SizeConstraints.Height;
             }
             else if (MaxHeight != 0 && availableSize.Y > MaxHeight)
             {
@@ -1472,12 +1492,12 @@ namespace MysticUI.Controls
 
             if (clampBounds)
             {
-                if (Width != 0)
-                    result.X = Width;
+                if (SizeConstraints.Width != 0)
+                    result.X = SizeConstraints.Width;
                 else
                     result.X = result.X.OptionalClamp(MinWidth, MaxWidth);
-                if (Height != 0)
-                    result.Y = Height;
+                if (SizeConstraints.Height != 0)
+                    result.Y = SizeConstraints.Height;
                 else
                     result.Y = result.Y.OptionalClamp(MinHeight, MaxHeight);
             }
@@ -2028,6 +2048,7 @@ namespace MysticUI.Controls
             {
                 binding.Dispose();
             }
+            bindings.Clear();
             InvalidateArrange();
         }
 

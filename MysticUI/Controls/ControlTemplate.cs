@@ -32,6 +32,10 @@
             {
                 BaseStyle = style;
             }
+            else if (templates.TryGetValue("ControlStyle", out var defaultStyle) && this != defaultStyle)
+            {
+                BaseStyle = defaultStyle;
+            }
         }
     }
 }

@@ -508,23 +508,28 @@ namespace MysticUI
         /// Gets serialization state for the property.
         /// </summary>
         /// <param name="property">Property to check.</param>
+        /// <param name="readXmlIgnorable">Determines whether to ignore properties with the <see cref="XmlIgnoreAttribute"/>.</param>
         /// <returns>Serialization state for the property.</returns>
-        protected internal PropertyState GetPropertyState(PropertyInfo property)
+        protected internal PropertyState GetPropertyState(PropertyInfo property, bool readXmlIgnorable = true)
         {
             // Don't serialize private and static properties
-            if (property.GetMethod == null || property.GetMethod.IsStatic || !property.GetMethod.IsPublic || property.SetMethod?.IsPublic == false || property.GetCustomAttribute<XmlIgnoreAttribute>() != null)
+            if (property.GetMethod == null || property.GetMethod.IsStatic || !property.GetMethod.IsPublic || property.SetMethod?.IsPublic == false || (readXmlIgnorable && property.GetCustomAttribute<XmlIgnoreAttribute>() != null))
                 return PropertyState.DontSerialize;
-            var propertyType = property.PropertyType;
             // Parse properties that can be parsed.
-            if (propertyType.IsPrimitive ||
-                (propertyType.IsGenericType && propertyType.GetGenericTypeDefinition() == typeof(Nullable<>) && propertyType.GenericTypeArguments[0].IsPrimitive) ||
-                propertyType.IsEnum ||
-                propertyType == typeof(string) ||
-                availableSerializers.Any(x => x.CanParse(propertyType)) ||
-                TypeDescriptor.GetConverter(propertyType)?.CanConvertFrom(typeof(string)) == true)
+            if (IsParsable(property.PropertyType))
                 return PropertyState.Parsable;
             // All other properties should be deserialized with their complex attributes
             return PropertyState.Complex;
+        }
+
+        protected internal bool IsParsable(Type type)
+        {
+            return type.IsPrimitive ||
+                (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>) && type.GenericTypeArguments[0].IsPrimitive) ||
+                type.IsEnum ||
+                type == typeof(string) ||
+                availableSerializers.Any(x => x.CanParse(type)) ||
+                TypeDescriptor.GetConverter(type)?.CanConvertFrom(typeof(string)) == true;
         }
 
         private IStringSerializer? ResolveSerializer(Type type)

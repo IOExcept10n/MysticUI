@@ -350,10 +350,11 @@ namespace MysticUI
                     {
                         notifyFocus.FocusChanged -= TargetLostFocusHandler!;
                     }
-                    if (Target is IBindingHandler bindingHandler)
-                    {
-                        bindingHandler.RemoveBinding(this);
-                    }
+                    // This line is unnecessary because disposed bindings have already got to be deleted
+                    //if (Target is IBindingHandler bindingHandler)
+                    //{
+                    //    bindingHandler.RemoveBinding(this);
+                    //}
                     if (Source != null)
                     {
                         if (Source is INotifyPropertyChanged notifyPropertyChanged)
