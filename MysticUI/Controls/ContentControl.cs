@@ -108,7 +108,13 @@ namespace MysticUI.Controls
             }
             else
             {
-                Child = new TextBlock(content.ToString(), Font);
+                Child = new TextBlock(content.ToString(), Font)
+                {
+                    ForegroundColor = ForegroundColor,
+                    ActiveForegroundColor = ActiveForegroundColor,
+                    DisabledForegroundColor = DisabledForegroundColor,
+                    PressedForegroundColor = PressedForegroundColor,
+                };
             }
         }
     }

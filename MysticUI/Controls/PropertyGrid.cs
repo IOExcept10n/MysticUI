@@ -194,7 +194,7 @@ namespace MysticUI.Controls
                         if (value == null || paths.Contains(value))
                             continue;
                         DropdownMenu complexHeader = new DropdownMenu().WithDefaultStyle();
-                        complexHeader.Text = EnvironmentSettings.LocalizationProvider?.Localize(property.Name, CultureInfo.CurrentUICulture) ?? property.Name;
+                        complexHeader.Text = EnvironmentSettings.LocalizationProvider?.Localize(property.Name) ?? property.Name;
                         Grid grid = CreateGrid();
                         BuildGrid(value, grid, paths);
                         complexHeader.Content = grid;

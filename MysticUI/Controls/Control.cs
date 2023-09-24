@@ -80,10 +80,10 @@ namespace MysticUI.Controls
         private IBrush? disabledBorder;
         private IBrush? focusedBorder;
         private Color backgroundColor = Color.White;
-        private Color foregroundColor = Color.Black;
-        private Color disabledForegroundColor = Color.Black;
-        private Color activeForegroundColor = Color.Black;
-        private Color pressedForegroundColor = Color.Black;
+        private Color? foregroundColor = Color.Black;
+        private Color? disabledForegroundColor = Color.Black;
+        private Color? activeForegroundColor = Color.Black;
+        private Color? pressedForegroundColor = Color.Black;
         private SpriteFontBase? font;
         private string? fontFamily;
         private int fontSize = DefaultFontSize;
@@ -884,7 +884,7 @@ namespace MysticUI.Controls
         [Category("Appearance")]
         public virtual Color ForegroundColor
         {
-            get => foregroundColor;
+            get => foregroundColor ?? Color.Black;
             set
             {
                 foregroundColor = value;
@@ -1126,7 +1126,7 @@ namespace MysticUI.Controls
         [Category("Appearance")]
         public Color DisabledForegroundColor
         {
-            get => disabledForegroundColor;
+            get => disabledForegroundColor ?? Color.Black;
             set
             {
                 if (value == disabledForegroundColor)
@@ -1142,7 +1142,7 @@ namespace MysticUI.Controls
         [Category("Appearance")]
         public Color ActiveForegroundColor
         {
-            get => activeForegroundColor;
+            get => activeForegroundColor ?? Color.Black;
             set
             {
                 if (value == activeForegroundColor)
@@ -1158,7 +1158,7 @@ namespace MysticUI.Controls
         [Category("Appearance")]
         public Color PressedForegroundColor
         {
-            get => pressedForegroundColor;
+            get => pressedForegroundColor ?? Color.Black;
             set
             {
                 if (value == pressedForegroundColor)
@@ -1341,11 +1341,11 @@ namespace MysticUI.Controls
         /// <returns></returns>
         protected internal virtual Color GetCurrentForegroundColor() => InteractionState switch
         {
-            ControlInteractionState.Disabled => DisabledForegroundColor,
-            ControlInteractionState.MouseOver => ActiveForegroundColor,
-            ControlInteractionState.Clicking => PressedForegroundColor,
-            _ => ForegroundColor,
-        };
+            ControlInteractionState.Disabled => disabledForegroundColor,
+            ControlInteractionState.MouseOver => activeForegroundColor,
+            ControlInteractionState.Clicking => pressedForegroundColor,
+            _ => foregroundColor,
+        } ?? foregroundColor ?? Color.Black;
 
         /// <summary>
         /// Renders the control.
@@ -1603,17 +1603,19 @@ namespace MysticUI.Controls
         /// <returns>First control that passes the condition or <see langword="null"/> if the child wasn't found.</returns>
         public Control? FindChild(Func<Control, bool> predicate)
         {
-            Control? result = null;
+            if (predicate(this))
+                return this;
 
             if (this is IContainerControl container)
             {
-                result = container.Children.FirstOrDefault(predicate);
+                foreach (var child in container.Children)
+                {
+                    var result = child.FindChild(predicate);
+                    if (result != null) return result;
+                }
             }
 
-            if (predicate(this))
-                result ??= this;
-
-            return result;
+            return null;
         }
 
         /// <summary>

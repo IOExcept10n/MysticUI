@@ -40,6 +40,7 @@ namespace MysticUI.Controls
 
         /// <summary>
         /// Provides a data source for control so all bindings will set to this context. If there are no context sources found,
+        /// the context of the parent may be used.
         /// </summary>
         [Category("Integration")]
         public object? DataContext

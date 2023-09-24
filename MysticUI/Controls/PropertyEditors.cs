@@ -116,7 +116,7 @@ namespace MysticUI.Controls
         /// <param name="key">The key to localize.</param>
         /// <returns>The localized value or the original value if the localization is not available.</returns>
         protected string GetLocalization(string key) =>
-            EnvironmentSettingsProvider.EnvironmentSettings.LocalizationProvider?.Localize(ParentGrid.LocalizationKey + key, CultureInfo.CurrentUICulture) ?? key;
+            EnvironmentSettingsProvider.EnvironmentSettings.LocalizationProvider?.Localize(ParentGrid.LocalizationKey + key) ?? key;
 
         /// <summary>
         /// Gets the value of the property using the editor reading rules.

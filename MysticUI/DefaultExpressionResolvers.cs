@@ -64,7 +64,7 @@ namespace MysticUI
     {
         public string? HandleExpression(object target, string expressionContent, PropertyInfo? targetProperty, object? dataContext = null)
         {
-            return EnvironmentSettingsProvider.EnvironmentSettings.LocalizationProvider?.Localize(expressionContent, CultureInfo.CurrentUICulture) ?? expressionContent;
+            return EnvironmentSettingsProvider.EnvironmentSettings.LocalizationProvider?.Localize(expressionContent) ?? expressionContent;
         }
 
         public bool Match(string expression)

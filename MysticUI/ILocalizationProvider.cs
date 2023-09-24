@@ -8,7 +8,7 @@ namespace MysticUI
     public interface ILocalizationProvider
     {
         /// <summary>
-        /// Localizes text into a target culture.
+        /// Localizes text into a target culture. It should use the <see cref="CultureInfo.CurrentUICulture"/> as the default mode to localize.
         /// </summary>
         /// <remarks>
         /// Localization should be performed in the following way:
@@ -17,17 +17,12 @@ namespace MysticUI
         /// If value can be localized, method should return localization result.
         /// </item>
         /// <item>
-        /// If value have localization in default culture but haven't got localization
-        /// for given <paramref name="targetCulture"/>, it should return default localization.
-        /// </item>
-        /// <item>
         /// If value can't be localized, it should return <paramref name="text"/> parameter value itself.
         /// </item>
         /// </list>
         /// </remarks>
         /// <param name="text">Text to localize.</param>
-        /// <param name="targetCulture">Target culture info to localize.</param>
         /// <returns>Localized string.</returns>
-        public string Localize(string text, CultureInfo targetCulture);
+        public string Localize(string text);
     }
 }

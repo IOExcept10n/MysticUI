@@ -198,21 +198,21 @@ namespace MysticUI.Controls
             return buttons switch
             {
                 PredefinedButtonTypes.OKCancel => new ButtonDefinition[] {
-                        new(localizer?.Localize("Cancel", CultureInfo.CurrentUICulture) ?? "Cancel", DialogResult.Cancel),
-                        new(localizer?.Localize("OK", CultureInfo.CurrentUICulture) ?? "OK", DialogResult.OK)
+                        new(localizer?.Localize("Cancel") ?? "Cancel", DialogResult.Cancel),
+                        new(localizer?.Localize("OK") ?? "OK", DialogResult.OK)
                     },
                 PredefinedButtonTypes.YesNo => new ButtonDefinition[]
                     {
-                        new(localizer?.Localize("Yes", CultureInfo.CurrentUICulture) ?? "Yes", DialogResult.Yes),
-                        new(localizer?.Localize("No", CultureInfo.CurrentUICulture) ?? "No", DialogResult.No)
+                        new(localizer?.Localize("Yes"   ) ?? "Yes", DialogResult.Yes),
+                        new(localizer?.Localize("No") ?? "No", DialogResult.No)
                     },
                 PredefinedButtonTypes.YesNoCancel => new ButtonDefinition[]
                     {
-                        new(localizer?.Localize("Yes", CultureInfo.CurrentUICulture) ?? "Yes", DialogResult.Yes),
-                        new(localizer?.Localize("No", CultureInfo.CurrentUICulture) ?? "No", DialogResult.No),
-                        new(localizer?.Localize("Cancel", CultureInfo.CurrentUICulture) ?? "Cancel", DialogResult.Cancel),
+                        new(localizer?.Localize("Yes") ?? "Yes", DialogResult.Yes),
+                        new(localizer?.Localize("No") ?? "No", DialogResult.No),
+                        new(localizer?.Localize("Cancel") ?? "Cancel", DialogResult.Cancel),
                     },
-                _ => new ButtonDefinition[] { new(localizer?.Localize("OK", CultureInfo.CurrentUICulture) ?? "OK", DialogResult.OK) },
+                _ => new ButtonDefinition[] { new(localizer?.Localize("OK") ?? "OK", DialogResult.OK) },
             };
         }
 

@@ -369,11 +369,11 @@ namespace MysticUI.Controls
                 updatingFromSource = true;
                 foreach (var item in ItemsSource)
                 {
-                    itemFilter.Data = new(item, i++);
+                    itemFilter.Data = new(item, i);
                     itemFilter.Cancel = false;
                     ItemsSourceFilter?.Invoke(this, itemFilter);
                     if (itemFilter.Cancel) continue;
-                    Control control = WrapControl(item);
+                    Control control = WrapControl(item, i++);
                     control.TouchDown += SelectItem;
                     Items.Add(control);
                 }
@@ -420,11 +420,11 @@ namespace MysticUI.Controls
                         int i = e.NewStartingIndex, j = e.NewStartingIndex;
                         foreach (var item in e.NewItems!)
                         {
-                            itemFilter.Data = new(item, i++);
+                            itemFilter.Data = new(item, i);
                             itemFilter.Cancel = false;
                             ItemsSourceFilter?.Invoke(this, itemFilter);
                             if (itemFilter.Cancel) continue;
-                            Control control = WrapControl(item);
+                            Control control = WrapControl(item, i++);
                             control.TouchDown += SelectItem;
                             Items.Insert(j++, control);
                         }
@@ -454,7 +454,7 @@ namespace MysticUI.Controls
             ButtonClick?.Invoke(this, new ButtonClickContext((ButtonBase)sender, e.Data));
         }
 
-        private Control WrapControl(object content)
+        private Control WrapControl(object content, int index)
         {
             Control child;
             if (content == null)
@@ -482,11 +482,13 @@ namespace MysticUI.Controls
             {
                 child = new TextBlock(content.ToString(), Font);
             }
+            child.Tag = index;
             child.ProcessControls(x =>
             {
                 if (x is ButtonBase button)
                 {
                     button.Click += ButtonClickHandler!;
+                    button.Tag = index;
                     buttons.Add(button);
                 }
                 return true;
