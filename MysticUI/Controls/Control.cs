@@ -81,9 +81,9 @@ namespace MysticUI.Controls
         private IBrush? focusedBorder;
         private Color backgroundColor = Color.White;
         private Color? foregroundColor = Color.Black;
-        private Color? disabledForegroundColor = Color.Black;
-        private Color? activeForegroundColor = Color.Black;
-        private Color? pressedForegroundColor = Color.Black;
+        private Color? disabledForegroundColor;
+        private Color? activeForegroundColor;
+        private Color? pressedForegroundColor;
         private SpriteFontBase? font;
         private string? fontFamily;
         private int fontSize = DefaultFontSize;

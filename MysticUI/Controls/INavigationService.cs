@@ -19,13 +19,15 @@
         /// Navigates to the given URL.
         /// </summary>
         /// <param name="url">Short path to open the page.</param>
-        public void Navigate(string url);
+        /// <returns>The page that has been opened or null if the page is not exist.</returns>
+        public IPage? Navigate(string url);
 
         /// <summary>
         /// Navigates to the given <see cref="Uri"/>
         /// </summary>
         /// <param name="url">Path of the page.</param>
-        public void NavigateTo(Uri url);
+        /// <returns>The page that has been opened or null if the page is not exist.</returns>
+        public IPage? NavigateTo(Uri url);
 
         /// <summary>
         /// Tries to navigate to the previous page if it's available.

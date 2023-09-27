@@ -353,7 +353,7 @@ namespace MysticUI.Controls
                     });
                 }
             }
-            InvalidateArrange();
+            InvalidateMeasure();
         }
 
         /// <summary>
@@ -442,10 +442,11 @@ namespace MysticUI.Controls
                 default:
                     {
                         Items.Clear();
-                        InvalidateItems();
                         break;
                     }
             }
+            InvalidateItems();
+            InvalidateMeasure();
             updatingFromSource = false;
         }
 
