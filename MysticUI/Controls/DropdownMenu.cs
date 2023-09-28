@@ -108,8 +108,11 @@ namespace MysticUI.Controls
             {
                 Parent = this
             };
+            
+            
             Orientation = default;
             ResetChildInternal();
+
         }
 
         /// <inheritdoc/>

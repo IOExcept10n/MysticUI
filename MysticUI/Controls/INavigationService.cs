@@ -30,6 +30,13 @@
         public IPage? NavigateTo(Uri url);
 
         /// <summary>
+        /// Navigates to the given page instance.
+        /// </summary>
+        /// <param name="page">The page to navigate to.</param>
+        /// <returns>The page that has been navigated to.</returns>
+        public IPage NavigateTo(IPage page);
+
+        /// <summary>
         /// Tries to navigate to the previous page if it's available.
         /// </summary>
         /// <returns>Opened page or <see langword="null"/> if there are no pages to open or back navigation is locked.</returns>

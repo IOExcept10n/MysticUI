@@ -2,6 +2,7 @@
 using MysticUI.Extensions;
 using Newtonsoft.Json;
 using System.ComponentModel;
+using System.Reflection.Metadata;
 using System.Xml.Linq;
 using System.Xml.Serialization;
 
@@ -66,6 +67,17 @@ namespace MysticUI.Controls
 
         /// <inheritdoc/>
         public string Path { get; set; } = null!;
+        
+        /// <summary>
+        /// Loads the layout for the page from the file.
+        /// </summary>
+        /// <param name="layout">The layout to load.</param>
+        public void LoadLayout(XDocument layout)
+        {
+            Guard.IsNotNull(layout);
+            Guard.IsNotNull(layout.Root);
+            LayoutSerializer.Default.ApplyLayout(this, layout.Root);
+        }
 
         /// <summary>
         /// Loads the page instance from the XML document.
