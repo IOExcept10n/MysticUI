@@ -1,27 +1,28 @@
-using Stride.Core.Mathematics;
-using Stride.Input;
 using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
-namespace AquaUI
+namespace AquaUI.Input.Devices
 {
     /// <summary>
     /// Represents a structured mouse state.
     /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
     public readonly struct MouseInfo : IEquatable<MouseInfo>, IEqualityComparer<MouseInfo>
     {
         /// <summary>
-        /// Position of the pointer.
+        /// Position of the mouse cursor.
         /// </summary>
         public readonly Point Position;
 
         /// <summary>
-        /// Set of clicked buttons.
+        /// Set of currently clicked buttons.
         /// </summary>
-        public readonly MouseButtonFlags ClickedButtons;
+        public readonly MouseButtons ClickedButtons;
 
         /// <summary>
-        /// Mouse wheel value.
+        /// Mouse wheel delta since last frame.
         /// </summary>
         public readonly float Wheel;
 
@@ -31,7 +32,7 @@ namespace AquaUI
         /// <param name="position">Position of the pointer.</param>
         /// <param name="buttonFlags">Flags with pressed buttons.</param>
         /// <param name="wheel">Wheel value.</param>
-        public MouseInfo(Point position, MouseButtonFlags buttonFlags = MouseButtonFlags.None, float wheel = 0)
+        public MouseInfo(Point position, MouseButtons buttonFlags = MouseButtons.None, float wheel = 0)
         {
             Position = position;
             ClickedButtons = buttonFlags;
@@ -41,13 +42,12 @@ namespace AquaUI
         /// <summary>
         /// Detects if some of mouse buttons were clicked in this state.
         /// </summary>
-        /// <param name="button">Button to check.</param>
+        /// <param name="key">Buttons to check.</param>
         /// <returns><see langword="true"/> if the button is clicked, <see langword="false"/> otherwise.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool IsDown(MouseButton button)
+        public bool IsDown(MouseButtons key)
         {
-            int key = 1 << (int)button;
-            return ((byte)ClickedButtons & key) == key;
+            return (ClickedButtons & key) == key;
         }
 
         /// <inheritdoc/>
@@ -111,42 +111,5 @@ namespace AquaUI
         {
             return !(left == right);
         }
-    }
-
-    /// <summary>
-    /// Represents the flags set for the mouse buttons.
-    /// </summary>
-    [Flags]
-    public enum MouseButtonFlags : byte
-    {
-        /// <summary>
-        /// No buttons.
-        /// </summary>
-        None = 0,
-
-        /// <summary>
-        /// Left button.
-        /// </summary>
-        LeftButton = 1,
-
-        /// <summary>
-        /// Middle button.
-        /// </summary>
-        MiddleButton = 2,
-
-        /// <summary>
-        /// Right button.
-        /// </summary>
-        RightButton = 4,
-
-        /// <summary>
-        /// First extended button.
-        /// </summary>
-        ExtendedButton1 = 8,
-
-        /// <summary>
-        /// Second extended button.
-        /// </summary>
-        ExtendedButton2 = 16
     }
 }

@@ -15,7 +15,7 @@ namespace AquaUI.Input
 
         /// <inheritdoc/>
         public MouseInfo Mouse => new((Point)Input.AbsoluteMousePosition,
-                                      Input.Mouse.DownButtons.Aggregate(MouseButtonFlags.None, (x, y) => x |= (MouseButtonFlags)(1 << (int)y)),
+                                      Input.Mouse.DownButtons.Aggregate(MouseButtons.None, (x, y) => x |= (MouseButtons)(1 << (int)y)),
                                       Input.MouseWheelDelta);
 
         /// <inheritdoc/>

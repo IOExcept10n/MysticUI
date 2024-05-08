@@ -3,14 +3,14 @@ using FontStashSharp;
 using AquaUI.Brushes;
 using AquaUI.Extensions;
 using AquaUI.Rendering;
-using Newtonsoft.Json;
-using Stride.Core.Mathematics;
-using Stride.Input;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Xml.Serialization;
 using AquaUI.Data;
+using System.Text.Json.Serialization;
+using System.Numerics;
+using System.Drawing;
 
 namespace AquaUI.Controls
 {
@@ -41,7 +41,7 @@ namespace AquaUI.Controls
         private int maxHeight;
         private int width;
         private int height;
-        private Size2 sizeConstraints;
+        private Size sizeConstraints;
         private Thickness margin;
         private Thickness padding;
         private Thickness borderThickness = new(1);
@@ -70,7 +70,7 @@ namespace AquaUI.Controls
         private bool isArrangeDirty;
         private Point? startPosition;
         private Point startLocation;
-        private Matrix inverseMatrix;
+        private Matrix4x4 inverseMatrix;
         private Control? parent;
         private IBrush background;
         private IBrush? mouseOverBackground;
@@ -282,7 +282,7 @@ namespace AquaUI.Controls
         /// Used to calculate artificial target size of the control.
         /// </value>
         [XmlIgnore, Browsable(false)]
-        internal protected Size2 SizeConstraints
+        internal protected Size SizeConstraints
         {
             get => sizeConstraints;
         }

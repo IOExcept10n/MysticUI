@@ -4,6 +4,7 @@ using AquaUI.Data;
 using AquaUI.Extensions;
 using AquaUI.Extensions.Input;
 using AquaUI.Input;
+using AquaUI.Input.Devices;
 using AquaUI.Rendering;
 using System.Collections.ObjectModel;
 using System.Numerics;
@@ -340,7 +341,7 @@ namespace AquaUI
         /// <summary>
         /// An object that provides input for the desktop.
         /// </summary>
-        public IInputManager InputManager { get; set; }
+        public IInputSystem InputManager { get; set; }
 
         /// <summary>
         /// Gets or sets current asset context for the desktop.
