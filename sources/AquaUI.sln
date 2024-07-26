@@ -5,12 +5,27 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AquaUI", "AquaUI\AquaUI.csproj", "{69EF4370-0CF4-4AC3-B491-0CF47FF673C6}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AquaUI.FNA", "AquaUI.FNA\AquaUI.FNA.csproj", "{92894E44-F0D2-435D-82AC-61F4D9E20510}"
+	ProjectSection(ProjectDependencies) = postProject
+		{69EF4370-0CF4-4AC3-B491-0CF47FF673C6} = {69EF4370-0CF4-4AC3-B491-0CF47FF673C6}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AquaUI.MonoGame", "AquaUI.MonoGame\AquaUI.MonoGame.csproj", "{01D50609-D7FA-49BB-80CA-A64E305FA429}"
+	ProjectSection(ProjectDependencies) = postProject
+		{69EF4370-0CF4-4AC3-B491-0CF47FF673C6} = {69EF4370-0CF4-4AC3-B491-0CF47FF673C6}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AquaUI.Stride", "AquaUI.Stride\AquaUI.Stride.csproj", "{934F6123-D8E4-4340-B488-889B50196A4D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{69EF4370-0CF4-4AC3-B491-0CF47FF673C6} = {69EF4370-0CF4-4AC3-B491-0CF47FF673C6}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MonoGame Sample", "MonoGame Sample\MonoGame Sample.csproj", "{E5D67F9B-F32D-4ACB-8AC1-3CB12F09661E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{01D50609-D7FA-49BB-80CA-A64E305FA429} = {01D50609-D7FA-49BB-80CA-A64E305FA429}
+		{69EF4370-0CF4-4AC3-B491-0CF47FF673C6} = {69EF4370-0CF4-4AC3-B491-0CF47FF673C6}
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AquaUI.Tests", "AquaUI.Tests\AquaUI.Tests.csproj", "{51CA00E0-5A1F-4CBC-9221-6E558DD35710}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,6 +53,10 @@ Global
 		{E5D67F9B-F32D-4ACB-8AC1-3CB12F09661E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5D67F9B-F32D-4ACB-8AC1-3CB12F09661E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5D67F9B-F32D-4ACB-8AC1-3CB12F09661E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51CA00E0-5A1F-4CBC-9221-6E558DD35710}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51CA00E0-5A1F-4CBC-9221-6E558DD35710}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51CA00E0-5A1F-4CBC-9221-6E558DD35710}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51CA00E0-5A1F-4CBC-9221-6E558DD35710}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

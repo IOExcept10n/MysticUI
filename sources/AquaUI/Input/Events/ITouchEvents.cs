@@ -1,4 +1,6 @@
-﻿using System.Drawing;
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Drawing;
 using AquaUI.Data;
 
 namespace AquaUI.Input.Events
@@ -11,27 +13,32 @@ namespace AquaUI.Input.Events
         /// <summary>
         /// Occurs on the end of the hold tap (or tap with the mouse right button).
         /// </summary>
-        event EventHandler<GenericEventArgs<Point>> Hold;
+        event EventHandler<GenericEventArgs<Point>>? Hold;
 
         /// <summary>
         /// Occurs on short tap (click). If the tap is performed repeatedly, event will accumulate touches count.
         /// </summary>
-        event EventHandler<GenericEventArgs<TouchInfo>> Tap;
+        event EventHandler<GenericEventArgs<TouchInfo>>? Tap;
 
         /// <summary>
         /// Occurs when the touch event was performed. Touch position is transferred to the event arguments.
         /// </summary>
-        event EventHandler<GenericEventArgs<Point>> TouchDown;
+        event EventHandler<GenericEventArgs<Point>>? TouchDown;
 
         /// <summary>
         /// Occurs when the touch event has ended. Touch end position is transferred to the event arguments.
         /// </summary>
-        event EventHandler<GenericEventArgs<Point>> TouchUp;
+        event EventHandler<GenericEventArgs<Point>>? TouchUp;
 
         /// <summary>
         /// Gets or sets an option for the maximal delay for the multitap registering.
         /// </summary>
         TimeSpan MaxMultiTapDelay { get; set; }
+
+        /// <summary>
+        /// Gets or sets an option for the minimal delay for the <see cref="Hold"/> event.
+        /// </summary>
+        TimeSpan MinHoldDelay { get; set; }
 
         /// <summary>
         /// Gets or sets an option for the maximal distance of the touch to register hold event.
@@ -40,11 +47,6 @@ namespace AquaUI.Input.Events
         /// If the cursor is moved out of the hold area, the <see cref="IDragEvents"/> drag sequence will be started.
         /// </remarks>
         float HoldAreaSize { get; set; }
-
-        /// <summary>
-        /// Gets current virtual cursor position. It is used to highlight active controls under the cursor.
-        /// </summary>
-        Point CursorPosition { get; }
     }
 
     /// <summary>

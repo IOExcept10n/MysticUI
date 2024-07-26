@@ -22,10 +22,11 @@ namespace AquaUI.Assets
         /// </item></list>
         /// </param>
         /// <returns>The loaded asset instance.</returns>
-        public T LoadAsset<T>(TContext context, string path, bool keepInCache = true) where T : class;
+        public T LoadAsset<T>(TContext context, string path, bool keepInCache = true)
+            where T : class;
 
         /// <summary>
-        /// Loads the asset asynchronously if it's available. See more: <seealso cref="LoadAsset{T}(TContext, string, bool)"/>
+        /// Loads the asset asynchronously if it's available. See more: <seealso cref="LoadAsset{T}(TContext, string, bool)"/>.
         /// </summary>
         /// <typeparam name="T">Type of the loaded asset.</typeparam>
         /// <param name="context">Context in which asset will be loaded.</param>
@@ -39,7 +40,8 @@ namespace AquaUI.Assets
         /// </item></list>
         /// </param>
         /// <returns>The loaded asset instance.</returns>
-        public ValueTask<T> LoadAssetAsync<T>(TContext context, string path, bool keepInCache = true) where T : class;
+        public ValueTask<T> LoadAssetAsync<T>(TContext context, string path, bool keepInCache = true)
+            where T : class;
 
         /// <summary>
         /// Detects if the asset was already loaded to the cache.
@@ -60,7 +62,7 @@ namespace AquaUI.Assets
         /// </summary>
         /// <param name="context">Context to load from.</param>
         /// <param name="path">Path to the file.</param>
-        /// <returns></returns>
+        /// <returns>Contents of the text file with specified path.</returns>
         public string ReadFile(TContext context, string path);
 
         /// <summary>

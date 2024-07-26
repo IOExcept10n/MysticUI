@@ -1,33 +1,35 @@
-﻿using AquaUI.Data;
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
+using AquaUI.Data;
 
 namespace AquaUI.Input.Devices
 {
     /// <summary>
     /// Represents the basic touch input interface with support for simple gestures.
     /// </summary>
-    public interface ITouchInput
+    public interface ITouchInput : IInputDeviceListener, IInitializable
     {
         /// <summary>
         /// Occurs on every short-time tap.
         /// </summary>
-        event EventHandler<GenericEventArgs<Point>> Tap;
+        event EventHandler<GenericEventArgs<Point>>? Tap;
 
         /// <summary>
         /// Occurs on every long-time tap.
         /// </summary>
-        event EventHandler<GenericEventArgs<Point>> Hold;
+        event EventHandler<GenericEventArgs<Point>>? Hold;
 
         /// <summary>
-        /// Occurs on a flick action.
+        /// Occurs on a swipe action.
         /// </summary>
-        event EventHandler<GenericEventArgs<TranslationInfo>> Flick;
+        event EventHandler<GenericEventArgs<TranslationInfo>>? Swipe;
 
         /// <summary>
         /// Occurs on a drag action.
         /// </summary>
-        event EventHandler<GenericEventArgs<TranslationInfo>> Drag;
+        event EventHandler<GenericEventArgs<TranslationInfo>>? Drag;
     }
 
     /// <summary>

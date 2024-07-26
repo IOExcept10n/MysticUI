@@ -13,4 +13,8 @@
     <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\AquaUI\AquaUI.csproj" />
+  </ItemGroup>
+
 </Project>

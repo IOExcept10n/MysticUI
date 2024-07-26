@@ -10,27 +10,27 @@ namespace AquaUI.Input.Devices
     public enum GamePadButtons
     {
         /// <summary>
-        /// PadUp button. (DPad / Directional Pad)
+        /// PadUp button. (DPad / Directional Pad).
         /// </summary>
         PadUp = 1 << 0,
 
         /// <summary>
-        /// PadDown button. (DPad / Directional Pad)
+        /// PadDown button. (DPad / Directional Pad).
         /// </summary>
         PadDown = 1 << 1,
 
         /// <summary>
-        /// PadLeft button. (DPad / Directional Pad)
+        /// PadLeft button. (DPad / Directional Pad).
         /// </summary>
         PadLeft = 1 << 2,
 
         /// <summary>
-        /// PadRight button. (DPad / Directional Pad)
+        /// PadRight button. (DPad / Directional Pad).
         /// </summary>
         PadRight = 1 << 3,
 
         /// <summary>
-        /// Any pad button (DPad / Directional Pad)
+        /// Any pad button (DPad / Directional Pad).
         /// </summary>
         Pad = 0xF,
 

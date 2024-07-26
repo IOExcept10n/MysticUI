@@ -1,18 +1,18 @@
-namespace AquaUI.Controls
+﻿namespace AquaUI.Controls
 {
     /// <summary>
-    /// An interface for focusable objects.
+    /// Represents an interface for the items that can be focused.
     /// </summary>
     public interface INotifyFocusChanged
     {
         /// <summary>
-        /// Determines whether the element has keyboard focus on itself.
-        /// </summary>
-        public bool HasFocus { get; }
-
-        /// <summary>
         /// Occurs when the value of the <see cref="HasFocus"/> property changed.
         /// </summary>
-        public event EventHandler? FocusChanged;
+        event EventHandler? FocusChanged;
+
+        /// <summary>
+        /// Gets a value indicating whether the element is focused.
+        /// </summary>
+        bool HasFocus { get; }
     }
 }

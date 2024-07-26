@@ -1,4 +1,6 @@
-﻿namespace AquaUI.Input.Devices
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+namespace AquaUI.Input.Devices
 {
     /// <summary>
     /// Represents the flags set for the mouse buttons.
@@ -34,6 +36,6 @@
         /// <summary>
         /// Second extended button.
         /// </summary>
-        ExtendedButton2 = 16
+        ExtendedButton2 = 16,
     }
 }

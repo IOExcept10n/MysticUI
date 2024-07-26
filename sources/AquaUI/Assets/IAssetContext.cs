@@ -6,7 +6,7 @@ namespace AquaUI.Assets
     public interface IAssetContext
     {
         /// <summary>
-        /// Path of the root directory for the loading context.
+        /// Gets path of the root directory for the loading context.
         /// </summary>
         public string RootPath { get; }
     }

@@ -1,13 +1,14 @@
-﻿namespace AquaUI.Input.Devices
-{
-    // Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-    // Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
+﻿// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
+// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
 #pragma warning disable
+
+namespace AquaUI.Input.Devices
+{
     /// <summary>
     /// Enumeration for keys.
     /// </summary>
     /// <remarks>
-    /// After short comparison, I found that Stride has the most full enumeration for keys so I use it. 
+    /// After short comparison, I found that Stride has the most full enumeration for keys so I use it.
     /// You can freely convert this enum to <seealso cref="Stride.Engine.Input.Keys"/> without any issues.
     /// </remarks>
     public enum Keys

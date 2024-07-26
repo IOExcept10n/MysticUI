@@ -1,18 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
+// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
 using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
 
 namespace AquaUI.Input.Devices
 {
-
-#pragma warning disable CS1574
+#pragma warning disable CS1574 // Stride is not referenced in this library.
     /// <summary>
     /// Describes the state of a typical gamepad.
     /// </summary>
@@ -54,6 +47,30 @@ namespace AquaUI.Input.Devices
         /// </remarks>
         public readonly float RightTrigger;
 
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GamePadState"/> struct.
+        /// </summary>
+        /// <param name="buttons">Set of pressed buttons.</param>
+        /// <param name="leftThumb">Position of the left thumb.</param>
+        /// <param name="rightThumb">Position of the right thumb.</param>
+        /// <param name="leftTrigger">Value of the left trigger.</param>
+        /// <param name="rightTrigger">Value of the right trigger.</param>
+        public GamePadState(GamePadButtons buttons, Vector2 leftThumb, Vector2 rightThumb, float leftTrigger, float rightTrigger)
+        {
+            Buttons = buttons;
+            LeftThumb = leftThumb;
+            RightThumb = rightThumb;
+            LeftTrigger = leftTrigger;
+            RightTrigger = rightTrigger;
+        }
+
+        /// <inheritdoc cref="IEqualityOperators{TSelf, TOther, TResult}.operator=="/>
+        public static bool operator ==(GamePadState left, GamePadState right) => left.Equals(right);
+
+        /// <inheritdoc cref="IEqualityOperators{TSelf, TOther, TResult}.operator!="/>
+        public static bool operator !=(GamePadState left, GamePadState right) => !(left == right);
+
         /// <summary>
         /// Indicates whether the current object is equal to another object of the same type.
         /// </summary>
@@ -61,10 +78,10 @@ namespace AquaUI.Input.Devices
         /// <returns>true if the current object is equal to the <paramref name="other" /> parameter; otherwise, false.</returns>
         public bool Equals(GamePadState other)
         {
-            return Buttons == other.Buttons && 
-                LeftThumb == other.LeftThumb && 
-                RightThumb == other.RightThumb && 
-                LeftTrigger == other.LeftTrigger && 
+            return Buttons == other.Buttons &&
+                LeftThumb == other.LeftThumb &&
+                RightThumb == other.RightThumb &&
+                LeftTrigger == other.LeftTrigger &&
                 RightTrigger == other.RightTrigger;
         }
 
@@ -79,11 +96,5 @@ namespace AquaUI.Input.Devices
         {
             return HashCode.Combine(Buttons, LeftThumb, RightThumb, LeftTrigger, RightTrigger);
         }
-
-        /// <inheritdoc/>
-        public static bool operator ==(GamePadState left, GamePadState right) => left.Equals(right);
-        
-        /// <inheritdoc/>
-        public static bool operator !=(GamePadState left, GamePadState right) => !(left == right);
     }
 }

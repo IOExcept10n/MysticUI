@@ -10,7 +10,7 @@ namespace AquaUI.Data
     public class AcceptableEventArgs<T> : CancellableEventArgs<T>
     {
         /// <summary>
-        /// Gets or sets the value that indicates if the event was handled successfully.
+        /// Gets or sets a value indicating whether the event was handled successfully.
         /// </summary>
         public bool Handled { get; set; }
     }

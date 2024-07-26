@@ -1,12 +1,16 @@
-﻿namespace AquaUI.Input.Events
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using AquaUI.Data;
+
+namespace AquaUI.Input.Events
 {
     /// <summary>
     /// Represents a basic interface for all input events listeners.
     /// </summary>
-    public interface IInputEventProvider
+    public interface IInputEventProvider : IUpdateableInput, IInitializable
     {
         /// <summary>
-        /// Provides the input system instance for the current input event provider.
+        /// Gets the input system instance for the current input event provider.
         /// </summary>
         public IInputSystem InputSystem { get; }
     }

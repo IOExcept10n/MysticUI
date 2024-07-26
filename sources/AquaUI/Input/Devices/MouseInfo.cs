@@ -1,3 +1,5 @@
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Runtime.CompilerServices;
@@ -27,7 +29,7 @@ namespace AquaUI.Input.Devices
         public readonly float Wheel;
 
         /// <summary>
-        /// Creates new <see cref="MouseInfo"/> with all provided parameters.
+        /// Initializes a new instance of the <see cref="MouseInfo"/> struct.
         /// </summary>
         /// <param name="position">Position of the pointer.</param>
         /// <param name="buttonFlags">Flags with pressed buttons.</param>
@@ -37,6 +39,28 @@ namespace AquaUI.Input.Devices
             Position = position;
             ClickedButtons = buttonFlags;
             Wheel = wheel;
+        }
+
+        /// <summary>
+        /// Checks if two <see cref="MouseInfo"/>s are equal.
+        /// </summary>
+        /// <param name="left">Left operand.</param>
+        /// <param name="right">Right operand.</param>
+        /// <returns><see langword="true"/> if first <see cref="MouseInfo"/> is equal to second, <see langword="false"/> otherwise.</returns>
+        public static bool operator ==(MouseInfo left, MouseInfo right)
+        {
+            return left.Equals(right);
+        }
+
+        /// <summary>
+        /// Checks if two <see cref="MouseInfo"/>s are equal.
+        /// </summary>
+        /// <param name="left">Left operand.</param>
+        /// <param name="right">Right operand.</param>
+        /// <returns><see langword="true"/> if first <see cref="MouseInfo"/> is equal to second, <see langword="false"/> otherwise.</returns>
+        public static bool operator !=(MouseInfo left, MouseInfo right)
+        {
+            return !(left == right);
         }
 
         /// <summary>
@@ -88,28 +112,6 @@ namespace AquaUI.Input.Devices
         public int GetHashCode([DisallowNull] MouseInfo obj)
         {
             return HashCode.Combine(Position, ClickedButtons, Wheel);
-        }
-
-        /// <summary>
-        /// Checks if two <see cref="MouseInfo"/>s are equal.
-        /// </summary>
-        /// <param name="left">Left operand.</param>
-        /// <param name="right">Right operand.</param>
-        /// <returns><see langword="true"/> if first <see cref="MouseInfo"/> is equal to second, <see langword="false"/> otherwise.</returns>
-        public static bool operator ==(MouseInfo left, MouseInfo right)
-        {
-            return left.Equals(right);
-        }
-
-        /// <summary>
-        /// Checks if two <see cref="MouseInfo"/>s are equal.
-        /// </summary>
-        /// <param name="left">Left operand.</param>
-        /// <param name="right">Right operand.</param>
-        /// <returns><see langword="true"/> if first <see cref="MouseInfo"/> is equal to second, <see langword="false"/> otherwise.</returns>
-        public static bool operator !=(MouseInfo left, MouseInfo right)
-        {
-            return !(left == right);
         }
     }
 }

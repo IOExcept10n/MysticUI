@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
 namespace AquaUI.Input.Devices
 {
     /// <summary>
@@ -12,7 +8,7 @@ namespace AquaUI.Input.Devices
     public interface IInputDeviceListener
     {
         /// <summary>
-        /// Determines whether the input device is currently listening for events.
+        /// Gets a value indicating whether the input device is currently listening for events.
         /// </summary>
         /// <value>
         /// <see langword="true"/> if the device is currently listening for events; otherwise, <see langword="false"/>.

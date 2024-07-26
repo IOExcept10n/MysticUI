@@ -1,20 +1,23 @@
 // This code is based on MyraUI project: https://github.com/rds1983/Myra
+using AquaUI.Rendering;
+using AquaUI.Stride.Rendering;
 using FontStashSharp;
 using FontStashSharp.RichText;
 using Stride.Core.Mathematics;
 using Stride.Graphics;
+using Stride.Rendering;
 
 namespace AquaUI
 {
     /// <summary>
     /// represents an object that handles rendering actions for the 2D textures.
     /// </summary>
-    public partial class RenderContext : IDisposable
+    public partial class RenderContext : IRenderContext<GraphicsDevice, FontWrapper, TextureWrapper, EffectInstance>
     {
         /// <summary>
         /// Transformations which are applied to all drawing process.
         /// </summary>
-        public Transform Transform;
+        public Transform1 Transform;
 
         private static readonly RasterizerStateDescription uiRasterizerState = RasterizerStateDescription.Default with { ScissorTestEnable = true };
 
@@ -101,7 +104,7 @@ namespace AquaUI
         /// <param name="rotation">Rotation to apply to a texture.</param>
         /// <param name="scale">Scale to apply.</param>
         /// <param name="depth">Z-layer depth.</param>
-        public void Draw(Texture texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 scale, float depth = 0.0f)
+        public void Draw(TextureWrapper texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 scale, float depth = 0.0f)
         {
             SetFiltering(TextureFiltering.Nearest);
             color *= Opacity;
@@ -120,7 +123,7 @@ namespace AquaUI
         /// <param name="color">Color to apply.</param>
         /// <param name="rotation">Rotation to apply.</param>
         /// <param name="depth">Z-layer depth.</param>
-        public void Draw(Texture texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation, float depth = 0.0f)
+        public void Draw(TextureWrapper texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation, float depth = 0.0f)
         {
             Vector2 sz;
             if (sourceRectangle != null)
@@ -145,7 +148,7 @@ namespace AquaUI
         /// <param name="sourceRectangle">Source to draw from.</param>
         /// <param name="color">Color to apply.</param>
         /// <param name="rotation">Rotation to apply.</param>
-        public void Draw(Texture texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation) =>
+        public void Draw(TextureWrapper texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color, float rotation) =>
             Draw(texture, destinationRectangle, sourceRectangle, color, rotation, 0.0f);
 
         /// <summary>
@@ -155,7 +158,7 @@ namespace AquaUI
         /// <param name="destinationRectangle">Destination to draw into.</param>
         /// <param name="sourceRectangle">Source to draw from.</param>
         /// <param name="color">Color to apply.</param>
-        public void Draw(Texture texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color) =>
+        public void Draw(TextureWrapper texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color) =>
             Draw(texture, destinationRectangle, sourceRectangle, color, 0);
 
         /// <summary>
@@ -164,7 +167,7 @@ namespace AquaUI
         /// <param name="texture">Texture to draw.</param>
         /// <param name="destinationRectangle">Destination to draw into.</param>
         /// <param name="color">Color to apply.</param>
-        public void Draw(Texture texture, Rectangle destinationRectangle, Color color)
+        public void Draw(TextureWrapper texture, Rectangle destinationRectangle, Color color)
             => Draw(texture, destinationRectangle, null, color, 0);
 
         /// <summary>
@@ -175,7 +178,7 @@ namespace AquaUI
         /// <param name="color">Color to apply.</param>
         /// <param name="scale">Scale to apply.</param>
         /// <param name="rotation">Rotation to apply.</param>
-        public void Draw(Texture texture, Vector2 position, Color color, Vector2 scale, float rotation = 0.0f) =>
+        public void Draw(TextureWrapper texture, Vector2 position, Color color, Vector2 scale, float rotation = 0.0f) =>
             Draw(texture, position, null, color, rotation, scale);
 
         /// <summary>
@@ -186,7 +189,7 @@ namespace AquaUI
         /// <param name="sourceRectangle"></param>
         /// <param name="color"></param>
         /// <param name="rotation"></param>
-        public void Draw(Texture texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation) =>
+        public void Draw(TextureWrapper texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation) =>
             Draw(texture, position, sourceRectangle, color, rotation, Vector2.One);
 
         /// <summary>
@@ -196,7 +199,7 @@ namespace AquaUI
         /// <param name="position">Position to draw.</param>
         /// <param name="sourceRectangle">Source rectangle to draw from.</param>
         /// <param name="color">Color to apply.</param>
-        public void Draw(Texture texture, Vector2 position, Rectangle? sourceRectangle, Color color) =>
+        public void Draw(TextureWrapper texture, Vector2 position, Rectangle? sourceRectangle, Color color) =>
             Draw(texture, position, sourceRectangle, color, 0, Vector2.One);
 
         /// <summary>
@@ -205,7 +208,7 @@ namespace AquaUI
         /// <param name="texture">Texture to draw.</param>
         /// <param name="position">Position to draw.</param>
         /// <param name="color">Color to apply.</param>
-        public void Draw(Texture texture, Vector2 position, Color color) =>
+        public void Draw(TextureWrapper texture, Vector2 position, Color color) =>
             Draw(texture, position, null, color, 0, Vector2.One);
 
         /// <summary>
