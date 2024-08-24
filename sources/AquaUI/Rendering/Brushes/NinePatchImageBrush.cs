@@ -1,0 +1,114 @@
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Drawing;
+
+namespace AquaUI.Rendering.Brushes
+{
+    /// <summary>
+    /// Represents an image brush specialized for the controls drawing.
+    /// </summary>
+    /// <remarks>
+    /// When drawing, an image is split by 9 patches with special scaling rules depending on their location.
+    /// </remarks>
+    public class NinePatchImageBrush : ImageBrush
+    {
+        private Rectangle[] cachedPatches;
+        private bool cacheIsValid;
+        private Thickness patchSplitPadding;
+
+        public NinePatchImageBrush(ITexture source, Thickness patchSplit)
+            : base(source)
+        {
+            PatchSplitPadding = patchSplit;
+            cacheIsValid = false;
+        }
+
+        public NinePatchImageBrush(ITexture source, Rectangle area, Thickness patchSplit)
+            : base(source, area)
+        {
+            PatchSplitPadding = patchSplit;
+            cacheIsValid = false;
+        }
+
+        /// <summary>
+        /// Gets or sets padding for the patch splitter grid.
+        /// </summary>
+        public Thickness PatchSplitPadding
+        {
+            get => patchSplitPadding;
+            set
+            {
+                if (patchSplitPadding != value)
+                {
+                    patchSplitPadding = value;
+                    cacheIsValid = false; // Invalidate cache on change
+                }
+            }
+        }
+
+        public override void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, float depth)
+        {
+            if (Source is not TTexture texture)
+            {
+                texture = RecreateTexture(renderer);
+            }
+
+            // Update the cached rectangles if the cache is invalid
+            if (!cacheIsValid)
+            {
+                CalculateCachedPatches(destination);
+            }
+
+            // Define the source rectangles based on the provided source rectangle
+            Rectangle sourceRect = source ?? DrawArea;
+
+            // Calculate the center point for rotation
+            int centerX = destination.X + (destination.Width / 2);
+            int centerY = destination.Y + (destination.Height / 2);
+
+            // Draw each patch using the cached rectangles
+            for (int i = 0; i < cachedPatches.Length; i++)
+            {
+                DrawPatch(renderer, texture, cachedPatches[i], sourceRect.Cut(cachedPatches[i]), color, rotation, depth, centerX, centerY);
+            }
+        }
+
+        private void CalculateCachedPatches(Rectangle destination)
+        {
+            int leftWidth = (int)PatchSplitPadding.Left;
+            int topHeight = (int)PatchSplitPadding.Top;
+            int rightWidth = (int)PatchSplitPadding.Right;
+            int bottomHeight = (int)PatchSplitPadding.Bottom;
+
+            // Calculate the width and height of the center area
+            int centerWidth = destination.Width - leftWidth - rightWidth;
+            int centerHeight = destination.Height - topHeight - bottomHeight;
+
+            // Initialize the cached patches array
+            cachedPatches = new Rectangle[9];
+
+            // Define the rectangles for each patch
+            cachedPatches[0] = new Rectangle(destination.X, destination.Y, leftWidth, topHeight); // Top Left
+            cachedPatches[1] = new Rectangle(destination.X + leftWidth, destination.Y, centerWidth, topHeight); // Top Center
+            cachedPatches[2] = new Rectangle(destination.X + leftWidth + centerWidth, destination.Y, rightWidth, topHeight); // Top Right
+
+            cachedPatches[3] = new Rectangle(destination.X, destination.Y + topHeight, leftWidth, centerHeight); // Middle Left
+            cachedPatches[4] = new Rectangle(destination.X + leftWidth, destination.Y + topHeight, centerWidth, centerHeight); // Middle Center
+            cachedPatches[5] = new Rectangle(destination.X + leftWidth + centerWidth, destination.Y + topHeight, rightWidth, centerHeight); // Middle Right
+
+            cachedPatches[6] = new Rectangle(destination.X, destination.Y + topHeight + centerHeight, leftWidth, bottomHeight); // Bottom Left
+            cachedPatches[7] = new Rectangle(destination.X + leftWidth, destination.Y + topHeight + centerHeight, centerWidth, bottomHeight); // Bottom Center
+            cachedPatches[8] = new Rectangle(destination.X + leftWidth + centerWidth, destination.Y + topHeight + centerHeight, rightWidth, bottomHeight); // Bottom Right
+
+            cacheIsValid = true; // Mark cache as valid
+        }
+
+        private void DrawPatch<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, TTexture texture, Rectangle destination, Rectangle source, Color color, float rotation, float depth, int centerX, int centerY)
+            where TTexture : class, ITexture<TTexture, TGraphics>
+            where TGraphics : class
+        {
+            renderer.Draw(texture, destination, source, color, rotation, depth);
+        }
+    }
+
+}
