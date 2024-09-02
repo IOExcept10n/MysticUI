@@ -7,12 +7,16 @@ using AquaUI.Rendering.Brushes;
 namespace AquaUI.Rendering
 {
     /// <summary>
-    /// Represents a service for engine-dependent renderer implementation.
+    /// Represents an engine-independent service for the brushes rendering.
     /// </summary>
+    /// <remarks>
+    /// The <see cref="IRenderContext"/> is used by UI components to draw brushes.
+    /// Internally, it redirects draw calls to the engine-specific <see cref="ITextureRenderer{TTexture, TGraphics}"/> instance.
+    /// </remarks>
     public interface IRenderContext : IDisposable
     {
         /// <summary>
-        /// Gets the rendering options.
+        /// Gets the current rendering options.
         /// </summary>
         IRenderOptions Options { get; }
 
@@ -27,7 +31,7 @@ namespace AquaUI.Rendering
         void End();
 
         /// <summary>
-        /// Clears rendering queue making context ready for new render.
+        /// Clears rendering queue with making context ready for new render.
         /// </summary>
         void Flush();
 
@@ -78,8 +82,9 @@ namespace AquaUI.Rendering
         /// <param name="sourceRectangle">Source area to get brush part from.</param>
         /// <param name="color">Color filter to apply to brush.</param>
         /// <param name="rotation">Rotation to apply for a brush.</param>
+        /// <param name="origin">Origin of the rotation to apply.</param>
         /// <param name="depth">Depth layer to draw textures with.</param>
-        void Draw(IBrush brush, Rectangle destination, Rectangle? sourceRectangle, Color color, float rotation, float depth = 0.0f);
+        void Draw(IBrush brush, Rectangle destination, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float depth = 0.0f);
 
         /// <summary>
         /// Draws a text string.
@@ -87,11 +92,12 @@ namespace AquaUI.Rendering
         /// <param name="font">Font instance to draw text with. Note that the font should be compatible with specified instance of the <see cref="IRenderContext"/>.</param>
         /// <param name="text">Text to draw.</param>
         /// <param name="position">Drawing location on screen.</param>
+        /// <param name="layerDepth">A depth of the layer for specified string to render.</param>
         /// <param name="color">A color filter to apply.</param>
         /// <param name="scale">A scaling for specified text.</param>
         /// <param name="rotation">A rotation for specified text in radians.</param>
-        /// <param name="layerDepth">A depth of the layer for specified string to render.</param>
+        /// <param name="origin">An origin for the rotation to apply.</param>
         /// <exception cref="NotSupportedException">Occurs when the specified font type is not supported for the current rendering context.</exception>
-        void DrawString(IFont font, string text, Vector2 position, Color color, Vector2 scale, float rotation, float layerDepth = 0f);
+        void DrawString(IFont font, string text, Vector2 position, float layerDepth, Color color, Vector2 scale, float rotation, Vector2 origin);
     }
 }

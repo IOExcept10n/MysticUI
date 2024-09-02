@@ -3,7 +3,6 @@
 using AquaUI.Data;
 using AquaUI.Input;
 using AquaUI.Input.Devices;
-using AquaUI.MonoGame.Extensions;
 using System.Numerics;
 
 namespace AquaUI.MonoGame.Input.Devices
@@ -49,8 +48,8 @@ namespace AquaUI.MonoGame.Input.Devices
             var state = Microsoft.Xna.Framework.Input.GamePad.GetState(0);
             lastState = GamePadInfo;
             GamePadInfo = new GamePadState(GetButtons(state.Buttons),
-                                           state.ThumbSticks.Left.ToSystemVector(),
-                                           state.ThumbSticks.Right.ToSystemVector(),
+                                           state.ThumbSticks.Left.AsSystemVector(),
+                                           state.ThumbSticks.Right.AsSystemVector(),
                                            state.Triggers.Left,
                                            state.Triggers.Right);
             if (lastState.LeftThumb != GamePadInfo.LeftThumb)

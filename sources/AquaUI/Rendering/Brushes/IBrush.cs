@@ -1,6 +1,7 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Numerics;
 
 namespace AquaUI.Rendering.Brushes
 {
@@ -24,8 +25,9 @@ namespace AquaUI.Rendering.Brushes
         /// <param name="source">Source part of the brush (if available).</param>
         /// <param name="color">Color filter to apply for a brush.</param>
         /// <param name="rotation">Rotation to apply for the rendered texture.</param>
+        /// <param name="origin">Rotation origin to apply.</param>
         /// <param name="depth">Depth layer.</param>
-        void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, float depth = 0.0f)
+        void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, Vector2 origin, float depth = 0.0f)
             where TTexture : class, ITexture<TTexture, TGraphics>
             where TGraphics : class;
     }

@@ -9,7 +9,7 @@ namespace AquaUI.Rendering
     /// Represents a service for texture rendering.
     /// </summary>
     /// <remarks>
-    /// The <see cref="IRenderContext"/> implicitly uses textures renderer to allow brushes draw textures.
+    /// The <see cref="IRenderContext"/> implicitly uses <see cref="ITextureRenderer{TTexture, TGraphics}"/> to allow brushes draw textures.
     /// </remarks>
     /// <typeparam name="TTexture">Type of supported texture format.</typeparam>
     /// <typeparam name="TGraphics">Type of the graphics device used in specified engine.</typeparam>
@@ -35,8 +35,9 @@ namespace AquaUI.Rendering
         /// <param name="sourceRectangle">Source area from the texture.</param>
         /// <param name="color">Color to apply to a texture.</param>
         /// <param name="rotation">Rotation to apply to a texture.</param>
+        /// <param name="origin">Origin of the rotation to apply.</param>
         /// <param name="scale">Scale to apply.</param>
         /// <param name="depth">Z-layer depth.</param>
-        void Draw(TTexture texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 scale, float depth = 0f);
+        void Draw(TTexture texture, Vector2 position, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, Vector2 scale, float depth = 0f);
     }
 }

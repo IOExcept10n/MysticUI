@@ -3,7 +3,11 @@
 using AquaUI.Data;
 using AquaUI.Input;
 using AquaUI.Input.Diagnostics;
+using AquaUI.Rendering;
+using AquaUI.MonoGame;
 using AquaUI.MonoGame.Input;
+using AquaUI.MonoGame.Rendering;
+using AquaUI.Rendering.Brushes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -13,74 +17,55 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MonoGame_Sample.Samples;
 
 namespace MonoGame_Sample
 {
     public class Game1 : Game
     {
         private readonly GraphicsDeviceManager _graphics;
-        private SpriteBatch _spriteBatch;
-        private readonly MonoGameInputSystem input;
-        private SpriteFont font;
-        private readonly StringBuilder deviceEventLogs = new();
-        private readonly StringBuilder inputEventLogs = new();
-        private readonly JsonSerializerOptions jsonOptions;
+        private int selection = 0;
+        private SpriteBatch diagSb;
+        private SpriteFont diagFont;
+        private KeyboardState previousState;
 
-        private float commandDelay;
+        public int Selection
+        {
+            get => selection;
+            set
+            {
+                if (value != selection)
+                {
+                    if (value >= Components.Count)
+                    {
+                        selection = 0;
+                    }
+                    else if (value < 0)
+                    {
+                        selection = Components.Count - 1;
+                    }
+                    OnSelectionUpdate();
+                }
+            }
+        }
 
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            input = new MonoGameInputSystem(this);
-            var devListener = new DeviceEventsAggregator(input);
-            devListener.OnEvent += DevListener_OnEvent;
-            var eventListener = new InputEventsAggregator(input.Events);
-            eventListener.OnEvent += EventListener_OnEvent;
-            jsonOptions = new()
+            Components.Add(new InputLoggingTest(this));
+            Components.Add(new RenderContextTest(this));
+            OnSelectionUpdate();
+        }
+
+        public void OnSelectionUpdate()
+        {
+            for (int i = 0; i < Components.Count; i++)
             {
-                Converters =
-                {
-                    new JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
-                },
-                IncludeFields = true,
-            };
-        }
-
-        private void EventListener_OnEvent(object sender, InputEventsAggregator.LoggerEventInfo e)
-        {
-            Log(inputEventLogs)
-                .Append('(')
-                .Append(e.InputEventListener.GetType().Name)
-                .Append(')')
-                .Append(' ')
-                .Append('{')
-                .Append(e.EventType)
-                .Append('}')
-                .Append(':')
-                .Append(' ')
-                .AppendLine(JsonSerializer.Serialize((e.Args as IDataEventArgs)?.Data, options: jsonOptions));
-        }
-
-        private void DevListener_OnEvent(object sender, DeviceEventsAggregator.LoggerEventInfo e)
-        {
-            Log(deviceEventLogs)
-                .Append('(')
-                .Append(e.InputDevice.GetType().Name)
-                .Append(')')
-                .Append(' ')
-                .Append('{')
-                .Append(e.EventType)
-                .Append('}')
-                .Append(':')
-                .Append(' ')
-                .AppendLine(JsonSerializer.Serialize((e.Args as IDataEventArgs)?.Data, options: jsonOptions));
-        }
-
-        private static StringBuilder Log(StringBuilder logger)
-        {
-            return logger.Append(DateTime.UtcNow.ToString("[yyyy.MM.dd hh:mm:ss:ffffff]: "));
+                var component = Components[i] as DrawableGameComponent;
+                component.Enabled = component.Visible = i == selection;
+            }
         }
 
         protected override void Initialize()
@@ -90,60 +75,45 @@ namespace MonoGame_Sample
             _graphics.PreferredBackBufferHeight = 720;
             _graphics.PreferredBackBufferWidth = 1280;
             _graphics.ApplyChanges();
-            input.Initialize();
             base.Initialize();
         }
 
         protected override void LoadContent()
         {
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
-            font = Content.Load<SpriteFont>("Segoe UI");
+            diagSb = new(GraphicsDevice);
+            diagFont = Content.Load<SpriteFont>("Consolas");
             // TODO: use this.Content to load your game content here
         }
 
         protected override void Update(GameTime gameTime)
         {
+            var currentState = Keyboard.GetState();
+            if (currentState.IsKeyDown(Keys.PageDown) && previousState.IsKeyUp(Keys.PageDown))
+            {
+                Selection--;
+            }
+            if (currentState.IsKeyDown(Keys.PageUp) && previousState.IsKeyUp(Keys.PageUp))
+            {
+                Selection++;
+            }
             //if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
             //    Exit();
-
-            var state = Keyboard.GetState();
-            if (state.IsKeyDown(Keys.LeftControl) || state.IsKeyDown(Keys.RightControl) && commandDelay < 0)
-            {
-                if (state.IsKeyDown(Keys.D))
-                    deviceEventLogs.Clear();
-                if (state.IsKeyDown(Keys.E))
-                    inputEventLogs.Clear();
-                if (state.IsKeyDown(Keys.T))
-                    input.Events.Text.EnableTextInput();
-                if (state.IsKeyDown(Keys.H))
-                    input.Events.Text.DisableTextInput();
-                commandDelay = 0.5f;
-            }
-
-            // TODO: Add your update logic here
-            foreach (var device in input.OfType<IUpdateableInput>())
-                device.Update(gameTime.ElapsedGameTime);
-            input.Events.Update(gameTime.ElapsedGameTime);
-            commandDelay -= gameTime.ElapsedGameTime.Seconds;
             base.Update(gameTime);
         }
 
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
-
+            diagSb.Begin();
+            diagSb.DrawString(diagFont, $"Current test: {Components[selection].GetType().Name}. Use PgUp/PgDown to switch tests.", Vector2.One, Color.DarkGreen);
+            diagSb.End();
             // TODO: Add your drawing code here
-            _spriteBatch.Begin();
-            _spriteBatch.DrawString(font, deviceEventLogs, new Vector2(20, 20), Color.Red);
-            _spriteBatch.DrawString(font, inputEventLogs, new Vector2(575, 20), Color.Blue);
-            _spriteBatch.End();
             base.Draw(gameTime);
         }
 
         protected override void OnExiting(object sender, EventArgs args)
         {
-            File.AppendAllText("devices.log", deviceEventLogs.ToString());
-            File.AppendAllText("events.log", inputEventLogs.ToString());
+            // Save anything.
             base.OnExiting(sender, args);
         }
     }

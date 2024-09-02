@@ -3,7 +3,6 @@
 using AquaUI.Data;
 using AquaUI.Input;
 using AquaUI.Input.Devices;
-using AquaUI.MonoGame.Extensions;
 using Microsoft.Xna.Framework.Input.Touch;
 using System.Drawing;
 
@@ -42,26 +41,26 @@ namespace AquaUI.MonoGame.Input.Devices
             switch (gesture.GestureType)
             {
                 case GestureType.Tap:
-                    Tap?.Invoke(this, gesture.Position.ToSystemPoint());
+                    Tap?.Invoke(this, gesture.Position.AsSystemPoint());
                     break;
 
                 case GestureType.FreeDrag:
                 case GestureType.DragComplete:
-                    Drag?.Invoke(this, new TranslationInfo(gesture.Position.ToSystemPoint(),
-                                                           gesture.Delta.ToSystemVector(),
-                                                           gesture.Delta2.ToSystemVector(),
+                    Drag?.Invoke(this, new TranslationInfo(gesture.Position.AsSystemPoint(),
+                                                           gesture.Delta.AsSystemVector(),
+                                                           gesture.Delta2.AsSystemVector(),
                                                            gesture.GestureType == GestureType.DragComplete));
                     break;
 
                 case GestureType.Flick:
-                    Swipe?.Invoke(this, new TranslationInfo(gesture.Position.ToSystemPoint(),
-                                                            gesture.Delta.ToSystemVector(),
-                                                            gesture.Delta2.ToSystemVector(),
+                    Swipe?.Invoke(this, new TranslationInfo(gesture.Position.AsSystemPoint(),
+                                                            gesture.Delta.AsSystemVector(),
+                                                            gesture.Delta2.AsSystemVector(),
                                                             true));
                     break;
 
                 case GestureType.Hold:
-                    Hold?.Invoke(this, gesture.Position.ToSystemPoint());
+                    Hold?.Invoke(this, gesture.Position.AsSystemPoint());
                     break;
             }
         }

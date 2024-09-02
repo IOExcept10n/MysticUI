@@ -12,7 +12,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace AquaUI.MonoGame.Input
 {
-    public class MonoGameInputSystem : IInputSystem
+    public class InputSystem : IInputSystem, IUpdateableInput
     {
         private readonly HashSet<IInputDeviceListener> devices;
 
@@ -31,7 +31,7 @@ namespace AquaUI.MonoGame.Input
         /// <inheritdoc/>
         public bool IsInitialized { get; private set; }
 
-        public MonoGameInputSystem(Game game)
+        public InputSystem(Game game)
         {
             Mouse = new MouseInput();
             Keyboard = new KeyboardInput(game);
@@ -40,6 +40,19 @@ namespace AquaUI.MonoGame.Input
             Events = new InputEventSystem(this, text: new TextInputEvents(this, game));
             Clipboard = Clipboards.GetClipboard();
             devices = [Mouse, Keyboard, Gamepad, Touch];
+        }
+
+        public void Update(TimeSpan elapsed)
+        {
+            // TODO
+            foreach (var device in devices)
+            {
+                if (device is IUpdateableInput updateable)
+                {
+                    updateable.Update(elapsed);
+                }
+            }
+            Events.Update(elapsed);
         }
 
         public IEnumerator<IInputDeviceListener> GetEnumerator()

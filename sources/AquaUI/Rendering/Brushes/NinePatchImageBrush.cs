@@ -1,6 +1,7 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Numerics;
 
 namespace AquaUI.Rendering.Brushes
 {
@@ -46,7 +47,7 @@ namespace AquaUI.Rendering.Brushes
             }
         }
 
-        public override void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, float depth)
+        public override void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, Vector2 origin, float depth)
         {
             if (Source is not TTexture texture)
             {
@@ -69,7 +70,7 @@ namespace AquaUI.Rendering.Brushes
             // Draw each patch using the cached rectangles
             for (int i = 0; i < cachedPatches.Length; i++)
             {
-                DrawPatch(renderer, texture, cachedPatches[i], sourceRect.Cut(cachedPatches[i]), color, rotation, depth, centerX, centerY);
+                DrawPatch(renderer, texture, cachedPatches[i], sourceRect.Cut(cachedPatches[i]), color, rotation, origin, depth, centerX, centerY);
             }
         }
 
@@ -103,11 +104,11 @@ namespace AquaUI.Rendering.Brushes
             cacheIsValid = true; // Mark cache as valid
         }
 
-        private void DrawPatch<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, TTexture texture, Rectangle destination, Rectangle source, Color color, float rotation, float depth, int centerX, int centerY)
+        private void DrawPatch<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, TTexture texture, Rectangle destination, Rectangle source, Color color, float rotation, Vector2 origin, float depth, int centerX, int centerY)
             where TTexture : class, ITexture<TTexture, TGraphics>
             where TGraphics : class
         {
-            renderer.Draw(texture, destination, source, color, rotation, depth);
+            renderer.Draw(texture, destination, source, color, rotation, origin, depth);
         }
     }
 

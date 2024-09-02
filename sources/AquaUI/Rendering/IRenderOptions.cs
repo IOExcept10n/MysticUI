@@ -5,7 +5,7 @@ using System.Drawing;
 namespace AquaUI.Rendering
 {
     /// <summary>
-    /// Represents an interface for the global renderer options.
+    /// Represents an interface for storing the global renderer options.
     /// </summary>
     public interface IRenderOptions
     {
@@ -17,11 +17,14 @@ namespace AquaUI.Rendering
         /// <summary>
         /// Gets or sets the area of scissor rectangle.
         /// </summary>
-        Rectangle Scissors { get; set; }
+        Rectangle Scissor { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the current render pass supports visual effects such as shaders.
         /// </summary>
+        /// <remarks>
+        /// Note that enabling effect may affect the performance because effects applying can interrupt texture batching.
+        /// </remarks>
         bool EnableEffects { get; set; }
     }
 }

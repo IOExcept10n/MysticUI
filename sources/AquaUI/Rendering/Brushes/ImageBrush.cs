@@ -1,6 +1,7 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Numerics;
 
 namespace AquaUI.Rendering.Brushes
 {
@@ -50,7 +51,7 @@ namespace AquaUI.Rendering.Brushes
         public ITexture Source { get; protected set; }
 
         /// <inheritdoc/>
-        public virtual void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, float depth)
+        public virtual void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, Vector2 origin, float depth)
             where TTexture : class, ITexture<TTexture, TGraphics>
             where TGraphics : class
         {
@@ -59,7 +60,7 @@ namespace AquaUI.Rendering.Brushes
                 texture = RecreateTexture(renderer);
             }
 
-            renderer.Draw(texture, destination, source == null ? DrawArea : DrawArea.Cut(source.Value), color, rotation, depth);
+            renderer.Draw(texture, destination, source == null ? DrawArea : DrawArea.Cut(source.Value), color, rotation, origin, depth);
         }
 
         /// <summary>

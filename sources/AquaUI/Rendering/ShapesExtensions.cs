@@ -84,13 +84,14 @@ namespace AquaUI.Rendering
         /// <param name="context">Instance of the <see cref="IRenderContext"/> to draw.</param>
         /// <param name="point">Point of the line beginning.</param>
         /// <param name="length">Length of the line to draw.</param>
-        /// <param name="angle">Angle to rotate line.</param>
+        /// <param name="rotation">Angle to rotate line.</param>
+        /// <param name="origin">Origin of the rotation to apply.</param>
         /// <param name="color">Color of the line.</param>
         /// <param name="thickness">Thickness of the line.</param>
-        public static void DrawLine(this IRenderContext context, Vector2 point, float length, float angle, Color color, float thickness = 1f)
+        public static void DrawLine(this IRenderContext context, Vector2 point, float length, float rotation, Vector2 origin, Color color, float thickness = 1f)
         {
             Rectangle rect = new((int)point.X, (int)point.Y, (int)length, (int)thickness);
-            context.Draw(White, rect, null, color, angle);
+            context.Draw(White, rect, null, color, rotation, origin);
         }
 
         /// <summary>
@@ -109,7 +110,7 @@ namespace AquaUI.Rendering
             // calculate the angle between the two vectors
             var angle = (float)Math.Atan2(point2.Y - point1.Y, point2.X - point1.X);
 
-            DrawLine(context, point1, distance, angle, color, thickness);
+            DrawLine(context, point1, distance, angle, Vector2.Zero, color, thickness);
         }
 
         /// <summary>
@@ -254,10 +255,10 @@ namespace AquaUI.Rendering
         // TODO: make FillSegment and FillCircle methods
         private class SimpleBrush : IBrush
         {
-            void IBrush.Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, float depth)
+            void IBrush.Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, Rectangle destination, Rectangle? source, Color color, float rotation, Vector2 origin, float depth)
             {
                 var white = TTexture.GetWhite(renderer.GraphicsDevice);
-                renderer.Draw(white, destination, source, color, rotation, depth);
+                renderer.Draw(white, destination, source, color, rotation, origin, depth);
             }
         }
     }
