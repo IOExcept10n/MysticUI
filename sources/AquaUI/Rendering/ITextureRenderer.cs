@@ -13,7 +13,7 @@ namespace AquaUI.Rendering
     /// </remarks>
     /// <typeparam name="TTexture">Type of supported texture format.</typeparam>
     /// <typeparam name="TGraphics">Type of the graphics device used in specified engine.</typeparam>
-    public interface ITextureRenderer<in TTexture, out TGraphics>
+    public interface ITextureRenderer<in TTexture, out TGraphics> : IRenderContext
         where TTexture : class, ITexture<TTexture, TGraphics>
         where TGraphics : class
     {
@@ -21,11 +21,6 @@ namespace AquaUI.Rendering
         /// Gets the reference to a used graphics device.
         /// </summary>
         TGraphics GraphicsDevice { get; }
-
-        /// <summary>
-        /// Gets the current rendering context to apply effects and draw primitives.
-        /// </summary>
-        IRenderContext Context { get; }
 
         /// <summary>
         /// Draws a texture.

@@ -14,7 +14,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace MonoGame_Sample.Samples
+namespace MonoGameSample.Samples
 {
     internal class InputLoggingTest : DrawableGameComponent
     {

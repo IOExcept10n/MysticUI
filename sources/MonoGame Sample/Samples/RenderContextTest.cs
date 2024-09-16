@@ -14,12 +14,12 @@ using AquaUI.MonoGame.Input;
 using AquaUI.Input.Devices;
 using AquaUI.Input;
 
-namespace MonoGame_Sample.Samples
+namespace MonoGameSample.Samples
 {
     public class RenderContextTest(Game game) : DrawableGameComponent(game)
     {
         private RenderContext renderContext;
-        private FontWrapper font;
+        private FontAdapter font;
         private SolidColorBrush solidBrush;
         private ImageBrush imageBrush;
         private InputSystem input;
@@ -41,7 +41,7 @@ namespace MonoGame_Sample.Samples
         {
             font = new(Game.Content.Load<SpriteFont>("Segoe UI"));
             solidBrush = new(Color.White.AsSystemColor());
-            imageBrush = new(new TextureWrapper(Game.Content.Load<Texture2D>("bobr")));
+            imageBrush = new(new TextureAdapter(Game.Content.Load<Texture2D>("bobr")));
             current = solidBrush;
             input = new(Game);
 

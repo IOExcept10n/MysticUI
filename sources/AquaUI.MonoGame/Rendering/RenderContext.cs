@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using AquaUI.Rendering;
 using AquaUI.Rendering.Brushes;
+using AquaUI.Rendering.Fonts;
 using CommunityToolkit.Diagnostics;
 using Microsoft.Xna.Framework.Graphics;
 using System.Drawing;
@@ -43,12 +44,6 @@ namespace AquaUI.MonoGame.Rendering
             Flush();
         }
 
-        // TODO
-        public void ApplyMask(ITexture texture, Transform2D transform)
-        {
-            throw new NotImplementedException();
-        }
-
         public void Begin()
         {
             if (began)
@@ -68,12 +63,6 @@ namespace AquaUI.MonoGame.Rendering
             Flush();
         }
 
-        // TODO
-        public void ClearMask()
-        {
-            throw new NotImplementedException();
-        }
-
         public void Draw(IBrush brush, Rectangle destination, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float depth = 0)
         {
             if (!began)
@@ -85,7 +74,7 @@ namespace AquaUI.MonoGame.Rendering
         // HACK
         public void DrawString(IFont font, string text, Vector2 position, float layerDepth, Color color, Vector2 scale, float rotation, Vector2 origin)
         {
-            if (font is not FontWrapper mgFont)
+            if (font is not FontAdapter mgFont)
             {
                 ThrowHelper.ThrowArgumentException(nameof(font), "Unsupported font type.");
                 return;

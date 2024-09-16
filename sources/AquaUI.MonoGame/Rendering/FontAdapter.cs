@@ -1,4 +1,4 @@
-﻿using AquaUI.Rendering;
+﻿using AquaUI.Rendering.Fonts;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace AquaUI.MonoGame.Rendering
 {
     // HACK
-    public class FontWrapper(SpriteFont font) : IFont
+    public class FontAdapter(SpriteFont font) : IFont
     {
         public string FontFamily => throw new NotImplementedException();
 

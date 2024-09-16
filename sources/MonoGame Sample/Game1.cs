@@ -1,25 +1,12 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using AquaUI.Data;
-using AquaUI.Input;
-using AquaUI.Input.Diagnostics;
-using AquaUI.Rendering;
-using AquaUI.MonoGame;
-using AquaUI.MonoGame.Input;
-using AquaUI.MonoGame.Rendering;
-using AquaUI.Rendering.Brushes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoGameSample.Samples;
 using System;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using MonoGame_Sample.Samples;
 
-namespace MonoGame_Sample
+namespace MonoGameSample
 {
     public class Game1 : Game
     {

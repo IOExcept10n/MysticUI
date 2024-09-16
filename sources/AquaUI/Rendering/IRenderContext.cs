@@ -1,13 +1,12 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using System.Drawing;
-using System.Numerics;
 using AquaUI.Rendering.Brushes;
+using AquaUI.Rendering.Fonts;
 
 namespace AquaUI.Rendering
 {
     /// <summary>
-    /// Represents an engine-independent service for the brushes rendering.
+    /// Represents a service for the brushes rendering.
     /// </summary>
     /// <remarks>
     /// The <see cref="IRenderContext"/> is used by UI components to draw brushes.
@@ -26,7 +25,7 @@ namespace AquaUI.Rendering
         void Begin();
 
         /// <summary>
-        /// Ends rendeing process.
+        /// Ends rendering process.
         /// </summary>
         void End();
 
@@ -34,21 +33,6 @@ namespace AquaUI.Rendering
         /// Clears rendering queue with making context ready for new render.
         /// </summary>
         void Flush();
-
-        /// <summary>
-        /// Applies a texture mask to the current render context.
-        /// </summary>
-        /// <remarks>
-        /// Note that now only one mask at the time can be used.
-        /// </remarks>
-        /// <param name="texture">Texture to use as a mask.</param>
-        /// <param name="transform">Transform to apply to the mask.</param>
-        void ApplyMask(ITexture texture, Transform2D transform);
-
-        /// <summary>
-        /// Removes the current texture mask.
-        /// </summary>
-        void ClearMask();
 
         /// <summary>
         /// Gets the built-in effect instance by its <see cref="EffectCode"/>.
@@ -78,26 +62,16 @@ namespace AquaUI.Rendering
         /// Draws a brush into the rendering surface.
         /// </summary>
         /// <param name="brush">A brush to render.</param>
-        /// <param name="destination">Drawing location rectangle.</param>
-        /// <param name="sourceRectangle">Source area to get brush part from.</param>
-        /// <param name="color">Color filter to apply to brush.</param>
-        /// <param name="rotation">Rotation to apply for a brush.</param>
-        /// <param name="origin">Origin of the rotation to apply.</param>
-        /// <param name="depth">Depth layer to draw textures with.</param>
-        void Draw(IBrush brush, Rectangle destination, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float depth = 0.0f);
+        /// <param name="options">Options to draw the brush with.</param>
+        void Draw(IBrush brush, in TextureRenderingOptions options);
 
         /// <summary>
         /// Draws a text string.
         /// </summary>
         /// <param name="font">Font instance to draw text with. Note that the font should be compatible with specified instance of the <see cref="IRenderContext"/>.</param>
         /// <param name="text">Text to draw.</param>
-        /// <param name="position">Drawing location on screen.</param>
-        /// <param name="layerDepth">A depth of the layer for specified string to render.</param>
-        /// <param name="color">A color filter to apply.</param>
-        /// <param name="scale">A scaling for specified text.</param>
-        /// <param name="rotation">A rotation for specified text in radians.</param>
-        /// <param name="origin">An origin for the rotation to apply.</param>
+        /// <param name="options">Options to draw the text with.</param>
         /// <exception cref="NotSupportedException">Occurs when the specified font type is not supported for the current rendering context.</exception>
-        void DrawString(IFont font, string text, Vector2 position, float layerDepth, Color color, Vector2 scale, float rotation, Vector2 origin);
+        void DrawString(IFont font, string text, in FontRenderingOptions options);
     }
 }

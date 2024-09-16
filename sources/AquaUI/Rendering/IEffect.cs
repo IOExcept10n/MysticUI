@@ -8,7 +8,14 @@ namespace AquaUI.Rendering
     /// </summary>
     public enum EffectCode
     {
+        /// <summary>
+        /// Gradient coloring effect that applies linear color gradient to the given texture.
+        /// </summary>
         GradientEffect,
+
+        /// <summary>
+        /// Gaussian blur effect that applies blurring to the given texture.
+        /// </summary>
         BlurEffect,
     }
 

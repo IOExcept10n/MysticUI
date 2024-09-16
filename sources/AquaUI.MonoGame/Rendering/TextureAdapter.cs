@@ -11,10 +11,10 @@ namespace AquaUI.MonoGame.Rendering
     /// Represents a <see langword="MonoGame"/> wrapper for the <see cref="ITexture"/> interface.
     /// </summary>
     /// <param name="texture">An instance of the texture to use.</param>
-    public class TextureWrapper(Texture2D texture) : ITexture<TextureWrapper, GraphicsDevice>
+    internal class TextureAdapter(Texture2D texture) : ITexture<TextureAdapter, GraphicsDevice>
     {
         private static Texture2D? White;
-        private static TextureWrapper? WhiteWrapper;
+        private static TextureAdapter? WhiteWrapper;
 
         /// <summary>
         /// Gets the texture instance used to incapsulate into <see cref="ITexture"/>.
@@ -25,7 +25,7 @@ namespace AquaUI.MonoGame.Rendering
         public Size Size => new(Texture.Bounds.Width, Texture.Bounds.Height);
 
         /// <inheritdoc/>
-        public static TextureWrapper CreateTexture<TColor>(GraphicsDevice graphics, int width, int height, TColor[] data) where TColor : unmanaged
+        public static TextureAdapter CreateTexture<TColor>(GraphicsDevice graphics, int width, int height, TColor[] data) where TColor : unmanaged
         {
             var texture = new Texture2D(graphics, width, height);
             texture.SetData(data);
@@ -33,7 +33,7 @@ namespace AquaUI.MonoGame.Rendering
         }
 
         /// <inheritdoc/>
-        public static TextureWrapper GetWhite(GraphicsDevice graphics)
+        public static TextureAdapter GetWhite(GraphicsDevice graphics)
         {
             if (WhiteWrapper == null)
             {
@@ -65,8 +65,8 @@ namespace AquaUI.MonoGame.Rendering
             Texture.SetData(buffer);
         }
 
-        public static implicit operator TextureWrapper(Texture2D texture) => new(texture);
+        public static implicit operator TextureAdapter(Texture2D texture) => new(texture);
 
-        public static explicit operator Texture2D(TextureWrapper wrapper) => wrapper.Texture;
+        public static explicit operator Texture2D(TextureAdapter wrapper) => wrapper.Texture;
     }
 }

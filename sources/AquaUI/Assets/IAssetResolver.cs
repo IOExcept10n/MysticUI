@@ -1,27 +1,23 @@
 namespace AquaUI.Assets
 {
     /// <summary>
-    /// An interface for the object which provides assets loading for the library.
+    /// Represents a service that performs assets loading.
     /// </summary>
     /// <typeparam name="TContext">Type of the context used in the asset loader.</typeparam>
     public interface IAssetResolver<in TContext> : IDisposable
-        where TContext : IAssetContext
+        where TContext : IAssetContext<TContext>
     {
         /// <summary>
-        /// Loads an asset from the given location.
+        /// Loads an asset from the specified location.
         /// </summary>
         /// <typeparam name="T">Type of the loaded asset.</typeparam>
-        /// <param name="context">Context in which asset will be loaded.</param>
-        /// <param name="path">Path from which the asset is loaded.</param>
+        /// <param name="context">Context to load asset from.</param>
+        /// <param name="path">Path to load asset from.</param>
         /// <param name="keepInCache">
         /// <see langword="true"/> if you want to cache the loaded asset to not reload it later.
         /// If the <see langword="false"/> is selected, system will load the asset as new whenever it is loaded or not.
-        /// <list type="bullet"><item>
-        /// Please note that the cached assets will be stored as weak references so if you
-        /// remove a reference to it in another place, the cached resource may be cleared as well
-        /// </item></list>
         /// </param>
-        /// <returns>The loaded asset instance.</returns>
+        /// <returns>An instance of the loaded asset.</returns>
         public T LoadAsset<T>(TContext context, string path, bool keepInCache = true)
             where T : class;
 
@@ -29,27 +25,23 @@ namespace AquaUI.Assets
         /// Loads the asset asynchronously if it's available. See more: <seealso cref="LoadAsset{T}(TContext, string, bool)"/>.
         /// </summary>
         /// <typeparam name="T">Type of the loaded asset.</typeparam>
-        /// <param name="context">Context in which asset will be loaded.</param>
-        /// <param name="path">Path from which the asset is loaded.</param>
+        /// <param name="context">Context to load asset from.</param>
+        /// <param name="path">Path to load asset from.</param>
         /// <param name="keepInCache">
         /// <see langword="true"/> if you want to cache the loaded asset to not reload it later.
         /// If the <see langword="false"/> is selected, system will load the asset as new whenever it is loaded or not.
-        /// <list type="bullet"><item>
-        /// Please note that the cached assets will be stored as weak references so if you
-        /// remove a reference to it in another place, the cached resource may be cleared as well
-        /// </item></list>
         /// </param>
-        /// <returns>The loaded asset instance.</returns>
+        /// <returns>An instance of the loaded asset.</returns>
         public ValueTask<T> LoadAssetAsync<T>(TContext context, string path, bool keepInCache = true)
             where T : class;
 
         /// <summary>
         /// Detects if the asset was already loaded to the cache.
         /// </summary>
-        /// <param name="context">Context in which asset is loaded.</param>
+        /// <param name="context">Context to load the asset.</param>
         /// <param name="path">Relative path to the asset.</param>
         /// <returns><see langword="true"/> if the asset is stored in cache, <see langword="false"/> otherwise.</returns>
-        public bool IsStoredInCache(TContext context, string path);
+        public bool IsCached(TContext context, string path);
 
         /// <summary>
         /// Unloads and disposes all content from the given context.
@@ -58,9 +50,9 @@ namespace AquaUI.Assets
         public void UnloadContext(TContext context);
 
         /// <summary>
-        /// Resolves a file and reads its content.
+        /// Opens a file and reads its content.
         /// </summary>
-        /// <param name="context">Context to load from.</param>
+        /// <param name="context">Context to get file from.</param>
         /// <param name="path">Path to the file.</param>
         /// <returns>Contents of the text file with specified path.</returns>
         public string ReadFile(TContext context, string path);
