@@ -1,7 +1,7 @@
-﻿using AquaUI.Rendering;
-using AquaUI.MonoGame;
-using AquaUI.MonoGame.Rendering;
-using AquaUI.Rendering.Brushes;
+using Icy.Rendering;
+using Icy.MonoGame;
+using Icy.MonoGame.Rendering;
+using Icy.Rendering.Brushes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -10,9 +10,9 @@ using System.Linq;
 using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
-using AquaUI.MonoGame.Input;
-using AquaUI.Input.Devices;
-using AquaUI.Input;
+using Icy.MonoGame.Input;
+using Icy.Input.Devices;
+using Icy.Input;
 
 namespace MonoGameSample.Samples
 {

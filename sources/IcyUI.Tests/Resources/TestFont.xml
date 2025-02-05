@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<font>
+	<info face="Arial" size="32" bold="0" italic="0" charset="" unicode="1" stretchH="100" smooth="1" aa="1" padding="0,0,0,0" spacing="0,0" outline="0" strikeout="0" underline="0"/>
+	<common lineHeight="32" base="24" scaleW="512" scaleH="512" pages="2" packed="0" alphaChnl="255" redChnl="255" greenChnl="255" blueChnl="255"/>
+	<page id="0" file="font0.png"/>
+	<page id="1" file="font1.png"/>
+	<chars>
+		<char id="32" x="0" y="0" width="0" height="0" xoffset="0" yoffset="0" xadvance="10" page="0" chnl="0"/>
+		<char id="65" x="0" y="0" width="32" height="32" xoffset="0" yoffset="0" xadvance="32" page="0" chnl="0"/>
+		<char id="66" x="32" y="0" width="32" height="32" xoffset="0" yoffset="0" xadvance="32" page="0" chnl="0"/>
+		<char id="67" x="64" y="0" width="32" height="32" xoffset="0" yoffset="0" xadvance="32" page="0" chnl="0"/>
+		<!-- Добавьте другие символы по мере необходимости -->
+	</chars>
+	<kernings>
+		<kerning first="65" second="66" amount="-1"/>
+		<kerning first="66" second="67" amount="-1"/>
+		<!-- Добавьте другие кернинги по мере необходимости -->
+	</kernings>
+</font>

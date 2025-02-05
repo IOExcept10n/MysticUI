@@ -1,9 +1,9 @@
-﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using AquaUI.Data;
-using AquaUI.Input;
-using AquaUI.Input.Diagnostics;
-using AquaUI.MonoGame.Input;
+using Icy.Data;
+using Icy.Input;
+using Icy.Input.Diagnostics;
+using Icy.MonoGame.Input;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
