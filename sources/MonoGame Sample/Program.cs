@@ -1,9 +1,6 @@
+using Icy.MonoGame.Configuration;
+using Icy.MonoGameSample;
 
-internal class Program
-{
-    private static void Main(string[] args)
-    {
-        using var game = new MonoGameSample.Game1();
-        game.Run();
-    }
-}
+using var game = new SampleGame();
+game.UseIcyUI();
+game.Run();

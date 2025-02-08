@@ -12,17 +12,10 @@ namespace Icy.Data
     /// <summary>
     /// Represents a unified type conversion helper.
     /// </summary>
-    public class TypeConversionManager
+    public class TypeConversionManager : ITypeConverter
     {
-        private static readonly Lazy<TypeConversionManager> InstanceInitializer = new();
-
         private readonly Dictionary<(Type SourceType, Type TargetType), Func<object, object>> convertersCache = [];
         private readonly Dictionary<(Type SourceType, Type TargetType), IValueConverter> customConverters = [];
-
-        /// <summary>
-        /// Gets an active instance of the <see cref="TypeConversionManager"/> class.
-        /// </summary>
-        public static TypeConversionManager Instance => InstanceInitializer.Value;
 
         /// <summary>
         /// Registers the custom type converter to handle custom types conversion.
@@ -36,7 +29,7 @@ namespace Icy.Data
         }
 
         /// <summary>
-        /// Registers the type converter using runtime types defintions.
+        /// Registers the type converter using runtime types definitions.
         /// </summary>
         /// <param name="from">Source type to convert from.</param>
         /// <param name="to">Target type to convert to.</param>

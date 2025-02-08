@@ -2,7 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Icy.Threading;
+using Icy.Data.Markup;
 
 namespace Icy.Data.Bindings
 {

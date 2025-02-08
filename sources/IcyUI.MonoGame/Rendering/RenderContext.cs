@@ -5,8 +5,6 @@ using Icy.Rendering.Brushes;
 using Icy.Rendering.Fonts;
 using CommunityToolkit.Diagnostics;
 using Microsoft.Xna.Framework.Graphics;
-using System.Drawing;
-using System.Numerics;
 
 namespace Icy.MonoGame.Rendering
 {
@@ -63,23 +61,23 @@ namespace Icy.MonoGame.Rendering
             Flush();
         }
 
-        public void Draw(IBrush brush, Rectangle destination, Rectangle? sourceRectangle, Color color, float rotation, Vector2 origin, float depth = 0)
+        public void Draw(IBrush brush, in TextureRenderingOptions options)
         {
             if (!began)
                 ThrowHelper.ThrowInvalidOperationException($"Cannot draw until rendering has been started. Please call {nameof(Begin)} to begin drawing.");
             // Yes, yet another redirection.
-            brush.Draw(Renderer, destination, sourceRectangle, color, rotation, origin, depth);
+            brush.Draw(Renderer, options);
         }
 
         // HACK
-        public void DrawString(IFont font, string text, Vector2 position, float layerDepth, Color color, Vector2 scale, float rotation, Vector2 origin)
+        public void DrawString(IFont font, string text, in FontRenderingOptions options)
         {
             if (font is not FontAdapter mgFont)
             {
                 ThrowHelper.ThrowArgumentException(nameof(font), "Unsupported font type.");
                 return;
             }
-            Renderer.SpriteBatch.DrawString(mgFont.Font, text, position.AsEngineVector(), color.AsEngineColor(), rotation, origin, scale, SpriteEffects.None, layerDepth);
+            Renderer.SpriteBatch.DrawString(mgFont.Font, options);
         }
 
         public void End()

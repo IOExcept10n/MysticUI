@@ -2,7 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
 
-namespace Icy.Threading
+namespace Icy.Data.Markup
 {
     /// <summary>
     /// Provides an object that should support synchronized data dispatch.

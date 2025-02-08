@@ -2,14 +2,14 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
 
-namespace Icy.Threading
+namespace Icy.Data.Markup
 {
     /// <summary>
     /// Represents a class that provides a functionality for dispatching all asynchronous calls synchronously.
     /// </summary>
     public class Dispatcher
     {
-        private static readonly Dictionary<Thread, Dispatcher> dispatchers = [];
+        private static readonly Dictionary<Thread, Dispatcher> Dispatchers = [];
 
         private readonly PriorityQueue<Action, DispatcherPriority> dispatchedActions = new();
 
@@ -38,9 +38,9 @@ namespace Icy.Threading
         /// <returns>The dispatcher for the current thread.</returns>
         public static Dispatcher GetCurrentThreadDispatcher()
         {
-            if (!dispatchers.TryGetValue(Thread.CurrentThread, out var result))
+            if (!Dispatchers.TryGetValue(Thread.CurrentThread, out var result))
             {
-                result = dispatchers[Thread.CurrentThread] = new Dispatcher(Thread.CurrentThread);
+                result = Dispatchers[Thread.CurrentThread] = new Dispatcher(Thread.CurrentThread);
             }
 
             return result;

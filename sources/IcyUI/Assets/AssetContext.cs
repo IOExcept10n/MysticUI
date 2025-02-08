@@ -5,6 +5,11 @@ namespace Icy.Assets
     /// </summary>
     public record AssetContext(Uri RootPath) : IAssetContext
     {
+        /// <summary>
+        /// Gets an instance of the asset context that locates application domain directory.
+        /// </summary>
+        public static AssetContext ApplicationContext => new(new Uri(AppDomain.CurrentDomain.BaseDirectory));
+
         /// <inheritdoc/>
         public IAssetContext Combine(string relativePath) => new AssetContext(new Uri(RootPath, relativePath));
 

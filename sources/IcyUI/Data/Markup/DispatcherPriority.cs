@@ -1,6 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-namespace Icy.Threading
+namespace Icy.Data.Markup
 {
     /// <summary>
     /// Defines a priority for the actions in the dispatcher queue.

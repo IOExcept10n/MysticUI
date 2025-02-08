@@ -19,6 +19,6 @@ namespace Icy.MonoGame.Assets.Importers
 
         public bool CanRead(string? format) => format != null && supportedFormats.Contains(format);
 
-        public TextureAdapter Import(Stream stream, string? format) => Texture2D.FromStream(game.GraphicsDevice, stream);
+        public TextureAdapter Import(Stream stream, IImportContext context) => Texture2D.FromStream(game.GraphicsDevice, stream);
     }
 }

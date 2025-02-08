@@ -2,7 +2,6 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Bindings;
-using Icy.Threading;
 
 namespace Icy.Data.Markup
 {

@@ -6,9 +6,9 @@ using Microsoft.Xna.Framework.Input;
 using MonoGameSample.Samples;
 using System;
 
-namespace MonoGameSample
+namespace Icy.MonoGameSample
 {
-    public class Game1 : Game
+    public class SampleGame : Game
     {
         private readonly GraphicsDeviceManager _graphics;
         private int selection = 0;
@@ -36,7 +36,7 @@ namespace MonoGameSample
             }
         }
 
-        public Game1()
+        public SampleGame()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
@@ -83,6 +83,7 @@ namespace MonoGameSample
             {
                 Selection++;
             }
+            previousState = currentState;
             //if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
             //    Exit();
             base.Update(gameTime);
