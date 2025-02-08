@@ -5,7 +5,7 @@ using Icy.Assets;
 
 namespace Icy.MonoGame.Assets
 {
-    public abstract class MonoGameAssetContext(Uri rootPath) : IAssetContext<MonoGameAssetContext>
+    public abstract class MonoGameAssetContext(Uri rootPath) : IAssetContext
     {
         private const string FileScheme = "file";
         private const string AssemblyResourceScheme = "icy-res";
@@ -26,11 +26,11 @@ namespace Icy.MonoGame.Assets
             };
         }
 
-        public abstract MonoGameAssetContext Combine(string relativePath);
+        public abstract IAssetContext Combine(string relativePath);
 
         public virtual string GetAbsolutePath(string? relativePath = null) => new Uri(RootPath, relativePath).AbsolutePath;
 
-        public virtual string? GetDataFormat(string? relativePath = null) => new AssetContext(RootPath).GetDataFormat(relativePath);
+        public virtual string? GetDataFormat(string? relativePath = null) => MimeMapping.GetMimeType(Path.GetFileName(GetAbsolutePath(relativePath)));
 
         public abstract bool IsAvailable(string? relativePath = null);
 

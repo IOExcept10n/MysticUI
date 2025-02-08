@@ -1,45 +1,29 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using CommunityToolkit.HighPerformance;
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Net.Mime;
 using Icy.Rendering.Fonts;
 
-namespace Icy.Assets.Importers
+namespace Icy.Assets.Importers.BitmapFonts
 {
+    /// <summary>
+    /// Represents an importer for the <c>AngelCode Bitmap Font</c> files.
+    /// </summary>
     internal class BMFontImporter : IAssetImporter<StaticSpriteFont>
     {
         private const string BMFontFormat = "font/x-bmfont";
-        private const uint HeaderMask = 0xFFFFFF00; // Mask to get first three bytes
-        private const uint HeaderMagicNumber = 0x424D4600; // First three bytes are "BMF"
 
-        public bool CanRead(string? format) => format == BMFontFormat;
+        /// <inheritdoc/>
+        public bool CanRead(string? format) =>
+            format == BMFontFormat ||
+            format == MediaTypeNames.Application.Octet ||
+            format == MediaTypeNames.Text.Xml ||
+            string.IsNullOrEmpty(format);
 
-        public StaticSpriteFont Import<TContext>(Stream stream, IImportContext<TContext> importContext)
-            where TContext : IAssetContext<TContext>
+        /// <inheritdoc/>
+        public StaticSpriteFont Import(Stream stream, IImportContext importContext)
         {
-            uint header = stream.Read<uint>();
-            if ((header & HeaderMask) == HeaderMagicNumber)
-            {
-                return ImportBinary(stream, importContext);
-            }
-            else
-            {
-                // Return to the beginning
-                stream.Seek(-sizeof(uint), SeekOrigin.Current);
-                return ImportText(stream, importContext);
-            }
-        }
-
-        private StaticSpriteFont ImportText<TContext>(Stream stream, IImportContext<TContext> importContext) where TContext : IAssetContext<TContext>
-        {
-            throw new NotImplementedException();
-        }
-
-        private StaticSpriteFont ImportBinary<TContext>(Stream stream, IImportContext<TContext> importContext) where TContext : IAssetContext<TContext>
-        {
-            throw new NotImplementedException();
+            BitmapFont font = BitmapFont.Load(stream);
+            return font.ToSpriteFont(importContext);
         }
     }
 }

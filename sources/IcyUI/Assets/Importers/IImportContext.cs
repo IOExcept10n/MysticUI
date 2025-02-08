@@ -5,14 +5,12 @@ namespace Icy.Assets.Importers
     /// <summary>
     /// Represents a context for importing a specified resource.
     /// </summary>
-    /// <typeparam name="TContext">Type of the asset context used in a target engine.</typeparam>
-    public interface IImportContext<TContext>
-        where TContext : IAssetContext<TContext>
+    public interface IImportContext
     {
         /// <summary>
         /// Gets an instance of the asset resolving service that called import.
         /// </summary>
-        IAssetResolver<TContext> AssetResolver { get; }
+        IAssetResolver AssetResolver { get; }
 
         /// <summary>
         /// Gets the <see langword="MIME"/>-type for the format of the imported data.
@@ -22,7 +20,7 @@ namespace Icy.Assets.Importers
         /// <summary>
         /// Gets the context to import items from.
         /// </summary>
-        TContext ImportSource { get; }
+        IAssetContext ImportSource { get; }
 
         /// <summary>
         /// Gets the name of the requested resource for the specified context.

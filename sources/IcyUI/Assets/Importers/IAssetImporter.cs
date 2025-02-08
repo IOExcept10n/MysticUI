@@ -11,12 +11,10 @@ namespace Icy.Assets.Importers
         /// <summary>
         /// Performs asset loading from the specified data stream.
         /// </summary>
-        /// <typeparam name="TContext">Type of the asset context passed to a method.</typeparam>
         /// <param name="stream">Data stream to read asset from.</param>
         /// <param name="importContext">Context to import the asset.</param>
         /// <returns>An instance of the asset of type <typeparamref name="T"/> loaded from the specified stream.</returns>
-        T Import<TContext>(Stream stream, IImportContext<TContext> importContext)
-            where TContext : IAssetContext<TContext>;
+        T Import(Stream stream, IImportContext importContext);
     }
 
     /// <summary>

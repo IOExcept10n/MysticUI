@@ -11,16 +11,14 @@ namespace Icy.Assets
     /// <summary>
     /// Represents a default engine-independent implementation of the assets resolving service.
     /// </summary>
-    /// <typeparam name="TContext">Type of the context used to access the assets.</typeparam>
-    internal sealed class AssetResolver<TContext> : IAssetResolver<TContext>
-        where TContext : IAssetContext<TContext>
+    internal sealed class AssetResolver : IAssetResolver
     {
-        private readonly ConcurrentDictionary<TContext, AssetScope> cacheScopes = [];
+        private readonly ConcurrentDictionary<IAssetContext, AssetScope> cacheScopes = [];
         private readonly AssetImporterCollection importers = [];
         private readonly Dictionary<string, IAssetParser> parsers = [];
 
         /// <inheritdoc/>
-        public IAssetScope<TContext> CreateScope(TContext context)
+        public IAssetScope CreateScope(IAssetContext context)
         {
             var result = new AssetScope(this, context);
             cacheScopes.AddOrUpdate(context, result, (scope, prev) =>
@@ -44,7 +42,7 @@ namespace Icy.Assets
         }
 
         /// <inheritdoc/>
-        public T LoadAsset<T>(TContext context, string path)
+        public T LoadAsset<T>(IAssetContext context, string path)
                     where T : class
         {
             if (TryCheckScopeAndNativeLoading<T>(context, path, out var scope, out var asset))
@@ -55,7 +53,7 @@ namespace Icy.Assets
         }
 
         /// <inheritdoc/>
-        public async ValueTask<T> LoadAssetAsync<T>(TContext context, string path)
+        public async ValueTask<T> LoadAssetAsync<T>(IAssetContext context, string path)
             where T : class
         {
             if (TryCheckScopeAndNativeLoading<T>(context, path, out var scope, out var asset))
@@ -71,13 +69,13 @@ namespace Icy.Assets
         /// <inheritdoc/>
         public void RegisterParser(IAssetParser parser) => parsers[parser.Format] = parser;
 
-        private T ImportAsset<T>(TContext context, string path, AssetScope? scope, Stream stream)
+        private T ImportAsset<T>(IAssetContext context, string path, AssetScope? scope, Stream stream)
             where T : class
         {
             string? format = context.GetDataFormat(path);
             if (importers.TryFindImporter<T>(format, out var importer))
             {
-                var ctx = new ImportContext<TContext>(this, format, context, path);
+                var ctx = new ImportContext(this, format, context, path);
                 T asset = importer.Import(stream, ctx);
                 scope?.RegisterAsset(asset, path);
                 return asset;
@@ -98,7 +96,7 @@ namespace Icy.Assets
             return ThrowHelper.ThrowInvalidOperationException<T>("Couldn't find any importers or readers for the specified asset context.");
         }
 
-        private bool TryCheckScopeAndNativeLoading<T>(TContext context, string path, out AssetScope? scope, [NotNullWhen(true)] out T? asset)
+        private bool TryCheckScopeAndNativeLoading<T>(IAssetContext context, string path, out AssetScope? scope, [NotNullWhen(true)] out T? asset)
                                                     where T : class
         {
             if (cacheScopes.TryGetValue(context, out scope) && scope.IsCached(path))
@@ -118,13 +116,13 @@ namespace Icy.Assets
             return false;
         }
 
-        private class AssetScope(AssetResolver<TContext> resolver, TContext root) : IAssetScope<TContext>
+        private class AssetScope(AssetResolver resolver, IAssetContext root) : IAssetScope
         {
             private readonly ConcurrentDictionary<string, object> loadedAssets = [];
 
-            public IAssetResolver<TContext> AssetResolver { get; } = resolver;
+            public IAssetResolver AssetResolver { get; } = resolver;
 
-            public TContext RootContext { get; } = root;
+            public IAssetContext RootContext { get; } = root;
 
             public void Dispose()
             {

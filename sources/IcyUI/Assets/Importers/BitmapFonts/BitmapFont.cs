@@ -2,10 +2,8 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Globalization;
-using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Xml;
 using System.Xml.Linq;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
@@ -14,6 +12,14 @@ using Icy.Rendering.Fonts;
 
 namespace Icy.Assets.Importers.BitmapFonts
 {
+    /// <summary>
+    /// Represents an <c>AngelCode Bitmap Font</c> asset instance.
+    /// </summary>
+    /// <param name="Info">An info tag for the font.</param>
+    /// <param name="Common">Common data section for the font.</param>
+    /// <param name="Pages">Font atlas texture pages array.</param>
+    /// <param name="Chars">Array of characters stored in a font.</param>
+    /// <param name="Kernings">Array of character kernings defined in a font.</param>
     internal record BitmapFont(BitmapFontInfo Info, BitmapFontCommon Common, BitmapFontPage[] Pages, BitmapFontChar[] Chars, BitmapFontKerning[] Kernings)
     {
         // Each file contains up to 5 blocks (kernings block is optional).
@@ -36,9 +42,12 @@ namespace Icy.Assets.Importers.BitmapFonts
 
         private static ReadOnlySpan<byte> XmlWithBOMFormatHeader => [0xEF, 0xBB, 0xBF, (byte)'<'];
 
-
-        public StaticSpriteFont ToSpriteFont<TAssetContext>(IImportContext<TAssetContext> importContext)
-            where TAssetContext : IAssetContext<TAssetContext>
+        /// <summary>
+        /// Imports an instance of the <see cref="StaticSpriteFont"/> with info from this font definition.
+        /// </summary>
+        /// <param name="importContext">Context to import texture atlases for the font.</param>
+        /// <returns>An instance of the <see cref="StaticSpriteFont"/> ready to draw.</returns>
+        public StaticSpriteFont ToSpriteFont(IImportContext importContext)
         {
             FontInfo info = Info.ToFontInfo();
             IImage[] atlases = new IImage[Common.Pages];
@@ -52,35 +61,28 @@ namespace Icy.Assets.Importers.BitmapFonts
             return new(info, atlases, kernings, glyphs, 0);
         }
 
-        private IEnumerable<FontGlyph> GetGlyphs()
-        {
-            int i = 0;
-            foreach (var c in Chars)
-            {
-                var uv = new Vector4(
-                    c.X / Common.PageWidth,
-                    c.Y / Common.PageHeight,
-                    (c.X + c.Width) / Common.PageWidth,
-                    (c.Y + c.Height) / Common.PageHeight);
-
-                var bearing = new Vector2(c.XOffset, c.YOffset);
-                var size = new Size(c.Width, c.Height);
-
-                yield return new(c.Codepoint, (uint)i++, c.Page, c.XAdvance, bearing, size, uv);
-            }
-        }
-
-        private IReadOnlyDictionary<StaticSpriteFont.CodepointsPair, int> GetKernings() =>
-            Kernings.ToDictionary(k => new StaticSpriteFont.CodepointsPair(k.First, k.Second), t => (int)t.Amount);
-
-        public static BitmapFont Load(Stream stream, IFormatProvider? format = null) => DetectFormat(stream) switch
+        /// <summary>
+        /// Loads a <see cref="BitmapFont"/> from the data stream.
+        /// </summary>
+        /// <remarks>
+        /// Allowed formats are <see langword="Binary"/>, <see langword="Text"/> and <see langword="XML"/>.
+        /// </remarks>
+        /// <param name="stream">Stream with encoded font data.</param>
+        /// <param name="numbersFormat">An instance of the numbers format provider to load font with.</param>
+        /// <returns>An instance of the <see cref="BitmapFont"/> with info from the file stream.</returns>
+        public static BitmapFont Load(Stream stream, IFormatProvider? numbersFormat = null) => DetectFormat(stream) switch
         {
             FontFormat.Binary => LoadBinary(stream),
-            FontFormat.Text => Parse(stream, format ?? CultureInfo.InvariantCulture),
+            FontFormat.Text => Parse(stream, numbersFormat ?? CultureInfo.InvariantCulture),
             FontFormat.Xml => ReadXml(stream),
             _ => ThrowHelper.ThrowFormatException<BitmapFont>("Cannot determine file format to read data from the stream."),
         };
 
+        /// <summary>
+        /// Reads bitmap font data from an XML file stream.
+        /// </summary>
+        /// <param name="stream">Stream to the XML file with font data.</param>
+        /// <returns>An instance of the <see cref="BitmapFont"/> with data from the file.</returns>
         public static BitmapFont ReadXml(Stream stream)
         {
             XDocument document = XDocument.Load(stream);
@@ -136,6 +138,12 @@ namespace Icy.Assets.Importers.BitmapFonts
             return new(info, common, pages, chars, kernings);
         }
 
+        /// <summary>
+        /// Reads bitmap font data from a text file stream.
+        /// </summary>
+        /// <param name="stream">Stream to the text file with font data.</param>
+        /// <param name="provider">Numbers format provider to parse data with.</param>
+        /// <returns>An instance of the <see cref="BitmapFont"/> with data from the file.</returns>
         public static BitmapFont Parse(Stream stream, IFormatProvider? provider)
         {
             using var reader = new StreamReader(stream, leaveOpen: true);
@@ -194,6 +202,11 @@ namespace Icy.Assets.Importers.BitmapFonts
             return new(info, common, pages, chars, kernings);
         }
 
+        /// <summary>
+        /// Reads bitmap font info from a binary file stream.
+        /// </summary>
+        /// <param name="stream">Stream to the binary file with font data.</param>
+        /// <returns>An instance of the <see cref="BitmapFont"/> with data from the file.</returns>
         public static BitmapFont LoadBinary(Stream stream)
         {
             BitmapFontInfo info = default;
@@ -243,8 +256,36 @@ namespace Icy.Assets.Importers.BitmapFonts
             return new(info, common, pages, chars, kernings);
         }
 
+        /// <summary>
+        /// Gets data from an <see cref="XAttribute"/> of the specified <see cref="XElement"/>.
+        /// </summary>
+        /// <typeparam name="T">Type of the requested data.</typeparam>
+        /// <param name="element">An <see cref="XElement"/> to search attributes in.</param>
+        /// <param name="name">Name of the attribute to get.</param>
+        /// <returns>An instance of the <typeparamref name="T"/> with data from an attribute.</returns>
         internal static T GetAttribute<T>(XElement element, XName name)
             where T : struct, IParsable<T> => T.TryParse(element.Attribute(name)?.Value ?? "0", null, out var result) ? result : default;
+
+        private IEnumerable<FontGlyph> GetGlyphs()
+        {
+            int i = 0;
+            foreach (var c in Chars)
+            {
+                var uv = new Vector4(
+                    c.X / Common.PageWidth,
+                    c.Y / Common.PageHeight,
+                    (c.X + c.Width) / Common.PageWidth,
+                    (c.Y + c.Height) / Common.PageHeight);
+
+                var bearing = new Vector2(c.XOffset, c.YOffset);
+                var size = new Size(c.Width, c.Height);
+
+                yield return new(c.Codepoint, (uint)i++, c.Page, c.XAdvance, bearing, size, uv);
+            }
+        }
+
+        private Dictionary<StaticSpriteFont.CodepointsPair, int> GetKernings() =>
+            Kernings.ToDictionary(k => new StaticSpriteFont.CodepointsPair(k.First, k.Second), t => (int)t.Amount);
 
         private static FontFormat DetectFormat(Stream stream)
         {

@@ -14,7 +14,8 @@ namespace Icy.Assets
     /// <param name="preferredCulture">The preferred culture to use resources with.</param>
     internal class ResourceRegistry(CultureInfo? preferredCulture = null) : IResourceRegistry
     {
-        private readonly ConcurrentDictionary<string, object> resources = [];
+        private readonly Dictionary<string, object> resources = [];
+        private readonly Dictionary<Type, object> fallbackResources = [];
 
         /// <inheritdoc/>
         public int Count => resources.Count;
@@ -61,8 +62,17 @@ namespace Icy.Assets
             if (resources.TryGetValue(key, out var value))
             {
                 if (!value.GetType().IsAssignableTo(targetType))
+                {
                     return ThrowHelper.ThrowArgumentException<object>("Found value does not match the specified type.");
+                }
+
                 return value;
+            }
+
+            if (targetType != null)
+            {
+                var fallback = GetFallbackResource(targetType);
+                if (fallback != null) return fallback;
             }
 
             return ThrowKeyNotFoundException<object>("Value with the specified key not found.");
@@ -74,17 +84,28 @@ namespace Icy.Assets
         {
             if (resources.TryGetValue(key, out var value))
             {
-                return value as T ?? ThrowHelper.ThrowArgumentException<T>("Found value does not match the specified type.");
+                return value as T ?? GetFallbackResource<T>() ?? ThrowHelper.ThrowArgumentException<T>("Found value does not match the specified type.");
             }
 
             return ThrowKeyNotFoundException<T>("Value with the specified key not found.");
         }
 
         /// <inheritdoc/>
-        public bool Remove(string key) => resources.TryRemove(key, out _);
+        public T? GetFallbackResource<T>()
+            where T : class => fallbackResources.TryGetValue(typeof(T), out var result) ? (T)result : null;
 
         /// <inheritdoc/>
-        public bool Remove(KeyValuePair<string, object> item) => resources.TryRemove(item);
+        public object? GetFallbackResource(Type requestedType) => fallbackResources.TryGetValue(requestedType, out var result) ? result : null;
+
+        /// <inheritdoc/>
+        public void SetFallbackResource<T>(T instance)
+            where T : class => fallbackResources.Add(typeof(T), instance);
+
+        /// <inheritdoc/>
+        public bool Remove(string key) => resources.Remove(key, out _);
+
+        /// <inheritdoc/>
+        public bool Remove(KeyValuePair<string, object> item) => resources.Remove(item.Key);
 
         /// <inheritdoc/>
         public bool TryGetValue(string key, [MaybeNullWhen(false)] out object value) => resources.TryGetValue(key, out value);

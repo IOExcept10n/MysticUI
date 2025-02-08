@@ -3,13 +3,10 @@ namespace Icy.Assets
     /// <summary>
     /// Represents context to load assets.
     /// </summary>
-    public record AssetContext(Uri RootPath) : IAssetContext<AssetContext>
+    public record AssetContext(Uri RootPath) : IAssetContext
     {
         /// <inheritdoc/>
-        public static AssetContext Create(Uri targetPath) => new(targetPath);
-
-        /// <inheritdoc/>
-        public AssetContext Combine(string relativePath) => new(new Uri(RootPath, relativePath));
+        public IAssetContext Combine(string relativePath) => new AssetContext(new Uri(RootPath, relativePath));
 
         /// <inheritdoc/>
         public bool IsAvailable(string? relativePath = null) => Path.Exists(GetAbsolutePath(relativePath));

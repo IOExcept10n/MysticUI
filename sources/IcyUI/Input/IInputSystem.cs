@@ -8,7 +8,7 @@ using Icy.Input.Devices;
 namespace Icy.Input
 {
     /// <summary>
-    /// An interface that provides engine-independent input system for the UI system.
+    /// An interface that provides engine-independent input system for the UI library.
     /// </summary>
     public interface IInputSystem : IEnumerable<IInputDeviceListener>, IInitializable
     {

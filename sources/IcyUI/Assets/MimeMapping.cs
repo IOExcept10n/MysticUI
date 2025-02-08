@@ -7,7 +7,7 @@ namespace Icy.Assets
     /// <summary>
     /// Provides utilities for mapping file names and extensions to MIME-types.
     /// </summary>
-    internal static class MimeMapping
+    public static class MimeMapping
     {
         private const string DefaultFallbackMimeType = "application/octet-stream";
         private static readonly Dictionary<string, string> TypeMap;

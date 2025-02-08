@@ -1,11 +1,13 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-namespace Icy.Assets
+using Icy.Assets;
+
+namespace Icy.Configuration
 {
     /// <summary>
-    /// Represents a default implementation of the <see cref="IAssetConfiguration{TContext}"/> to use with <see cref="AssetContext"/>.
+    /// Represents a default implementation of the <see cref="IAssetConfiguration"/> to use with <see cref="AssetContext"/>.
     /// </summary>
-    internal sealed class AssetConfiguration : IAssetConfiguration<AssetContext>
+    internal sealed class AssetConfiguration : IAssetConfiguration
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="AssetConfiguration"/> class.
@@ -16,14 +18,14 @@ namespace Icy.Assets
             DefaultAssetContext = defaultAssetContext;
             SharedResources = new ResourceRegistry();
             Localizer = new ResourceLocalizer(SharedResources);
-            AssetResolver = new AssetResolver<AssetContext>();
+            AssetResolver = new AssetResolver();
         }
 
         /// <inheritdoc/>
-        public AssetContext DefaultAssetContext { get; set; }
+        public IAssetContext DefaultAssetContext { get; set; }
 
         /// <inheritdoc/>
-        public IAssetResolver<AssetContext> AssetResolver { get; }
+        public IAssetResolver AssetResolver { get; }
 
         /// <inheritdoc/>
         public ILocalizer Localizer { get; set; }

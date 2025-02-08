@@ -5,19 +5,17 @@ namespace Icy.Assets
     /// <summary>
     /// Represents a scope for caching all the assets related to the specified context.
     /// </summary>
-    /// <typeparam name="TContext">Type of the context used in the scope.</typeparam>
-    public interface IAssetScope<TContext> : IDisposable
-        where TContext : IAssetContext<TContext>
+    public interface IAssetScope : IDisposable
     {
         /// <summary>
         /// Gets the root context to cache all the assets inside it.
         /// </summary>
-        TContext RootContext { get; }
+        IAssetContext RootContext { get; }
 
         /// <summary>
         /// Gets an instance of the assets resolver that owes this scope.
         /// </summary>
-        IAssetResolver<TContext> AssetResolver { get; }
+        IAssetResolver AssetResolver { get; }
 
         /// <summary>
         /// Checks if the specified asset is stored in cache of this scope.

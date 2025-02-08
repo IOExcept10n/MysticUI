@@ -10,7 +10,7 @@ namespace Icy.Input.Clipboard
     /// Represents a default implementation of the <see langword="Windows"/> clipboard.
     /// </summary>
     [SupportedOSPlatform("windows")]
-    internal class WindowsClipboard : IClipboard
+    internal partial class WindowsClipboard : IClipboard
     {
         private const int ClipboardFormatUnicodeText = 13;
 
@@ -25,14 +25,14 @@ namespace Icy.Input.Clipboard
                     return null;
                 }
 
-                IntPtr handle, pointer = IntPtr.Zero;
+                nint handle, pointer = nint.Zero;
                 try
                 {
                     OpenClipboard();
                     handle = GetClipboardData(ClipboardFormatUnicodeText);
-                    if (handle == IntPtr.Zero) return null;
+                    if (handle == nint.Zero) return null;
                     pointer = GlobalLock(handle);
-                    if (pointer == IntPtr.Zero) return null;
+                    if (pointer == nint.Zero) return null;
                     int size = GlobalSize(handle);
                     var buffer = new byte[size];
                     Marshal.Copy(pointer, buffer, 0, size);
@@ -40,7 +40,7 @@ namespace Icy.Input.Clipboard
                 }
                 finally
                 {
-                    if (pointer != IntPtr.Zero)
+                    if (pointer != nint.Zero)
                     {
                         GlobalUnlock(pointer);
                     }
@@ -53,40 +53,41 @@ namespace Icy.Input.Clipboard
             {
                 OpenClipboard();
                 EmptyClipboard();
-                IntPtr hGlobal = IntPtr.Zero;
+                nint memory = nint.Zero;
                 try
                 {
-                    // allocate Windows string for the clipboard.
-                    int bytes = (value.Length + 1) * 2;
-                    hGlobal = Marshal.AllocHGlobal(bytes);
-                    if (hGlobal == IntPtr.Zero)
-                        throw new Win32Exception(Marshal.GetLastWin32Error());
-                    IntPtr target = GlobalLock(hGlobal);
-                    if (target == IntPtr.Zero)
+                    // Allocate Windows string for the clipboard.
+                    int bytes = (value.Length + 1) * 2; // +1 for null terminator
+                    memory = Marshal.AllocHGlobal(bytes);
+                    if (memory == nint.Zero)
                         throw new Win32Exception(Marshal.GetLastWin32Error());
 
                     // Prepare data for the clipboard.
                     try
                     {
-                        Marshal.Copy(value.ToCharArray(), 0, target, value.Length);
+                        // Convert the string to a byte array and copy it to the allocated memory
+                        byte[] data = Encoding.Unicode.GetBytes(value + "\0"); // Add null terminator
+                        Marshal.Copy(data, 0, memory, data.Length);
                     }
-                    finally
+                    catch
                     {
-                        GlobalUnlock(target);
+                        // Ensure we unlock and free memory in case of an exception
+                        GlobalUnlock(memory);
+                        throw;
                     }
 
-                    if (SetClipboardData(ClipboardFormatUnicodeText, hGlobal) == IntPtr.Zero)
+                    if (SetClipboardData(ClipboardFormatUnicodeText, memory) == nint.Zero)
                     {
                         throw new Win32Exception(Marshal.GetLastWin32Error());
                     }
 
-                    hGlobal = IntPtr.Zero;
+                    memory = nint.Zero; // Prevent freeing the handle
                 }
                 finally
                 {
-                    if (hGlobal != IntPtr.Zero)
+                    if (memory != nint.Zero)
                     {
-                        Marshal.FreeHGlobal(hGlobal);
+                        Marshal.FreeHGlobal(memory);
                     }
 
                     CloseClipboard();
@@ -98,42 +99,43 @@ namespace Icy.Input.Clipboard
         {
             for (int i = 0; i < 10; i++)
             {
-                if (OpenClipboard(IntPtr.Zero)) return;
+                if (OpenClipboard(nint.Zero)) return;
                 Thread.Sleep(100);
             }
 
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
 
-        [DllImport("User32.dll", SetLastError = true)]
+        [LibraryImport("User32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool IsClipboardFormatAvailable(uint format);
+        private static partial bool IsClipboardFormatAvailable(uint format);
 
-        [DllImport("User32.dll", SetLastError = true)]
-        private static extern IntPtr GetClipboardData(uint uFormat);
+        [LibraryImport("User32.dll", SetLastError = true)]
+        private static partial nint GetClipboardData(uint uFormat);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr GlobalLock(IntPtr hMem);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        private static partial nint GlobalLock(nint hMem);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
+        [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GlobalUnlock(IntPtr hMem);
+        private static partial bool GlobalUnlock(nint hMem);
 
-        [DllImport("user32.dll", SetLastError = true)]
+        [LibraryImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool OpenClipboard(IntPtr hWndNewOwner);
+        private static partial bool OpenClipboard(nint hWndNewOwner);
 
-        [DllImport("user32.dll", SetLastError = true)]
+        [LibraryImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool CloseClipboard();
+        private static partial bool CloseClipboard();
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr SetClipboardData(uint uFormat, IntPtr data);
+        [LibraryImport("user32.dll", SetLastError = true)]
+        private static partial nint SetClipboardData(uint uFormat, nint data);
 
-        [DllImport("user32.dll")]
-        private static extern bool EmptyClipboard();
+        [LibraryImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool EmptyClipboard();
 
-        [DllImport("Kernel32.dll", SetLastError = true)]
-        private static extern int GlobalSize(IntPtr hMem);
+        [LibraryImport("Kernel32.dll", SetLastError = true)]
+        private static partial int GlobalSize(nint hMem);
     }
 }

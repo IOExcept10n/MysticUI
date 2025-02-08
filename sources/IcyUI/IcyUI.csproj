@@ -8,6 +8,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
     <RootNamespace>Icy</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <WarningLevel>9999</WarningLevel>
@@ -28,7 +29,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Animations\" />
-    <Folder Include="Parsing\" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\LICENSE">

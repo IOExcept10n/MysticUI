@@ -3,9 +3,7 @@ namespace Icy.Assets
     /// <summary>
     /// Represents a generalized source to access assets from.
     /// </summary>
-    /// <typeparam name="TSelf">Type of the used asset context.</typeparam>
-    public interface IAssetContext<TSelf>
-        where TSelf : IAssetContext<TSelf>
+    public interface IAssetContext
     {
         /// <summary>
         /// Gets the path of the root directory for accessing assets.
@@ -13,18 +11,11 @@ namespace Icy.Assets
         Uri RootPath { get; }
 
         /// <summary>
-        /// Initializes a new instance of the <typeparamref name="TSelf"/> using the specified target path.
-        /// </summary>
-        /// <param name="targetPath">Uri instance to initialize the context.</param>
-        /// <returns>An instance of the <typeparamref name="TSelf"/>.</returns>
-        static abstract TSelf Create(Uri targetPath);
-
-        /// <summary>
         /// Combines the asset context instance with a relative path to produce a new local asset context.
         /// </summary>
         /// <param name="relativePath">A relative path to create a new context for.</param>
-        /// <returns>New instance of the <typeparamref name="TSelf"/> that refers to the combined path.</returns>
-        TSelf Combine(string relativePath);
+        /// <returns>New instance of the <see cref="IAssetContext"/> that refers to the combined path.</returns>
+        IAssetContext Combine(string relativePath);
 
         /// <summary>
         /// Checks if the path represented by the given relative path exists.
@@ -34,7 +25,7 @@ namespace Icy.Assets
         bool IsAvailable(string? relativePath = null);
 
         /// <summary>
-        /// Gets the absolute path to the given relative path relative to this <typeparamref name="TSelf"/> instance.
+        /// Gets the absolute path to the given relative path relative to this <see cref="IAssetContext"/> instance.
         /// </summary>
         /// <param name="relativePath">A relative path to make absolute path for.</param>
         /// <returns>An absolute path for the specified path combination.</returns>
