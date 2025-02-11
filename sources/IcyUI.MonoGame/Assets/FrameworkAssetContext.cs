@@ -8,15 +8,16 @@ namespace Icy.MonoGame.Assets
 {
     internal class FrameworkAssetContext : MonoGameAssetContext, INativeAssetReference
     {
-        public FrameworkAssetContext(Uri rootPath) : base(rootPath)
+        public FrameworkAssetContext(Uri rootPath, ContentManager content) : base(rootPath)
         {
+            Content = content;
         }
 
         // TODO: it requires to use content manager
         // For now I'm still not sure how to pass the manager
         public ContentManager Content { get; }
 
-        public override MonoGameAssetContext Combine(string relativePath) => new FrameworkAssetContext(new(RootPath, relativePath));
+        public override MonoGameAssetContext Combine(string relativePath) => new FrameworkAssetContext(new(RootPath, relativePath), Content);
 
         public override bool IsAvailable(string? relativePath = null) => Path.Exists(GetAbsolutePath(relativePath));
 

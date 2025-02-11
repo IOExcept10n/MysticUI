@@ -32,7 +32,7 @@ namespace Icy.MonoGame.Rendering
             {
                 string errorMessage = $"Effect type is not compatible with the MonoGame rendering system. " +
                     $"Expected type: {typeof(Effect)}, " +
-                    $"actual type: {effect?.GetType() ?? Type.Missing}";
+                    $"actual type: {effect?.GetType().Name ?? "<null>"}";
                 ThrowHelper.ThrowArgumentException(nameof(effect), errorMessage);
                 return; // Unreachable
             }

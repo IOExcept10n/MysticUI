@@ -72,7 +72,7 @@ namespace Icy.Configuration
         /// </summary>
         /// <param name="typesConfig">The reflection configuration instance.</param>
         /// <returns>The current builder instance for fluent configuration.</returns>
-        IReflectionConfigurationBuilder ConfigureTypes(IReflectionConfiguration typesConfig);
+        IReflectionConfigurationBuilder ConfigureTypes(ReflectionConfiguration typesConfig);
 
         /// <summary>
         /// Configures the reflection settings with additional settings.

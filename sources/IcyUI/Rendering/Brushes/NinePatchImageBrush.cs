@@ -1,7 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
-using System.Numerics;
 using Icy.Controls;
 
 namespace Icy.Rendering.Brushes
@@ -48,13 +47,9 @@ namespace Icy.Rendering.Brushes
             }
         }
 
-        public override void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, in TextureRenderingOptions options)
+        /// <inheritdoc/>
+        public override void Draw(IRenderContext context, in TextureRenderingOptions options)
         {
-            if (Source is not TTexture texture)
-            {
-                texture = RecreateTexture(renderer);
-            }
-
             // Update the cached rectangles if the cache is invalid
             if (!cacheIsValid)
             {
@@ -71,7 +66,7 @@ namespace Icy.Rendering.Brushes
             // Draw each patch using the cached rectangles
             for (int i = 0; i < cachedPatches.Length; i++)
             {
-                DrawPatch(renderer, texture, options with { Destination = cachedPatches[i], Source = sourceRect.Cut(cachedPatches[i]) });
+                DrawPatch(context, Source, options with { Destination = cachedPatches[i], Source = sourceRect.Cut(cachedPatches[i]) });
             }
         }
 
@@ -105,12 +100,9 @@ namespace Icy.Rendering.Brushes
             cacheIsValid = true; // Mark cache as valid
         }
 
-        private void DrawPatch<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, TTexture texture, in TextureRenderingOptions options)
-            where TTexture : class, ITexture<TTexture, TGraphics>
-            where TGraphics : class
+        private static void DrawPatch(IRenderContext context, ITexture texture, in TextureRenderingOptions options)
         {
-            renderer.Draw(texture, options);
+            context.Draw(texture, options);
         }
     }
-
 }

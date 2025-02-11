@@ -19,7 +19,7 @@ namespace Icy.Configuration
     {
         /// <inheritdoc/>
         [NotNull]
-        public IAssetConfiguration? Assets { get; private set; }
+        public AssetConfiguration? Assets { get; private set; }
 
         /// <inheritdoc/>
         [NotNull]
@@ -31,7 +31,7 @@ namespace Icy.Configuration
 
         /// <inheritdoc/>
         [NotNull]
-        public IReflectionConfiguration? Types { get; private set; }
+        public ReflectionConfiguration? Types { get; private set; }
 
         /// <inheritdoc/>
         public IcyConfiguration Build()
@@ -44,7 +44,7 @@ namespace Icy.Configuration
         }
 
         /// <inheritdoc/>
-        public IAssetConfigurationBuilder ConfigureAssets(IAssetConfiguration assetConfiguration)
+        public IAssetConfigurationBuilder ConfigureAssets(AssetConfiguration assetConfiguration)
         {
             Assets = assetConfiguration;
             return this;
@@ -86,7 +86,7 @@ namespace Icy.Configuration
         }
 
         /// <inheritdoc/>
-        public IReflectionConfigurationBuilder ConfigureTypes(IReflectionConfiguration typesConfig)
+        public IReflectionConfigurationBuilder ConfigureTypes(ReflectionConfiguration typesConfig)
         {
             Types = typesConfig;
             return this;

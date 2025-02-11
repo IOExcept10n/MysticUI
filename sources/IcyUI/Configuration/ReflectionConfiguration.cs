@@ -1,21 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Data;
 
 namespace Icy.Configuration
 {
     /// <summary>
-    /// Represents a default implementation of the <see cref="IReflectionConfiguration"/> interface.
+    /// Represents configuration for the reflection-related service used in library.
     /// </summary>
-    public class ReflectionConfiguration : IReflectionConfiguration
+    public class ReflectionConfiguration
     {
-        /// <inheritdoc/>
+        /// <summary>
+        /// Gets or sets an instance of the <see cref="IAssemblyResolver"/> used in library.
+        /// </summary>
         public IAssemblyResolver AssemblyResolver { get; set; } = new AssemblyResolver();
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Gets or sets an instance of the <see cref="ITypeConverter"/> used in library.
+        /// </summary>
         public ITypeConverter TypeConverter { get; set; } = new TypeConversionManager();
     }
 }

@@ -18,7 +18,7 @@ namespace Icy.Rendering
         /// <param name="vector">Normalized vector to convert.</param>
         /// <returns>
         /// An instance of the <see cref="Color"/> struct
-        /// with mapping from vecto XYZW to color ARGB (alpha, red, green, blue)
+        /// with mapping from vector XYZW to color ARGB (alpha, red, green, blue)
         /// and multiplying by 255 each component.
         /// </returns>
         public static Color AsColor(this Vector4 vector)

@@ -189,7 +189,7 @@ namespace Icy.Rendering
         /// <inheritdoc/>
         public override readonly string ToString()
         {
-            return $"2D Transform ( Scale: {Scale}, Rotate: {float.RadiansToDegrees(Rotation)}, Translate: {Position} )";
+            return $"2D Transform (Scale: {Scale}, Rotate: {float.RadiansToDegrees(Rotation)} around {Origin}, Translate: {Position})";
         }
 
         private void BuildMatrix()

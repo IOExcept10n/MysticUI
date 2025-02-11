@@ -8,10 +8,6 @@ namespace Icy.MonoGame.Assets
 {
     public abstract class MonoGameAssetContext(Uri rootPath) : IAssetContext, IParsable<MonoGameAssetContext>
     {
-        private const string FileScheme = "file";
-        private const string AssemblyResourceScheme = "icy-res";
-        private const string AssetScheme = "icy-asset";
-
         public Uri RootPath { get; } = rootPath;
 
         public static MonoGameAssetContext Create(Uri uri)

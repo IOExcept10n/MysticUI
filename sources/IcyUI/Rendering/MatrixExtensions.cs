@@ -106,33 +106,37 @@ namespace Icy.Rendering
         public static Vector2 XY(this Vector4 vector) => new(vector.X, vector.Y);
 
         /// <summary>
-        /// Gets trhee-dimensional <see cref="Vector4"/> components represented as <see cref="Vector3"/>.
+        /// Gets three-dimensional <see cref="Vector4"/> components represented as <see cref="Vector3"/>.
         /// </summary>
         /// <param name="vector">The vector to get X, Y and Z components from.</param>
         /// <returns>Instance of the <see cref="Vector3"/> struct with X set to <paramref name="vector"/>.X, Y set to <paramref name="vector"/>.Y and Z set to <paramref name="vector"/>.Z.</returns>
         public static Vector3 XYZ(this Vector4 vector) => new(vector.X, vector.Y, vector.Z);
 
         /// <summary>
-        /// Cuts the part of speecfied rectangle.
+        /// Cuts the part of specified rectangle.
         /// </summary>
         /// <param name="origin">A rectangle to cut part from.</param>
-        /// <param name="part">A sector that is to be cut from this one.</param>
+        /// <param name="scissor">A sector that is to be cut from this one or <see langword="null"/> if <paramref name="origin"/> should be preserved.</param>
         /// <returns>Maximal possible part of the cut rectangle.</returns>
-        public static Rectangle Cut(this Rectangle origin, Rectangle part)
+        public static Rectangle Cut(this Rectangle origin, Rectangle? scissor)
         {
-            int width = part.Width;
-            if (width + part.X > origin.Width)
+            if (!scissor.HasValue)
+                return origin;
+            var sector = scissor.Value;
+
+            int width = sector.Width;
+            if (width + sector.X > origin.Width)
             {
-                width = origin.Width - part.X;
+                width = origin.Width - sector.X;
             }
 
-            int height = part.Height;
-            if (height + part.Y > origin.Height)
+            int height = sector.Height;
+            if (height + sector.Y > origin.Height)
             {
-                height = origin.Height - part.Y;
+                height = origin.Height - sector.Y;
             }
 
-            return new(part.X + origin.X, part.Y + origin.Y, width, height);
+            return new(sector.X + origin.X, sector.Y + origin.Y, width, height);
         }
     }
 }

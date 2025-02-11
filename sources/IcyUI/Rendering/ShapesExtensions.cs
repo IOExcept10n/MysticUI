@@ -91,7 +91,7 @@ namespace Icy.Rendering
         public static void DrawLine(this IRenderContext context, Vector2 point, float length, float rotation, Vector2 origin, Color color, float thickness = 1f)
         {
             Rectangle rect = new((int)point.X, (int)point.Y, (int)length, (int)thickness);
-            context.Draw(White, new(rect, null, color, rotation, origin));
+            context.Draw(context.WhiteTexture, new(rect, null, color, rotation, origin));
         }
 
         /// <summary>
@@ -137,7 +137,7 @@ namespace Icy.Rendering
         {
             var offset = new Vector2(0.5f) - new Vector2(size * 0.5f);
             location += offset;
-            context.Draw(White, new(new Rectangle((int)location.X, (int)location.Y, (int)size, (int)size), null, color));
+            context.Draw(context.WhiteTexture, new(new Rectangle((int)location.X, (int)location.Y, (int)size, (int)size), null, color));
         }
 
         /// <summary>
@@ -189,16 +189,16 @@ namespace Icy.Rendering
             var t = (int)thickness;
 
             // Top
-            context.Draw(White, new(new Rectangle(rectangle.X, rectangle.Y, rectangle.Width, t), null, color));
+            context.Draw(context.WhiteTexture, new(new Rectangle(rectangle.X, rectangle.Y, rectangle.Width, t), null, color));
 
             // Bottom
-            context.Draw(White, new(new Rectangle(rectangle.X, rectangle.Bottom - t, rectangle.Width, t), null, color));
+            context.Draw(context.WhiteTexture, new(new Rectangle(rectangle.X, rectangle.Bottom - t, rectangle.Width, t), null, color));
 
             // Left
-            context.Draw(White, new(new Rectangle(rectangle.X, rectangle.Y, t, rectangle.Height), null, color));
+            context.Draw(context.WhiteTexture, new(new Rectangle(rectangle.X, rectangle.Y, t, rectangle.Height), null, color));
 
             // Right
-            context.Draw(White, new(new Rectangle(rectangle.Right - t, rectangle.Y, t, rectangle.Height), null, color));
+            context.Draw(context.WhiteTexture, new(new Rectangle(rectangle.Right - t, rectangle.Y, t, rectangle.Height), null, color));
         }
 
         /// <summary>
@@ -219,7 +219,7 @@ namespace Icy.Rendering
         /// <param name="destination">Rectangle to draw.</param>
         /// <param name="color">Color of the rectangle to fill.</param>
         public static void FillRectangle(this IRenderContext context, Rectangle destination, Color color) =>
-            context.Draw(White, new(destination, null, color));
+            context.Draw(context.WhiteTexture, new(destination, null, color));
 
         /// <summary>
         /// Draws a filled rectangle.
@@ -255,8 +255,7 @@ namespace Icy.Rendering
         // TODO: make FillSegment and FillCircle methods
         private class SimpleBrush : IBrush
         {
-            void IBrush.Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, in TextureRenderingOptions options) =>
-                renderer.Draw(TTexture.GetWhite(renderer.GraphicsDevice), options);
+            public void Draw(IRenderContext context, in TextureRenderingOptions options) => context.Draw(context.WhiteTexture, options);
         }
     }
 }

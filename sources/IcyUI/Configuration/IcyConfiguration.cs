@@ -12,5 +12,5 @@ namespace Icy.Configuration
     /// <param name="Assets"> Gets configuration of the assets system used by library in this application. </param>
     /// <param name="RenderContext"> Gets the rendering service instance used by library in this application. </param>
     /// <param name="Types"> Gets an instance of the reflection-related services used in library. </param>
-    public record IcyConfiguration(IInputSystem Input, IAssetConfiguration Assets, IRenderContext RenderContext, IReflectionConfiguration Types);
+    public record IcyConfiguration(IInputSystem Input, AssetConfiguration Assets, IRenderContext RenderContext, ReflectionConfiguration Types);
 }

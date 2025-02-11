@@ -5,7 +5,7 @@ namespace Icy.Assets
     /// <summary>
     /// Represents a reference to the engine-specified assets section that could be read with engine API.
     /// </summary>
-    public interface INativeAssetReference
+    public interface IPlatformAssetReference
     {
         /// <summary>
         /// Loads an asset with the specified relative path.

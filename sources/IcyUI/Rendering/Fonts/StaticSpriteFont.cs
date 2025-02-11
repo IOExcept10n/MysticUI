@@ -1,7 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Collections.Frozen;
-using Icy.Rendering.Brushes;
 
 namespace Icy.Rendering.Fonts
 {
@@ -12,7 +11,7 @@ namespace Icy.Rendering.Fonts
     {
         private const int CharLimit = 0x10000;
 
-        private readonly IImage[] atlas;
+        private readonly ITexture[] atlas;
         private readonly FrozenDictionary<CodepointsPair, int> kernings;
 
         /// <summary>
@@ -25,7 +24,7 @@ namespace Icy.Rendering.Fonts
         /// <param name="lineGap">Recommended spacing between two lines of text.</param>
         public StaticSpriteFont(
             FontInfo info,
-            IImage[] atlas,
+            ITexture[] atlas,
             IReadOnlyDictionary<CodepointsPair, int> kernings,
             IEnumerable<FontGlyph> glyphs,
             float lineGap = 0)
@@ -57,7 +56,7 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <inheritdoc/>
-        protected override IImage GetGlyphTexture(FontGlyph glyph) => atlas[glyph.PageNumber];
+        protected override ITexture GetGlyphTexture(FontGlyph glyph) => atlas[glyph.PageNumber];
 
         /// <inheritdoc/>
         protected override float GetKerning(FontGlyph current, FontGlyph previous)

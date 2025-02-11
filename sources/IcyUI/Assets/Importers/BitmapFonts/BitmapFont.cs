@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
+using Icy.Rendering;
 using Icy.Rendering.Brushes;
 using Icy.Rendering.Fonts;
 
@@ -47,19 +48,7 @@ namespace Icy.Assets.Importers.BitmapFonts
         /// </summary>
         /// <param name="importContext">Context to import texture atlases for the font.</param>
         /// <returns>An instance of the <see cref="StaticSpriteFont"/> ready to draw.</returns>
-        public StaticSpriteFont ToSpriteFont(IImportContext importContext)
-        {
-            FontInfo info = Info.ToFontInfo();
-            IImage[] atlases = new IImage[Common.Pages];
-            for (int i = 0; i < atlases.Length; i++)
-            {
-                atlases[i] = importContext.AssetResolver.LoadAsset<IImage>(importContext.ImportSource, Pages[i].FileName);
-            }
-
-            var kernings = GetKernings();
-            var glyphs = GetGlyphs();
-            return new(info, atlases, kernings, glyphs, 0);
-        }
+        public StaticSpriteFont ToSpriteFont(IImportContext importContext) => new(Info.ToFontInfo(), GetAtlases(importContext), GetKernings(), GetGlyphs(), 0);
 
         /// <summary>
         /// Loads a <see cref="BitmapFont"/> from the data stream.
@@ -265,6 +254,17 @@ namespace Icy.Assets.Importers.BitmapFonts
         /// <returns>An instance of the <typeparamref name="T"/> with data from an attribute.</returns>
         internal static T GetAttribute<T>(XElement element, XName name)
             where T : struct, IParsable<T> => T.TryParse(element.Attribute(name)?.Value ?? "0", null, out var result) ? result : default;
+
+        private ITexture[] GetAtlases(IImportContext importContext)
+        {
+            ITexture[] atlases = new ITexture[Common.Pages];
+            for (int i = 0; i < atlases.Length; i++)
+            {
+                atlases[i] = importContext.AssetResolver.LoadAsset<ITexture>(importContext.ImportSource, Pages[i].FileName);
+            }
+
+            return atlases;
+        }
 
         private IEnumerable<FontGlyph> GetGlyphs()
         {

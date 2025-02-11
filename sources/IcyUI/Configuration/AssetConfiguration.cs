@@ -5,9 +5,9 @@ using Icy.Assets;
 namespace Icy.Configuration
 {
     /// <summary>
-    /// Represents a default implementation of the <see cref="IAssetConfiguration"/> to use with <see cref="AssetContext"/>.
+    /// Represents configuration for the library assets.
     /// </summary>
-    internal sealed class AssetConfiguration : IAssetConfiguration
+    public sealed class AssetConfiguration : IDisposable
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="AssetConfiguration"/> class.
@@ -21,17 +21,25 @@ namespace Icy.Configuration
             AssetResolver = new AssetResolver();
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Gets or sets the default context to use with assets loading.
+        /// </summary>
         public IAssetContext DefaultAssetContext { get; set; }
 
-        /// <inheritdoc/>
-        public IAssetResolver AssetResolver { get; }
+        /// <summary>
+        /// Gets or sets an instance of the asset resolver used in the library.
+        /// </summary>
+        public IAssetResolver AssetResolver { get; set; }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Gets or sets the localization service instance.
+        /// </summary>
         public ILocalizer Localizer { get; set; }
 
-        /// <inheritdoc/>
-        public IResourceRegistry SharedResources { get; }
+        /// <summary>
+        /// Gets or sets resources registry used in the library.
+        /// </summary>
+        public IResourceRegistry SharedResources { get; set; }
 
         /// <inheritdoc/>
         public void Dispose()

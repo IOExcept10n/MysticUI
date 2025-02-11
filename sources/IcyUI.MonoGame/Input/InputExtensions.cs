@@ -3,7 +3,7 @@
 using Icy.Input.Devices;
 using MKeys = Microsoft.Xna.Framework.Input.Keys;
 
-namespace Icy.MonoGame.Extensions
+namespace Icy.MonoGame.Input
 {
     /// <summary>
     /// Provides some extensions to help with MonoGame-specific input support.

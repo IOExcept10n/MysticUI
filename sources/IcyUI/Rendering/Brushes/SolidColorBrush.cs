@@ -1,7 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
-using System.Numerics;
 
 namespace Icy.Rendering.Brushes
 {
@@ -25,13 +24,10 @@ namespace Icy.Rendering.Brushes
         public Color Color { get; }
 
         /// <inheritdoc/>
-        public virtual void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, in TextureRenderingOptions options)
-            where TTexture : class, ITexture<TTexture, TGraphics>
-            where TGraphics : class
+        public void Draw(IRenderContext context, in TextureRenderingOptions options)
         {
-            var white = TTexture.GetWhite(renderer.GraphicsDevice);
             var mixed = (Color.AsVector() * options.Color.AsVector()).AsColor();
-            renderer.Draw(white, options);
+            context.Draw(context.WhiteTexture, options with { Color = mixed });
         }
     }
 }

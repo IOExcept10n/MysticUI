@@ -1,7 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
-using System.Numerics;
 
 namespace Icy.Rendering.Brushes
 {
@@ -51,57 +50,9 @@ namespace Icy.Rendering.Brushes
         public ITexture Source { get; protected set; }
 
         /// <inheritdoc/>
-        public virtual void Draw<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer, in TextureRenderingOptions options)
-            where TTexture : class, ITexture<TTexture, TGraphics>
-            where TGraphics : class
+        public virtual void Draw(IRenderContext context, in TextureRenderingOptions options)
         {
-            if (Source is not TTexture texture)
-            {
-                texture = RecreateTexture(renderer);
-            }
-
-            renderer.Draw(
-                texture,
-                options with
-                {
-                    Source = options.Source == null ? DrawArea : DrawArea.Cut(options.Source.Value),
-                });
-        }
-
-        /// <summary>
-        /// Creates copy of the current <see cref="ITexture"/> instance
-        /// set as <see cref="Source"/> in this <see cref="ImageBrush"/> instance.
-        /// Copy will be of <typeparamref name="TTexture"/> type.
-        /// </summary>
-        /// <typeparam name="TTexture">Type of the target texture prepared for drawing in this <paramref name="renderer"/> instance.</typeparam>
-        /// <typeparam name="TGraphics">Type of the graphics device used in this rendering system.</typeparam>
-        /// <param name="renderer">Instance of the <see cref="ITextureRenderer{TTexture, TGraphics}"/> to access graphics device.</param>
-        /// <returns>Copy of the <see cref="Source"/> texture prepared for the rendering in given <paramref name="renderer"/> instance.</returns>
-        protected TTexture RecreateTexture<TTexture, TGraphics>(ITextureRenderer<TTexture, TGraphics> renderer)
-            where TTexture : class, ITexture<TTexture, TGraphics>
-            where TGraphics : class
-        {
-            TTexture texture;
-            Pixel[] buffer = new Pixel[Source.Size.Width * Source.Size.Height];
-            Source.GetTextureData(buffer);
-            Source = texture = TTexture.CreateTexture(renderer.GraphicsDevice, Source.Size.Width, Source.Size.Height, buffer);
-            return texture;
-        }
-
-        private readonly struct Pixel
-        {
-            public readonly byte A;
-            public readonly byte B;
-            public readonly byte G;
-            public readonly byte R;
-
-            public Pixel(byte a, byte r, byte g, byte b)
-            {
-                A = a;
-                R = r;
-                G = g;
-                B = b;
-            }
+            context.Draw(Source, options with { Source = DrawArea.Cut(options.Source) });
         }
     }
 }

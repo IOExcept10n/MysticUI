@@ -16,6 +16,7 @@ namespace Icy.Assets
         private readonly ConcurrentDictionary<IAssetContext, AssetScope> cacheScopes = [];
         private readonly AssetImporterCollection importers = [];
         private readonly Dictionary<string, IAssetParser> parsers = [];
+        private readonly List<object> platformImporters = [];
 
         /// <inheritdoc/>
         public IAssetScope CreateScope(IAssetContext context)
@@ -45,7 +46,7 @@ namespace Icy.Assets
         public T LoadAsset<T>(IAssetContext context, string path)
                     where T : class
         {
-            if (TryCheckScopeAndNativeLoading<T>(context, path, out var scope, out var asset))
+            if (TryCheckScopeAndPlatformReference<T>(context, path, out var scope, out var asset))
                 return asset;
 
             using var stream = context.OpenStream(path);
@@ -56,7 +57,7 @@ namespace Icy.Assets
         public async ValueTask<T> LoadAssetAsync<T>(IAssetContext context, string path)
             where T : class
         {
-            if (TryCheckScopeAndNativeLoading<T>(context, path, out var scope, out var asset))
+            if (TryCheckScopeAndPlatformReference<T>(context, path, out var scope, out var asset))
                 return asset;
 
             using var stream = await context.OpenStreamAsync(path);
@@ -68,6 +69,9 @@ namespace Icy.Assets
 
         /// <inheritdoc/>
         public void RegisterParser(IAssetParser parser) => parsers[parser.Format] = parser;
+
+        /// <inheritdoc/>
+        public void RegisterPlatformImporter<T>(IPlatformAssetImporter<T> importer) => platformImporters.Add(importer);
 
         private T ImportAsset<T>(IAssetContext context, string path, AssetScope? scope, Stream stream)
             where T : class
@@ -96,7 +100,7 @@ namespace Icy.Assets
             return ThrowHelper.ThrowInvalidOperationException<T>("Couldn't find any importers or readers for the specified asset context.");
         }
 
-        private bool TryCheckScopeAndNativeLoading<T>(IAssetContext context, string path, out AssetScope? scope, [NotNullWhen(true)] out T? asset)
+        private bool TryCheckScopeAndPlatformReference<T>(IAssetContext context, string path, out AssetScope? scope, [NotNullWhen(true)] out T? asset)
                                                     where T : class
         {
             if (cacheScopes.TryGetValue(context, out scope) && scope.IsCached(path))
@@ -105,9 +109,9 @@ namespace Icy.Assets
                 return true;
             }
 
-            if (context is INativeAssetReference assetReference)
+            if (context is IPlatformAssetReference assetReference)
             {
-                asset = assetReference.Load<T>(path);
+                asset = platformImporters.OfType<IPlatformAssetImporter<T>>().FirstOrDefault()?.LoadAsset(assetReference, path) ?? assetReference.Load<T>(path);
                 scope?.RegisterAsset(asset, path);
                 return true;
             }
@@ -126,7 +130,7 @@ namespace Icy.Assets
 
             public void Dispose()
             {
-                if (RootContext is INativeAssetReference assetReference)
+                if (RootContext is IPlatformAssetReference assetReference)
                 {
                     foreach (var asset in loadedAssets.Keys)
                         assetReference.Unload(asset);

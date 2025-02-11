@@ -10,6 +10,6 @@ namespace Icy.Configuration
         /// <summary>
         /// Gets an instance of the assets configuration to be used in application.
         /// </summary>
-        IAssetConfiguration Assets { get; }
+        AssetConfiguration Assets { get; }
     }
 }

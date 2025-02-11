@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
+using CommunityToolkit.Diagnostics;
 using Icy.Data;
 using Icy.Rendering.Brushes;
 
@@ -125,8 +126,8 @@ namespace Icy.Rendering.Fonts
                 {
                     var glyphBounds = glyph.GetRenderRectangle(renderBounds.Location);
                     var renderGlyphBounds = transform.Apply(glyphBounds);
-                    var texture = GetGlyphTexture(glyph);
-                    var textureGlyphBounds = glyph.GetTextureRectangle(texture.Size);
+                    var glyphTexture = GetGlyphTexture(glyph);
+                    var textureGlyphBounds = glyph.GetTextureRectangle(glyphTexture.Size);
                     TextureRenderingOptions renderOptions = new(
                         Destination: renderGlyphBounds,
                         Source: textureGlyphBounds,
@@ -134,13 +135,15 @@ namespace Icy.Rendering.Fonts
                         Rotation: options.Rotation,
                         Origin: options.Origin,
                         Depth: options.Depth);
-                    context.Draw(texture, renderOptions);
+
+                    context.Draw(glyphTexture, renderOptions);
                 }
             }
         }
 
         /// <inheritdoc/>
-        public void DrawString(IRenderContext context, string text, in FontRenderingOptions options) => ((ISpanDrawableFont)this).DrawString(context, text.AsSpan(), options);
+        public void DrawString(IRenderContext context, string text, in FontRenderingOptions options) =>
+            ((ISpanDrawableFont)this).DrawString(context, text.AsSpan(), options);
 
         /// <summary>
         /// Gets the glyph for the specified character codepoint.
@@ -155,7 +158,7 @@ namespace Icy.Rendering.Fonts
         /// </summary>
         /// <param name="glyph">Glyph to get image for.</param>
         /// <returns>An instance of the texture atlas for the specified glyph.</returns>
-        protected abstract IImage GetGlyphTexture(FontGlyph glyph);
+        protected abstract ITexture GetGlyphTexture(FontGlyph glyph);
 
         /// <summary>
         /// Gets the kerning between two glyphs.

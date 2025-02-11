@@ -3,7 +3,6 @@
 using Icy.Data;
 using Icy.Input;
 using Icy.Input.Devices;
-using Icy.MonoGame.Extensions;
 using MKeys = Microsoft.Xna.Framework.Input.Keys;
 
 namespace Icy.MonoGame.Input.Devices

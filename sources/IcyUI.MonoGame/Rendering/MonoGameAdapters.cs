@@ -11,8 +11,8 @@ namespace Icy.MonoGame.Rendering
 {
     public static class MonoGameAdapters
     {
-        public static ITexture Wrap(Texture2D texture) => new TextureAdapter(texture);
+        public static ITexture Wrap(this Texture2D texture) => new TextureAdapter(texture);
 
-        public static IFont Wrap(SpriteFont font) => new FontAdapter(font);
+        public static IFont Wrap(this Microsoft.Xna.Framework.Graphics.SpriteFont font) => new FontAdapter(font);
     }
 }

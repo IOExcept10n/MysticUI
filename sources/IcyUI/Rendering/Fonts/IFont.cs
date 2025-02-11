@@ -50,11 +50,11 @@ namespace Icy.Rendering.Fonts
         List<RenderGlyph> GetRenderGlyphs(string text, in FontRenderingOptions options);
 
         /// <summary>
-        /// Draws a font with given texture renderer instance.
+        /// Draws specified text using this font instance.
         /// </summary>
-        /// <param name="context">Context to draw textures in.</param>
-        /// <param name="text">Text to write.</param>
-        /// <param name="options">Options for the renderer.</param>
+        /// <param name="context">An instance of the render context to draw font.</param>
+        /// <param name="text">Text to draw.</param>
+        /// <param name="options">Options for the rendering.</param>
         void DrawString(IRenderContext context, string text, in FontRenderingOptions options);
     }
 }
