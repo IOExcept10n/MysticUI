@@ -24,14 +24,6 @@ namespace Icy.Assets
         void RegisterImporter<T>(IAssetImporter<T> importer);
 
         /// <summary>
-        /// Registers an instance of the <see cref="IPlatformAssetImporter{T}"/> to use when importing assets
-        /// of type <typeparamref name="T"/> from platform asset references.
-        /// </summary>
-        /// <typeparam name="T">Type of the assets supported by specified asset importer.</typeparam>
-        /// <param name="importer">An instance of the <see cref="IPlatformAssetImporter{T}"/>.</param>
-        void RegisterPlatformImporter<T>(IPlatformAssetImporter<T> importer);
-
-        /// <summary>
         /// Creates a caching scope for the specified asset context.
         /// </summary>
         /// <param name="context">An instance of the <see cref="IAssetScope"/> that refers to the cached section.</param>

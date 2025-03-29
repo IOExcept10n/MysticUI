@@ -1,6 +1,2 @@
-using Icy.MonoGame.Configuration;
-using Icy.MonoGameSample;
-
-using var game = new SampleGame();
-game.UseIcyUI();
+using var game = new Icy.MonoGameSample.SampleGame();
 game.Run();

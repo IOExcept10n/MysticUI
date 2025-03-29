@@ -51,7 +51,7 @@ namespace Icy.Rendering.Fonts
                 return Rectangle.Empty;
             Transform2D transform = CreateTransform(options);
             Prepare(text, options, out int ascent, out int lineHeight);
-            BoundsInfo bounds = new(new(0, ascent));
+            BoundsInfo bounds = new(new Vector2(0, ascent));
             foreach (int c in text.EnumerateCodepoints())
             {
                 if (HandleControlCode(c, options, lineHeight, ref bounds))
@@ -73,7 +73,7 @@ namespace Icy.Rendering.Fonts
                 return result;
             Transform2D transform = CreateTransform(options);
             Prepare(text, options, out int ascent, out int lineHeight);
-            BoundsInfo renderBounds = new(new(0, ascent));
+            BoundsInfo renderBounds = new(new Vector2(0, ascent));
             int i = 0;
             foreach (int codepoint in text.EnumerateCodepoints())
             {
@@ -111,7 +111,7 @@ namespace Icy.Rendering.Fonts
                 return;
             Transform2D transform = CreateTransform(options);
             Prepare(text, options, out int ascent, out int lineHeight);
-            BoundsInfo renderBounds = new(new(0, ascent));
+            BoundsInfo renderBounds = new(new Vector2(0, ascent));
             foreach (int codepoint in text.EnumerateCodepoints())
             {
                 if (HandleControlCode(codepoint, options, lineHeight, ref renderBounds))
@@ -138,6 +138,9 @@ namespace Icy.Rendering.Fonts
 
                     context.Draw(glyphTexture, renderOptions);
                 }
+
+                renderBounds.Location.X += glyph.Advance;
+                renderBounds.Previous = glyph;
             }
         }
 
@@ -236,6 +239,9 @@ namespace Icy.Rendering.Fonts
 
             bounds.Previous = glyph;
             bounds.LastLocation = bounds.Location;
+
+            bounds.Location.X += glyph.Advance;
+            bounds.Previous = glyph;
         }
 
         private struct BoundsInfo

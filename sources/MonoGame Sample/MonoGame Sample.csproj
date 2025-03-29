@@ -20,6 +20,14 @@
     <ProjectReference Include="..\IcyUI.MonoGame\IcyUI.MonoGame.csproj" />
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Resources\Fonts\My own test Arial font.fnt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\Fonts\My own test Arial font_0.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
   <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
 	<Message Text="Restoring dotnet tools" Importance="High" />
 	<Exec Command="dotnet tool restore" />

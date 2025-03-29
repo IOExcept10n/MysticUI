@@ -1,6 +1,8 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using CommunityToolkit.Diagnostics;
 using Icy.Configuration;
+using Icy.MonoGame.Assets;
 using Icy.MonoGame.Assets.Importers;
 using Icy.MonoGame.Input;
 using Icy.MonoGame.Rendering;
@@ -31,9 +33,23 @@ namespace Icy.MonoGame.Configuration
         {
             var builder = new IcyConfigurationBuilder();
             configure(builder);
-            var uiRenderer = new MonoGameIcyUIRenderer(game, builder.Build());
-            game.Components.Add(uiRenderer);
+            var renderer = new MonoGameIcyRenderer(game, builder.Build());
+            game.Components.Add(renderer);
             return game;
+        }
+
+        /// <summary>
+        /// Gets UI configuration with which the game IcyUI library has been initialized.
+        /// </summary>
+        /// <param name="game">An instance of the <see cref="Game"/> to read UI configuration from.</param>
+        /// <returns>An instance of the <see cref="IcyConfiguration"/> that runs UI in specified game.</returns>
+        /// <exception cref="InvalidOperationException">Occurs when UI not has not been initialized.</exception>
+        public static IcyConfiguration GetIcyConfiguration(this Game game)
+        {
+            var renderer = game.Components.OfType<MonoGameIcyRenderer>().FirstOrDefault();
+            if (renderer == null)
+                return ThrowHelper.ThrowInvalidOperationException<IcyConfiguration>("Couldn't access UI configuration. UI node has not been added to the game.");
+            return renderer.Configuration;
         }
 
         /// <summary>
@@ -45,7 +61,10 @@ namespace Icy.MonoGame.Configuration
         public static IConfigurationBuilder WithDefaultMonoGameConfiguration(this IConfigurationBuilder builder, Game game) =>
             builder.ConfigureRendering(new RenderContext(game.GraphicsDevice))
                    .ConfigureInput(new InputSystem(game))
+                   .ConfigureTypes()
                    .ConfigureAssets()
+                   .WithAssetContextFactory(new MonoGameAssetContextFactory(game))
+                   .AddBasicFontSupport()
                    .UseMonoGameImporters(game);
 
         /// <summary>

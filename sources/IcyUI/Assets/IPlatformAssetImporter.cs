@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using Icy.Assets.Importers;
 
 namespace Icy.Assets
 {
@@ -13,7 +11,7 @@ namespace Icy.Assets
     /// This interface is used by asset adapters that perform loading underlying assets from the specified asset references.
     /// </remarks>
     /// <typeparam name="T">Requested type for import.</typeparam>
-    public interface IPlatformAssetImporter<out T>
+    public interface IPlatformAssetImporter<out T> : IAssetImporter<T>
     {
         /// <summary>
         /// Loads and wraps a platform asset using related adapter type.

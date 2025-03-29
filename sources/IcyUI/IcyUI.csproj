@@ -17,9 +17,6 @@
     <WarningLevel>9999</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-	  <AdditionalFiles Include="stylecop.json" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Diagnostics" Version="8.2.2" />
     <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.2.2" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556">
@@ -35,8 +32,5 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Page Include="stylecop.json" />
   </ItemGroup>
 </Project>

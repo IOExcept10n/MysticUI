@@ -36,10 +36,10 @@ namespace Icy.Configuration
         /// <inheritdoc/>
         public IcyConfiguration Build()
         {
-            Guard.IsNotNull(Assets);
             Guard.IsNotNull(InputSystem);
             Guard.IsNotNull(RenderContext);
-            Guard.IsNotNull(Types);
+            ConfigureTypes();
+            ConfigureAssets();
             return new IcyConfiguration(InputSystem, Assets, RenderContext, Types);
         }
 

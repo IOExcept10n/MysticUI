@@ -8,8 +8,8 @@ namespace Icy.Configuration
     public interface IReflectionConfigurationBuilder : IConfigurationBuilder
     {
         /// <summary>
-        /// Gets an instance of the <see cref="IReflectionConfiguration"/> to be used in application.
+        /// Gets an instance of the <see cref="ReflectionConfiguration"/> to be used in application.
         /// </summary>
-        public IReflectionConfiguration Types { get; }
+        public ReflectionConfiguration Types { get; }
     }
 }

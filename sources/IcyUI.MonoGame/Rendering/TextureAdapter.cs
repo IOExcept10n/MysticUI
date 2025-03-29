@@ -11,7 +11,7 @@ namespace Icy.MonoGame.Rendering
     /// Represents a <see langword="MonoGame"/> wrapper for the <see cref="ITexture"/> interface.
     /// </summary>
     /// <param name="texture">An instance of the texture to use.</param>
-    internal class TextureAdapter(Texture2D texture) : ITexture<TextureAdapter, GraphicsDevice>
+    internal class TextureAdapter(Texture2D texture) : ITexture
     {
         private static Texture2D? White;
         private static TextureAdapter? WhiteWrapper;

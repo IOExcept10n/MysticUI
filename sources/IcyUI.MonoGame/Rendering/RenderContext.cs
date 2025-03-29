@@ -1,34 +1,48 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using Icy.Rendering;
-using Icy.Rendering.Brushes;
-using Icy.Rendering.Fonts;
 using CommunityToolkit.Diagnostics;
+using Icy.Rendering;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Icy.MonoGame.Rendering
 {
-    public class RenderContext : IRenderContext
+    /// <summary>
+    /// Represents MonoGame implementation of the <see cref="IRenderContext"/> interface.
+    /// </summary>
+    public sealed class RenderContext : IRenderContext
     {
-        private bool disposedValue;
+        private readonly GraphicsDevice device;
+        private readonly SpriteBatch spriteBatch;
+
         private Effect? appliedEffect;
         private bool began;
+        private bool disposedValue;
 
-        public IRenderOptions Options => throw new NotImplementedException();
-
-        internal MonoGameRenderer Renderer { get; }
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="RenderContext"/> class.
+        /// </summary>
+        /// <param name="device">An instance of the graphics device used in game.</param>
         public RenderContext(GraphicsDevice device)
         {
-            Renderer = new(device, this);
+            this.device = device;
+            spriteBatch = new(device);
+            WhiteTexture = CreateTexture(2, 2, [Color.White, Color.White, Color.White, Color.White]);
         }
 
+        /// <inheritdoc/>
+        public IRenderOptions Options => throw new NotImplementedException();
+
+        /// <inheritdoc/>
+        public ITexture WhiteTexture { get; }
+
+        /// <inheritdoc/>
         public void ApplyEffect(IEffect effect)
         {
             if (!Options.EnableEffects)
                 return;
 
-            if (effect is not Effect mgEffect)
+            if (effect is not Effect platformEffect)
             {
                 string errorMessage = $"Effect type is not compatible with the MonoGame rendering system. " +
                     $"Expected type: {typeof(Effect)}, " +
@@ -37,11 +51,12 @@ namespace Icy.MonoGame.Rendering
                 return; // Unreachable
             }
 
-            appliedEffect = mgEffect;
+            appliedEffect = platformEffect;
 
             Flush();
         }
 
+        /// <inheritdoc/>
         public void Begin()
         {
             if (began)
@@ -49,10 +64,12 @@ namespace Icy.MonoGame.Rendering
                 ThrowHelper.ThrowInvalidOperationException($"Cannot begin rendering when it has been already started. " +
                     $"Please call {nameof(Flush)} instead of {nameof(Begin)}.");
             }
-            Renderer.SpriteBatch.Begin(effect: appliedEffect);
+
+            spriteBatch.Begin(effect: appliedEffect);
             began = true;
         }
 
+        /// <inheritdoc/>
         public void ClearEffects()
         {
             if (!Options.EnableEffects)
@@ -61,62 +78,62 @@ namespace Icy.MonoGame.Rendering
             Flush();
         }
 
-        public void Draw(IBrush brush, in TextureRenderingOptions options)
+        /// <inheritdoc/>
+        public ITexture CreateTexture<TColor>(int width, int height, TColor[] data)
+            where TColor : unmanaged
         {
-            if (!began)
-                ThrowHelper.ThrowInvalidOperationException($"Cannot draw until rendering has been started. Please call {nameof(Begin)} to begin drawing.");
-            // Yes, yet another redirection.
-            brush.Draw(Renderer, options);
+            var texture = new Texture2D(device, width, height);
+            texture.SetData(data);
+            return texture.Wrap();
         }
 
-        // HACK
-        public void DrawString(IFont font, string text, in FontRenderingOptions options)
+        /// <inheritdoc/>
+        public void Dispose()
         {
-            if (font is not FontAdapter mgFont)
-            {
-                ThrowHelper.ThrowArgumentException(nameof(font), "Unsupported font type.");
-                return;
-            }
-            Renderer.SpriteBatch.DrawString(mgFont.Font, options);
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
 
+        /// <inheritdoc/>
+        public void Draw(ITexture texture, in TextureRenderingOptions options) => spriteBatch.Draw(texture.Unwrap(), options);
+
+        /// <inheritdoc/>
         public void End()
         {
             if (!began)
             {
                 ThrowHelper.ThrowInvalidOperationException($"Cannot end rendering when it hasn't been started yet.");
             }
-            Renderer.SpriteBatch.End();
+
+            spriteBatch.End();
             began = false;
         }
 
+        /// <inheritdoc/>
         public void Flush()
         {
             if (began) End();
             Begin();
         }
 
+        /// <inheritdoc/>
         public IEffect GetBuiltInEffect(EffectCode code)
         {
             throw new NotImplementedException();
         }
 
-        protected virtual void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
                 if (disposing)
                 {
-                    Renderer.Dispose();
+                    WhiteTexture.Unwrap().Dispose();
+                    spriteBatch.Dispose();
                 }
+
                 disposedValue = true;
             }
-        }
-
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
         }
     }
 }

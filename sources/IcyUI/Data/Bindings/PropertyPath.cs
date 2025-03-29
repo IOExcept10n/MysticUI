@@ -21,10 +21,11 @@ namespace Icy.Data.Bindings
         /// </summary>
         /// <param name="path">The path to get the value by the property.</param>
         /// <param name="typeContext">Initial type to access the properties for.</param>
-        public PropertyPath(string path, Type typeContext)
+        /// <param name="converter">An instance of the type converter to parse path arguments.</param>
+        public PropertyPath(string path, Type typeContext, ITypeConverter converter)
         {
             displayPath = path;
-            pathSegments = ParsePath(path, typeContext);
+            pathSegments = ParsePath(path, typeContext, converter);
         }
 
         /// <inheritdoc/>
@@ -72,9 +73,10 @@ namespace Icy.Data.Bindings
         /// </summary>
         /// <param name="path">The path string to parse.</param>
         /// <param name="typeContext">The type to get property info.</param>
+        /// <param name="converter">An instance of the type converter to parse indexer arguments.</param>
         /// <returns>The list of <see cref="PathSegment"/> with all segments of the specified path.</returns>
         /// <exception cref="FormatException">Occurs if the indexer wasn't defined correctly.</exception>
-        protected static List<PathSegment> ParsePath(string path, Type typeContext)
+        protected static List<PathSegment> ParsePath(string path, Type typeContext, ITypeConverter converter)
         {
             string[] pathParts = path.Split('.');
             var pathSegments = new List<PathSegment>(pathParts.Length);
@@ -95,7 +97,7 @@ namespace Icy.Data.Bindings
                             pathSegments.Add(segment);
                         }
 
-                        segment = PathSegment.FromIndexer(typeContext, indexerContents.Split(','));
+                        segment = PathSegment.FromIndexer(typeContext, indexerContents.Split(','), converter);
                         typeContext = segment.ResultType;
                         pathSegments.Add(segment);
                     }
@@ -171,15 +173,16 @@ namespace Icy.Data.Bindings
             /// </summary>
             /// <param name="target">Target type to call the indexer for.</param>
             /// <param name="arguments">Array of arguments to access the indexer for.</param>
+            /// <param name="converter">An instance of the type converter to parse arguments.</param>
             /// <returns>An instance of the <see cref="PathSegment"/> struct for the indexer access.</returns>
-            public static PathSegment FromIndexer(Type target, string[] arguments)
+            public static PathSegment FromIndexer(Type target, string[] arguments, ITypeConverter converter)
             {
                 if (target.IsArray)
                 {
                     return new PathSegment(Array.ConvertAll(arguments, x => (object)int.Parse(x)), target.GetElementType()!);
                 }
 
-                var indexer = target.GetIndexer(arguments, out var parsed);
+                var indexer = target.GetIndexer(converter, arguments, out var parsed);
                 return new PathSegment(indexer, parsed)
                 {
                     IsReadOnly = indexer?.CanWrite != true,

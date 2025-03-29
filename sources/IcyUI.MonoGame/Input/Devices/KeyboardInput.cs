@@ -7,23 +7,18 @@ using MKeys = Microsoft.Xna.Framework.Input.Keys;
 
 namespace Icy.MonoGame.Input.Devices
 {
+    /// <summary>
+    /// MonoGame keyboard event listener.
+    /// </summary>
     internal class KeyboardInput : IKeyboardInput, IUpdateableInput
     {
-        private readonly HashSet<MKeys> pressedKeys;
         private readonly MKeys[] keysPool;
+        private readonly HashSet<MKeys> pressedKeys;
 
-        public IEnumerable<Keys> KeysDown => pressedKeys.Select(InputExtensions.RemapKeys);
-
-        public ModifierKeys ModifierKeys { get; private set; }
-
-        public bool IsListening { get; set; } = true;
-
-        public bool IsInitialized { get; private set; }
-
-        public event EventHandler<GenericEventArgs<Keys>>? KeyDown;
-
-        public event EventHandler<GenericEventArgs<Keys>>? KeyUp;
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="KeyboardInput"/> class.
+        /// </summary>
+        /// <param name="game">An instance of the game to access input events.</param>
         public KeyboardInput(Microsoft.Xna.Framework.Game game)
         {
             var window = game.Window;
@@ -34,30 +29,45 @@ namespace Icy.MonoGame.Input.Devices
             Array.Clear(keysPool);
         }
 
-        private void Window_KeyUp(object? sender, Microsoft.Xna.Framework.InputKeyEventArgs e)
-        {
-            if (!IsListening) return;
-            KeyUp?.Invoke(this, e.Key.RemapKeys());
-        }
+        /// <inheritdoc/>
+        public event EventHandler<GenericEventArgs<Keys>>? KeyDown;
 
-        private void Window_KeyDown(object? sender, Microsoft.Xna.Framework.InputKeyEventArgs e)
-        {
-            if (!IsListening) return;
-            KeyDown?.Invoke(this, e.Key.RemapKeys());
-        }
+        /// <inheritdoc/>
+        public event EventHandler<GenericEventArgs<Keys>>? KeyUp;
 
+        /// <inheritdoc/>
+        public bool IsInitialized { get; private set; }
+
+        /// <inheritdoc/>
+        public bool IsListening { get; set; } = true;
+
+        /// <inheritdoc/>
+        public IEnumerable<Keys> KeysDown => pressedKeys.Select(InputExtensions.RemapKeys);
+
+        /// <inheritdoc/>
+        public ModifierKeys ModifierKeys { get; private set; }
+
+        /// <inheritdoc/>
         public bool DisableListening()
         {
             IsListening = false;
             return true;
         }
 
+        /// <inheritdoc/>
         public bool EnableListening()
         {
             IsListening = true;
             return true;
         }
 
+        /// <inheritdoc/>
+        public void Initialize()
+        {
+            IsInitialized = true;
+        }
+
+        /// <inheritdoc/>
         public void Update(TimeSpan deltaTime)
         {
             if (!IsListening) return;
@@ -73,11 +83,6 @@ namespace Icy.MonoGame.Input.Devices
             UpdateModifiers(state);
         }
 
-        public void Initialize()
-        {
-            IsInitialized = true;
-        }
-
         private void UpdateModifiers(Microsoft.Xna.Framework.Input.KeyboardState state)
         {
             ModifierKeys modifiers = default;
@@ -90,6 +95,18 @@ namespace Icy.MonoGame.Input.Devices
             if (state.IsKeyDown(MKeys.RightWindows) || state.IsKeyDown(MKeys.LeftWindows))
                 modifiers |= ModifierKeys.Win;
             ModifierKeys = modifiers;
+        }
+
+        private void Window_KeyDown(object? sender, Microsoft.Xna.Framework.InputKeyEventArgs e)
+        {
+            if (!IsListening) return;
+            KeyDown?.Invoke(this, e.Key.RemapKeys());
+        }
+
+        private void Window_KeyUp(object? sender, Microsoft.Xna.Framework.InputKeyEventArgs e)
+        {
+            if (!IsListening) return;
+            KeyUp?.Invoke(this, e.Key.RemapKeys());
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
+using Icy.Data;
 using static Icy.Assets.Importers.BitmapFonts.BitmapFont;
 
 namespace Icy.Assets.Importers.BitmapFonts
@@ -63,7 +64,7 @@ namespace Icy.Assets.Importers.BitmapFonts
         {
             result = default;
 
-            foreach (var token in s.Tokenize(' '))
+            foreach (var token in s.TokenizeWithBrackets(' '))
             {
                 if (token is "kerning" or { IsEmpty: true }) continue;
 

@@ -21,7 +21,7 @@ namespace Icy.Configuration
         /// </summary>
         /// <param name="assetConfiguration">The asset configuration instance.</param>
         /// <returns>The current builder instance for fluent configuration.</returns>
-        IAssetConfigurationBuilder ConfigureAssets(IAssetConfiguration assetConfiguration);
+        IAssetConfigurationBuilder ConfigureAssets(AssetConfiguration assetConfiguration);
 
         /// <summary>
         /// Configures the asset management system with additional settings.

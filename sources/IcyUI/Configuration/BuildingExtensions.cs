@@ -50,6 +50,18 @@ namespace Icy.Configuration
         }
 
         /// <summary>
+        /// Sets the asset context factory for the asset configuration.
+        /// </summary>
+        /// <param name="builder">The asset configuration builder instance.</param>
+        /// <param name="factory">The asset context factory to be set to the configuration.</param>
+        /// <returns>THe current asset configuration builder to fluent configuration.</returns>
+        public static IAssetConfigurationBuilder WithAssetContextFactory(this IAssetConfigurationBuilder builder, IAssetContextFactory factory)
+        {
+            builder.Assets.AssetContextFactory = factory;
+            return builder;
+        }
+
+        /// <summary>
         /// Adds an asset importer to the asset configuration.
         /// </summary>
         /// <typeparam name="T">The type of the asset to be imported.</typeparam>

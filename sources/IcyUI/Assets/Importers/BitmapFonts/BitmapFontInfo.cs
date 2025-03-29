@@ -10,6 +10,7 @@ using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
 using Icy.Controls;
+using Icy.Data;
 using Icy.Rendering.Fonts;
 using static Icy.Assets.Importers.BitmapFonts.BitmapFont;
 
@@ -183,7 +184,7 @@ namespace Icy.Assets.Importers.BitmapFonts
             InfoFields fields = default;
             string? fontFamily = null;
 
-            foreach (var token in s.Tokenize(' '))
+            foreach (var token in s.TokenizeWithBrackets(' '))
             {
                 // Interesting fact: "==" doesn't work while "is" works!
                 if (token is "info" or { IsEmpty: true }) continue;

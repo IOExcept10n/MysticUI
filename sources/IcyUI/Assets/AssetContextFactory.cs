@@ -10,6 +10,7 @@ namespace Icy.Assets
         /// <inheritdoc/>
         public IAssetContext Create(Uri uri) => new AssetContext(uri);
 
-        public bool TryCreate(Uri uri, out IAssetContext assetContext) => 
+        /// <inheritdoc/>
+        public bool TryCreate(Uri uri, out IAssetContext assetContext) => (assetContext = new AssetContext(uri)) is { };
     }
 }

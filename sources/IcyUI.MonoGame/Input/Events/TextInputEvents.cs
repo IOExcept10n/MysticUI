@@ -8,44 +8,71 @@ using Microsoft.Xna.Framework;
 
 namespace Icy.MonoGame.Input.Events
 {
-    internal class TextInputEvents : ITextEvents
+    /// <summary>
+    /// Represents MonoGame implementation of the text input events listener.
+    /// </summary>
+    /// <param name="input">An instance of the input system to access devices for.</param>
+    /// <param name="game">An instance of the game to subscribe for window input events.</param>
+    internal class TextInputEvents(IInputSystem input, Game game) : ITextEvents
     {
+        private readonly Game game = game;
         private bool listening = false;
-        private readonly Game game;
 
-        public IInputSystem InputSystem { get; }
-
-        public TimeSpan RepeatDelay { get; set; }
-        public TimeSpan RepeatStartDelay { get; set; }
-
-        public bool IsInitialized { get; private set; }
-
-        public event EventHandler<GenericEventArgs<ITextInputEventInfo>>? TextInput;
-
+        /// <inheritdoc/>
         public event EventHandler? CopyText;
 
+        /// <inheritdoc/>
         public event EventHandler? CutText;
 
+        /// <inheritdoc/>
         public event EventHandler? PasteText;
 
-        public TextInputEvents(IInputSystem input, Game game)
+        /// <inheritdoc/>
+        public event EventHandler<GenericEventArgs<ITextInputEventInfo>>? TextInput;
+
+        /// <inheritdoc/>
+        public IInputSystem InputSystem { get; } = input;
+
+        /// <inheritdoc/>
+        public bool IsInitialized { get; private set; }
+
+        /// <inheritdoc/>
+        public TimeSpan RepeatDelay { get; set; }
+
+        /// <inheritdoc/>
+        public TimeSpan RepeatStartDelay { get; set; }
+
+        /// <inheritdoc/>
+        public void DisableTextInput()
         {
-            InputSystem = input;
-            this.game = game;
+            listening = false;
         }
 
-        private void Window_TextInput(object? sender, TextInputEventArgs e)
+        /// <inheritdoc/>
+        public void EnableTextInput()
         {
-            if (!listening) return;
-            TextInput?.Invoke(this, new TextInputInfo(Range.All, e.Character.ToString(), TextInputEventType.Input));
+            listening = true;
         }
 
-        private void Devices_DeviceDisconnected(object? sender, GenericEventArgs<IInputDeviceListener> e)
+        /// <inheritdoc/>
+        public void Initialize()
         {
-            if (e is IKeyboardInput keyboard)
+            if (IsInitialized) return;
+            IsInitialized = true;
+
+            if (InputSystem.Keyboard != null)
             {
-                keyboard.KeyDown -= Keyboard_KeyDown;
+                InputSystem.Keyboard.KeyDown += Keyboard_KeyDown;
             }
+
+            InputSystem.Events.Devices.DeviceConnected += Devices_DeviceConnected;
+            InputSystem.Events.Devices.DeviceDisconnected += Devices_DeviceDisconnected;
+            game.Window.TextInput += Window_TextInput;
+        }
+
+        /// <inheritdoc/>
+        public void Update(TimeSpan deltaTime)
+        {
         }
 
         private void Devices_DeviceConnected(object? sender, GenericEventArgs<IInputDeviceListener> e)
@@ -53,6 +80,14 @@ namespace Icy.MonoGame.Input.Events
             if (e is IKeyboardInput keyboard)
             {
                 keyboard.KeyDown += Keyboard_KeyDown;
+            }
+        }
+
+        private void Devices_DeviceDisconnected(object? sender, GenericEventArgs<IInputDeviceListener> e)
+        {
+            if (e is IKeyboardInput keyboard)
+            {
+                keyboard.KeyDown -= Keyboard_KeyDown;
             }
         }
 
@@ -78,33 +113,10 @@ namespace Icy.MonoGame.Input.Events
             }
         }
 
-        public void DisableTextInput()
+        private void Window_TextInput(object? sender, TextInputEventArgs e)
         {
-            listening = false;
-        }
-
-        public void EnableTextInput()
-        {
-            listening = true;
-        }
-
-        public void Update(TimeSpan deltaTime)
-        {
-        }
-
-        public void Initialize()
-        {
-            if (IsInitialized) return;
-            IsInitialized = true;
-
-            if (InputSystem.Keyboard != null)
-            {
-                InputSystem.Keyboard.KeyDown += Keyboard_KeyDown;
-            }
-
-            InputSystem.Events.Devices.DeviceConnected += Devices_DeviceConnected;
-            InputSystem.Events.Devices.DeviceDisconnected += Devices_DeviceDisconnected;
-            game.Window.TextInput += Window_TextInput;
+            if (!listening) return;
+            TextInput?.Invoke(this, new TextInputInfo(Range.All, e.Character.ToString(), TextInputEventType.Input));
         }
     }
 }

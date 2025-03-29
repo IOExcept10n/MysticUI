@@ -16,7 +16,6 @@ namespace Icy.Assets
         private readonly ConcurrentDictionary<IAssetContext, AssetScope> cacheScopes = [];
         private readonly AssetImporterCollection importers = [];
         private readonly Dictionary<string, IAssetParser> parsers = [];
-        private readonly List<object> platformImporters = [];
 
         /// <inheritdoc/>
         public IAssetScope CreateScope(IAssetContext context)
@@ -70,9 +69,6 @@ namespace Icy.Assets
         /// <inheritdoc/>
         public void RegisterParser(IAssetParser parser) => parsers[parser.Format] = parser;
 
-        /// <inheritdoc/>
-        public void RegisterPlatformImporter<T>(IPlatformAssetImporter<T> importer) => platformImporters.Add(importer);
-
         private T ImportAsset<T>(IAssetContext context, string path, AssetScope? scope, Stream stream)
             where T : class
         {
@@ -111,7 +107,7 @@ namespace Icy.Assets
 
             if (context is IPlatformAssetReference assetReference)
             {
-                asset = platformImporters.OfType<IPlatformAssetImporter<T>>().FirstOrDefault()?.LoadAsset(assetReference, path) ?? assetReference.Load<T>(path);
+                asset = importers.OfType<IPlatformAssetImporter<T>>().FirstOrDefault()?.LoadAsset(assetReference, path) ?? assetReference.Load<T>(path);
                 scope?.RegisterAsset(asset, path);
                 return true;
             }

@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
+using Icy.Data;
 using static Icy.Assets.Importers.BitmapFonts.BitmapFont;
 
 namespace Icy.Assets.Importers.BitmapFonts
@@ -69,7 +70,7 @@ namespace Icy.Assets.Importers.BitmapFonts
         {
             result = default;
 
-            foreach (var token in s.Tokenize(' '))
+            foreach (var token in s.TokenizeWithBrackets(' '))
             {
                 if (token is "common" or { IsEmpty: true }) continue;
 
@@ -128,7 +129,7 @@ namespace Icy.Assets.Importers.BitmapFonts
             "lineHeight" => ushort.TryParse(value, provider, out result.lineHeight),
             "base" => ushort.TryParse(value, provider, out result.baseline),
             "scaleW" => ushort.TryParse(value, provider, out result.scaleWidth),
-            "scaleHeight" => ushort.TryParse(value, provider, out result.scaleHeight),
+            "scaleH" => ushort.TryParse(value, provider, out result.scaleHeight),
             "pages" => ushort.TryParse(value, provider, out result.pages),
             "packed" when value is "1" => (result.bits |= Bits.Packed) is { },
             "alphaChnl" => byte.TryParse(value, provider, out result.alphaChnl),

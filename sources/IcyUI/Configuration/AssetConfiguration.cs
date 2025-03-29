@@ -19,6 +19,7 @@ namespace Icy.Configuration
             SharedResources = new ResourceRegistry();
             Localizer = new ResourceLocalizer(SharedResources);
             AssetResolver = new AssetResolver();
+            AssetContextFactory = new AssetContextFactory();
         }
 
         /// <summary>
@@ -40,6 +41,11 @@ namespace Icy.Configuration
         /// Gets or sets resources registry used in the library.
         /// </summary>
         public IResourceRegistry SharedResources { get; set; }
+
+        /// <summary>
+        /// Gets or sets an instance of the asset context factory to use with current configuration.
+        /// </summary>
+        public IAssetContextFactory AssetContextFactory { get; set; }
 
         /// <inheritdoc/>
         public void Dispose()

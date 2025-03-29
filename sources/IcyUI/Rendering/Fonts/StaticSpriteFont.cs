@@ -70,7 +70,7 @@ namespace Icy.Rendering.Fonts
         protected override void Prepare(ReadOnlySpan<char> text, in FontRenderingOptions options, out int ascent, out int lineHeight)
         {
             ascent = (int)Metrics.Ascent;
-            lineHeight = (int)Metrics.LineGap;
+            lineHeight = (int)Metrics.CapitalHeight;
         }
 
         private FontMetrics CalculateMetrics(float lineGap)

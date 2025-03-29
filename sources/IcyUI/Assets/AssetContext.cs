@@ -1,3 +1,5 @@
+using System.Web;
+
 namespace Icy.Assets
 {
     /// <summary>
@@ -17,7 +19,7 @@ namespace Icy.Assets
         public bool IsAvailable(string? relativePath = null) => Path.Exists(GetAbsolutePath(relativePath));
 
         /// <inheritdoc/>
-        public string GetAbsolutePath(string? relativePath = null) => new Uri(RootPath, relativePath).AbsolutePath;
+        public string GetAbsolutePath(string? relativePath = null) => new Uri(RootPath, relativePath).LocalPath;
 
         /// <inheritdoc/>
         public Stream OpenStream(string? relativePath = null)

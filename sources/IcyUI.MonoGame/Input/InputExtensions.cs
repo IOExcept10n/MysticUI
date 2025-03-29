@@ -10,7 +10,7 @@ namespace Icy.MonoGame.Input
     /// </summary>
     public static class InputExtensions
     {
-        private static readonly Dictionary<MKeys, Keys> toAquaKeys = new()
+        private static readonly Dictionary<MKeys, Keys> ToAquaKeys = new()
         {
             { MKeys.None, Keys.None },
             { MKeys.A, Keys.A },
@@ -160,16 +160,16 @@ namespace Icy.MonoGame.Input
             { MKeys.VolumeMute, Keys.VolumeMute },
             { MKeys.VolumeDown, Keys.VolumeDown },
             { MKeys.VolumeUp, Keys.VolumeUp },
-            { MKeys.SelectMedia, Keys.SelectMedia }
+            { MKeys.SelectMedia, Keys.SelectMedia },
         };
 
-        private static readonly Dictionary<Keys, MKeys> toMonoGameKeys = [];
+        private static readonly Dictionary<Keys, MKeys> ToMonoGameKeys = [];
 
         static InputExtensions()
         {
-            foreach (var pair in toAquaKeys)
+            foreach (var pair in ToAquaKeys)
             {
-                toMonoGameKeys[pair.Value] = pair.Key;
+                ToMonoGameKeys[pair.Value] = pair.Key;
             }
         }
 
@@ -178,13 +178,13 @@ namespace Icy.MonoGame.Input
         /// </summary>
         /// <param name="keys">Value to map.</param>
         /// <returns>A value of <see cref="Keys"/> enum according to the specified argument value.</returns>
-        public static Keys RemapKeys(this MKeys keys) => toAquaKeys[keys];
+        public static Keys RemapKeys(this MKeys keys) => ToAquaKeys[keys];
 
         /// <summary>
         /// Maps <see cref="Keys"/> value to <see cref="MKeys"/> value.
         /// </summary>
         /// <param name="keys">Value to map.</param>
         /// <returns>A value of <see cref="MKeys"/> enum according to the specified argument value.</returns>
-        public static MKeys RemapKeys(this Keys keys) => toMonoGameKeys[keys];
+        public static MKeys RemapKeys(this Keys keys) => ToMonoGameKeys[keys];
     }
 }

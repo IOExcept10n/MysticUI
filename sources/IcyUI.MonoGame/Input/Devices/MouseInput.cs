@@ -4,36 +4,52 @@ using Icy.Data;
 using Icy.Input;
 using Icy.Input.Devices;
 using Microsoft.Xna.Framework.Input;
-using System.Diagnostics;
 
 namespace Icy.MonoGame.Input.Devices
 {
+    /// <summary>
+    /// MonoGame mouse input listener.
+    /// </summary>
     internal class MouseInput : IMouseInput, IUpdateableInput
     {
         private MouseState lastMouseState;
 
-        public MouseInfo MouseInfo { get; private set; }
-
-        public bool IsListening { get; private set; } = true;
-
-        public bool IsInitialized { get; private set; }
-
+        /// <inheritdoc/>
         public event EventHandler<GenericEventArgs<MouseButtons>>? MouseButtonPressed;
 
+        /// <inheritdoc/>
         public event EventHandler<GenericEventArgs<MouseButtons>>? MouseButtonReleased;
 
+        /// <inheritdoc/>
+        public bool IsInitialized { get; private set; }
+
+        /// <inheritdoc/>
+        public bool IsListening { get; private set; } = true;
+
+        /// <inheritdoc/>
+        public MouseInfo MouseInfo { get; private set; }
+
+        /// <inheritdoc/>
         public bool DisableListening()
         {
             IsListening = false;
             return true;
         }
 
+        /// <inheritdoc/>
         public bool EnableListening()
         {
             IsListening = true;
             return true;
         }
 
+        /// <inheritdoc/>
+        public void Initialize()
+        {
+            IsInitialized = true;
+        }
+
+        /// <inheritdoc/>
         public void Update(TimeSpan deltaTime)
         {
             if (!IsListening)
@@ -46,21 +62,18 @@ namespace Icy.MonoGame.Input.Devices
             {
                 MouseButtonPressed?.Invoke(this, pressed);
             }
+
             var released = oldButtons & ~buttons;
             if (released != MouseButtons.None)
             {
                 MouseButtonReleased?.Invoke(this, released);
             }
+
             MouseInfo = new(new System.Drawing.Point(state.X, state.Y), buttons, state.ScrollWheelValue - lastMouseState.ScrollWheelValue);
             lastMouseState = state;
         }
 
-        public void Initialize()
-        {
-            IsInitialized = true;
-        }
-
-        private MouseButtons GetMouseButtons(MouseState mouse)
+        private static MouseButtons GetMouseButtons(MouseState mouse)
         {
             MouseButtons result = MouseButtons.None;
             if (mouse.LeftButton == ButtonState.Pressed) result |= MouseButtons.LeftButton;

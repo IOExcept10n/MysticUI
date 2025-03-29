@@ -3,6 +3,7 @@ using System.Text;
 using System.Xml.Linq;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
+using Icy.Data;
 
 namespace Icy.Assets.Importers.BitmapFonts
 {
@@ -30,7 +31,7 @@ namespace Icy.Assets.Importers.BitmapFonts
         {
             result = default;
 
-            foreach (var token in s.Tokenize(' '))
+            foreach (var token in s.TokenizeWithBrackets(' '))
             {
                 if (token is "page" or { IsEmpty: true }) continue;
 

@@ -41,15 +41,14 @@ namespace Icy.Data
         /// Gets the indexer definition for the specified type according to the specified indexer arguments.
         /// </summary>
         /// <param name="targetType">The target type to get indexer definition.</param>
+        /// <param name="converter">An instance of the type converter to use when inferring indexer based on values passed in it.</param>
         /// <param name="arguments">The argument string array to search indexer.</param>
         /// <param name="convertedArguments">The result of the arguments conversion.</param>
         /// <returns>The indexer definition that supports the provided arguments.</returns>
         /// <exception cref="ArgumentException">Occurs when there are no indexers for the specified arguments.</exception>
         /// <exception cref="AmbiguousMatchException">Occurs when there are more than one indexer for the specified arguments.</exception>
-        public static PropertyInfo GetIndexer(this Type targetType, string[] arguments, out object?[] convertedArguments)
+        public static PropertyInfo GetIndexer(this Type targetType, ITypeConverter converter, string[] arguments, out object?[] convertedArguments)
         {
-            var converter = TypeConversionManager.Instance;
-
             var indexers = targetType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                                      .Where(p => p.GetIndexParameters().Length == arguments.Length)
                                      .ToList();
@@ -73,6 +72,7 @@ namespace Icy.Data
                     try
                     {
                         convertedArguments[i] = converter.Convert(arguments[i].Trim(), parameters[i].ParameterType);
+
                         // Strings can be covered with quotes, they should be removed before getting an indexer.
                         if (convertedArguments[i] is string str)
                         {

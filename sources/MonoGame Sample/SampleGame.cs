@@ -1,9 +1,12 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using Icy.Configuration;
+using Icy.Data;
+using Icy.MonoGame.Configuration;
+using Icy.MonoGameSample.Samples;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using MonoGameSample.Samples;
 using System;
 
 namespace Icy.MonoGameSample
@@ -11,53 +14,37 @@ namespace Icy.MonoGameSample
     public class SampleGame : Game
     {
         private readonly GraphicsDeviceManager _graphics;
-        private int selection = 0;
+        private readonly SamplesRunner samplesRunner;
+
         private SpriteBatch diagSb;
         private SpriteFont diagFont;
-        private KeyboardState previousState;
-
-        public int Selection
-        {
-            get => selection;
-            set
-            {
-                if (value != selection)
-                {
-                    if (value >= Components.Count)
-                    {
-                        selection = 0;
-                    }
-                    else if (value < 0)
-                    {
-                        selection = Components.Count - 1;
-                    }
-                    OnSelectionUpdate();
-                }
-            }
-        }
+        private IcyConfiguration uiConfiguration;
 
         public SampleGame()
         {
-            _graphics = new GraphicsDeviceManager(this);
+            _graphics = new(this);
+            samplesRunner = new(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            Components.Add(new InputLoggingTest(this));
-            Components.Add(new RenderContextTest(this));
-            OnSelectionUpdate();
-        }
-
-        public void OnSelectionUpdate()
-        {
-            for (int i = 0; i < Components.Count; i++)
-            {
-                var component = Components[i] as DrawableGameComponent;
-                component.Enabled = component.Visible = i == selection;
-            }
         }
 
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
+            this.UseIcyUI();
+
+            uiConfiguration = this.GetIcyConfiguration();
+
+            samplesRunner.Prepare([
+                new InputLoggingSample(this, uiConfiguration),
+                new FontsSample(this, uiConfiguration)
+                // TODO: add samples here.
+                ]);
+
+            var upCommand = new RelayCommand(_ => samplesRunner.Selection++);
+            var downCommand = new RelayCommand(_ => samplesRunner.Selection--);
+            uiConfiguration.Input.Events.RegisterCommand(upCommand, new(Input.Devices.Keys.PageUp));
+            uiConfiguration.Input.Events.RegisterCommand(downCommand, new(Input.Devices.Keys.PageDown));
+
             _graphics.IsFullScreen = false;
             _graphics.PreferredBackBufferHeight = 720;
             _graphics.PreferredBackBufferWidth = 1280;
@@ -74,28 +61,18 @@ namespace Icy.MonoGameSample
 
         protected override void Update(GameTime gameTime)
         {
-            var currentState = Keyboard.GetState();
-            if (currentState.IsKeyDown(Keys.PageDown) && previousState.IsKeyUp(Keys.PageDown))
-            {
-                Selection--;
-            }
-            if (currentState.IsKeyDown(Keys.PageUp) && previousState.IsKeyUp(Keys.PageUp))
-            {
-                Selection++;
-            }
-            previousState = currentState;
-            //if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-            //    Exit();
+            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+                Exit();
             base.Update(gameTime);
         }
 
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            GraphicsDevice.Clear(Color.LightSlateGray);
             diagSb.Begin();
-            diagSb.DrawString(diagFont, $"Current test: {Components[selection].GetType().Name}. Use PgUp/PgDown to switch tests.", Vector2.One, Color.DarkGreen);
+            diagSb.DrawString(diagFont, $"Current test: {samplesRunner.CurrentSample.Name}. Use PgUp/PgDown to switch tests.", Vector2.One, Color.DarkGreen);
             diagSb.End();
-            // TODO: Add your drawing code here
+            
             base.Draw(gameTime);
         }
 

@@ -261,9 +261,36 @@ namespace Icy.Assets.Importers.BitmapFonts
             for (int i = 0; i < atlases.Length; i++)
             {
                 atlases[i] = importContext.AssetResolver.LoadAsset<ITexture>(importContext.ImportSource, Pages[i].FileName);
+
+                // HACK: little note, for now I found that texture atlases for my fonts somehow use black background for characters.
+                // My rendering system requires transparent characters to work with. This way I need to restore alpha channel from my picture.
+                RestoreAlpha(atlases[i]);
             }
 
             return atlases;
+        }
+
+        private static void RestoreAlpha(ITexture texture)
+        {
+            Pixel[] buffer = new Pixel[texture.Size.Width * texture.Size.Height];
+            texture.GetTextureData(buffer);
+
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                var pixel = buffer[i];
+                byte brightness = (byte)((pixel.R + pixel.G + pixel.B) / 3);
+                buffer[i].A = brightness;
+            }
+
+            texture.SetTextureData(buffer);
+        }
+
+        private struct Pixel
+        {
+            public byte R;
+            public byte G;
+            public byte B;
+            public byte A;
         }
 
         private IEnumerable<FontGlyph> GetGlyphs()
@@ -272,10 +299,10 @@ namespace Icy.Assets.Importers.BitmapFonts
             foreach (var c in Chars)
             {
                 var uv = new Vector4(
-                    c.X / Common.PageWidth,
-                    c.Y / Common.PageHeight,
-                    (c.X + c.Width) / Common.PageWidth,
-                    (c.Y + c.Height) / Common.PageHeight);
+                    c.X / (float)Common.PageWidth,
+                    c.Y / (float)Common.PageHeight,
+                    (c.X + c.Width) / (float)Common.PageWidth,
+                    (c.Y + c.Height) / (float)Common.PageHeight);
 
                 var bearing = new Vector2(c.XOffset, c.YOffset);
                 var size = new Size(c.Width, c.Height);
