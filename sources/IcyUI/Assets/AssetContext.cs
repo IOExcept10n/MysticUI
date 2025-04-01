@@ -8,9 +8,18 @@ namespace Icy.Assets
     public record AssetContext(Uri RootPath) : IAssetContext
     {
         /// <summary>
+        /// Initializes a new instance of the <see cref="AssetContext"/> class.
+        /// </summary>
+        /// <param name="rootPath">Root path to create context to.</param>
+        public AssetContext(string rootPath)
+            : this(new Uri(rootPath.Replace('\\', '/')))
+        {
+        }
+
+        /// <summary>
         /// Gets an instance of the asset context that locates application domain directory.
         /// </summary>
-        public static AssetContext ApplicationContext => new(new Uri(AppDomain.CurrentDomain.BaseDirectory));
+        public static AssetContext ApplicationContext => new(AppDomain.CurrentDomain.BaseDirectory);
 
         /// <inheritdoc/>
         public IAssetContext Combine(string relativePath) => new AssetContext(new Uri(RootPath, relativePath));
@@ -28,9 +37,11 @@ namespace Icy.Assets
         }
 
         /// <inheritdoc/>
-        public Task<Stream> OpenStreamAsync(string? relativePath = null)
+        public async Task<Stream> OpenStreamAsync(string? relativePath = null)
         {
-            return Task.FromResult(OpenStream(relativePath));
+            string path = GetAbsolutePath(relativePath);
+            var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+            return await Task.FromResult(fileStream);
         }
 
         /// <inheritdoc/>

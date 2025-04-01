@@ -154,7 +154,7 @@ namespace Icy.Data
                     {
                         return value =>
                         {
-                            if (value is string s && string.Equals(s, "null", StringComparison.InvariantCultureIgnoreCase))
+                            if (value is string s && string.Equals(s, "null", StringComparison.OrdinalIgnoreCase))
                             {
                                 return null!;
                             }

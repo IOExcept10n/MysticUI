@@ -67,6 +67,7 @@ namespace Icy.MonoGame.Configuration
                    .AddBasicFontSupport()
                    .UseMonoGameImporters(game);
 
+
         /// <summary>
         /// Adds MonoGame-specific importers to the asset configuration builder.
         /// </summary>

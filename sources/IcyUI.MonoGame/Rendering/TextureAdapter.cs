@@ -54,15 +54,17 @@ namespace Icy.MonoGame.Rendering
         }
 
         /// <inheritdoc/>
-        public void GetTextureData<TColor>(TColor[] buffer) where TColor : unmanaged
+        public void GetTextureData<TColor>(Rectangle? region, TColor[] buffer, int startIndex, int count)
+            where TColor : struct
         {
-            Texture.GetData(buffer);
+            Texture.GetData(0, region?.AsEngineRectangle(), buffer, startIndex, count);
         }
 
         /// <inheritdoc/>
-        public void SetTextureData<TColor>(TColor[] buffer) where TColor : unmanaged
+        public void SetTextureData<TColor>(Rectangle? region, TColor[] buffer, int startIndex, int count)
+            where TColor : struct
         {
-            Texture.SetData(buffer);
+            Texture.SetData(0, region?.AsEngineRectangle(), buffer, startIndex, count);
         }
 
         public static implicit operator TextureAdapter(Texture2D texture) => new(texture);

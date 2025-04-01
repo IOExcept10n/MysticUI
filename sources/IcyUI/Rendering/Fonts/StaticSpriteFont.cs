@@ -28,9 +28,8 @@ namespace Icy.Rendering.Fonts
             IReadOnlyDictionary<CodepointsPair, int> kernings,
             IEnumerable<FontGlyph> glyphs,
             float lineGap = 0)
-            : base(info)
+            : base(info, new StaticFontAtlas(atlas[0].Size, atlas, glyphs.ToFrozenDictionary(x => x.Codepoint)))
         {
-            Glyphs = glyphs.ToFrozenDictionary(x => x.Codepoint);
             this.kernings = kernings.ToFrozenDictionary();
             this.atlas = atlas;
             Metrics = CalculateMetrics(lineGap);
@@ -40,9 +39,6 @@ namespace Icy.Rendering.Fonts
         /// Gets or sets a value indicating whether to use kernings in measuring.
         /// </summary>
         public bool EnableKernings { get; set; }
-
-        /// <inheritdoc/>
-        public override IReadOnlyDictionary<int, FontGlyph> Glyphs { get; }
 
         /// <inheritdoc/>
         protected override FontGlyph GetGlyph(int codepoint, in FontRenderingOptions options)
@@ -56,9 +52,6 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <inheritdoc/>
-        protected override ITexture GetGlyphTexture(FontGlyph glyph) => atlas[glyph.PageNumber];
-
-        /// <inheritdoc/>
         protected override float GetKerning(FontGlyph current, FontGlyph previous)
         {
             if (!EnableKernings || !kernings.TryGetValue(new(previous.Codepoint, current.Codepoint), out var value))
@@ -66,28 +59,26 @@ namespace Icy.Rendering.Fonts
             return value;
         }
 
-        /// <inheritdoc/>
-        protected override void Prepare(ReadOnlySpan<char> text, in FontRenderingOptions options, out int ascent, out int lineHeight)
-        {
-            ascent = (int)Metrics.Ascent;
-            lineHeight = (int)Metrics.CapitalHeight;
-        }
-
         private FontMetrics CalculateMetrics(float lineGap)
         {
-            float ascent = float.MinValue;
-            float descent = float.MaxValue;
+            float maxAscent = float.MinValue;
+            float minDescent = float.MaxValue;
             float lowercaseHeight = 0;
             float capitalHeight = 0;
 
             foreach (var pair in Glyphs)
             {
                 var glyph = pair.Value;
-                ascent = MathF.Max(ascent, glyph.Bearing.Y);
-                descent = MathF.Min(descent, glyph.Bearing.Y - glyph.Size.Height);
+
+                // Ascent is the maximum distance from baseline to the top of any glyph
+                maxAscent = MathF.Max(maxAscent, glyph.Bearing.Y);
+
+                // Descent is the minimum distance from baseline to the bottom of any glyph
+                minDescent = MathF.Min(minDescent, glyph.Bearing.Y - glyph.Size.Height);
 
                 if (glyph.Codepoint >= CharLimit)
                     continue;
+
                 char c = (char)glyph.Codepoint;
                 if (char.IsLower(c))
                 {
@@ -99,7 +90,7 @@ namespace Icy.Rendering.Fonts
                 }
             }
 
-            return new(ascent, descent, lineGap, lowercaseHeight, capitalHeight);
+            return new(maxAscent, minDescent, lineGap, lowercaseHeight, capitalHeight);
         }
 
         /// <summary>

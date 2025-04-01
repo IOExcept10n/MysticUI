@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.HighPerformance;
 using Icy.Assets.Importers.BitmapFonts;
+using Xunit;
 
 namespace Icy.Tests.Assets.Importers
 {

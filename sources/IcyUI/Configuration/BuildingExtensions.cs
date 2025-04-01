@@ -1,8 +1,10 @@
 ﻿using Icy.Assets;
 using Icy.Assets.Importers;
 using Icy.Assets.Importers.BitmapFonts;
+using Icy.Assets.Importers.DynamicFonts;
 using Icy.Assets.Parsers;
 using Icy.Data;
+using Icy.Rendering;
 using Icy.Rendering.Fonts;
 
 namespace Icy.Configuration
@@ -122,15 +124,25 @@ namespace Icy.Configuration
             builder.AddImporter<IFont, BMFontImporter>();
 
         /// <summary>
+        /// Adds support for dynamic TrueType fonts to the asset configuration.
+        /// </summary>
+        /// <param name="builder">The asset configuration builder instance.</param>
+        /// <returns>The current asset configuration builder instance for fluent configuration.</returns>
+        public static IAssetConfigurationBuilder AddDynamicFontSupport(this IAssetConfigurationBuilder builder) =>
+            builder.AddImporter<IFont, DynamicFontImporter>()
+                   .AddImporter<IGlyphRasterizer, StbRasterizerImporter>();
+
+        /// <summary>
         /// Adds support for basic font types to the asset configuration.
         /// </summary>
         /// <param name="builder">The asset configuration builder instance.</param>
         /// <returns>The current asset configuration builder instance for fluent configuration.</returns>
         /// <remarks>
-        /// This method currently adds support for bitmap fonts. Future implementations may include support for TrueType fonts.
+        /// This method adds support for both bitmap fonts and TrueType fonts.
         /// </remarks>
         public static IAssetConfigurationBuilder AddBasicFontSupport(this IAssetConfigurationBuilder builder) =>
-            builder.AddBitmapFontSupport(); // TODO
+            builder.AddBitmapFontSupport()
+                  .AddDynamicFontSupport();
 
         /// <summary>
         /// Sets the assembly resolver for the reflection configuration.

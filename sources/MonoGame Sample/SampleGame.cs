@@ -68,7 +68,7 @@ namespace Icy.MonoGameSample
 
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.LightSlateGray);
+            GraphicsDevice.Clear(Color.White);
             diagSb.Begin();
             diagSb.DrawString(diagFont, $"Current test: {samplesRunner.CurrentSample.Name}. Use PgUp/PgDown to switch tests.", Vector2.One, Color.DarkGreen);
             diagSb.End();

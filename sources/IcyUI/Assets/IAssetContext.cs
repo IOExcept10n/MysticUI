@@ -6,7 +6,7 @@ namespace Icy.Assets
     public interface IAssetContext
     {
         /// <summary>
-        /// Gets the path of the root directory for accessing assets.
+        /// Gets the root path for this context.
         /// </summary>
         Uri RootPath { get; }
 

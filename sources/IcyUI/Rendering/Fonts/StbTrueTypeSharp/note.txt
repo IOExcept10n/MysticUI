@@ -1,0 +1,6 @@
+This directory has been copied from the https://github.com/StbSharp/StbTrueTypeSharp
+
+It includes code translated from the C 'stb_truetype.h' library.
+It is needed for TrueType fonts rasterizing and support.
+
+Special thanks to @rds1983 for this library

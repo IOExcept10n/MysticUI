@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Rendering;
 using System.Numerics;
+using Xunit;
 
 namespace Icy.Tests.Rendering
 {
@@ -9,27 +10,27 @@ namespace Icy.Tests.Rendering
     {
         private const float Epsilon = 1e-5f;
 
-        public static TheoryData<Vector2, float, Vector2> GenerateForMatrix()
+        public static TheoryData<Vector2, float, Vector2, Vector2> GenerateForMatrix()
         {
             return new()
             {
-                { new(0, 0), 0f, new(1, 1) }, // Identity
-                { new(10, 5), 0f, new(1, 1) }, // Translation only
-                { new(0, 0), MathF.PI / 2, new(1, 1) }, // Rotation 90 degrees
-                { new(0, 0), 0f, new(2, 2) }, // Scaling only
-                { new(10, 5), MathF.PI / 4, new(2, 2) } // Translation, rotation, and scaling
+                { new(0, 0), 0f, new(1, 1), Vector2.Zero }, // Identity
+                { new(10, 5), 0f, new(1, 1), Vector2.Zero }, // Translation only
+                { new(0, 0), MathF.PI / 2, new(1, 1), Vector2.Zero }, // Rotation 90 degrees
+                { new(0, 0), 0f, new(2, 2), Vector2.Zero }, // Scaling only
+                { new(10, 5), MathF.PI / 4, new(2, 2), Vector2.Zero } // Translation, rotation, and scaling
             };
         }
 
-        public static TheoryData<Transform2D, Vector2, Vector2, Vector2> GenerateToTransform()
+        public static TheoryData<Transform2D, Vector2, Vector2> GenerateToTransform()
         {
             return new()
             {
-                { Transform2D.Identity, new(1, 1), new(1, 1), new(0, 0) }, // Identity
-                { Transform2D.Create(new(10, 5), 0f, new(1, 1), new(0, 0)), new(2, 2), new(12, 7), new(0, 0) }, // Translation only
-                { Transform2D.Create(new(0, 0), MathF.PI / 2, new(1, 1), new(0, 0)), new(1, 0), new(0, 1), new(0, 0) }, // Rotation 90 degrees
-                { Transform2D.Create(new(0, 0), 0f, new(2, 2), new(0, 0)), new(1, 1), new(2, 2), new(0, 0) }, // Scaling only
-                { Transform2D.Create(new(10, 5), MathF.PI / 4, new(2, 2), new(10, 5)), new(1, 1), new(10, 5 + 2 * MathF.Sqrt(2)), new(10, 5) } // Combined
+                { Transform2D.Identity, new(1, 1), new(1, 1) }, // Identity
+                { Transform2D.Create(new(10, 5), 0f, new(1, 1), new(0, 0)), new(2, 2), new(12, 7) }, // Translation only
+                { Transform2D.Create(new(0, 0), MathF.PI / 2, new(1, 1), new(0, 0)), new(1, 0), new(0, 1) }, // Rotation 90 degrees
+                { Transform2D.Create(new(0, 0), 0f, new(2, 2), new(0, 0)), new(1, 1), new(2, 2) }, // Scaling only
+                { Transform2D.Create(new(10, 5), MathF.PI / 4, new(2, 2), new(10, 5)), new(1, 1), new(10, 5 + 2 * MathF.Sqrt(2)) } // Combined
             };
         }
 

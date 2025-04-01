@@ -3,6 +3,7 @@
 using Icy.Data;
 using System.Drawing;
 using System.Globalization;
+using Xunit;
 
 namespace Icy.Tests.Data.Bindings
 {

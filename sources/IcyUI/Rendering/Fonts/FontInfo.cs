@@ -42,10 +42,23 @@ namespace Icy.Rendering.Fonts
     }
 
     /// <summary>
-    /// Represents information about the font.
+    /// Represents information about a font.
     /// </summary>
-    /// <param name="FontFamily">The font family presented by this font.</param>
-    /// <param name="FontSize">The size of the font.</param>
-    /// <param name="Style">The style applied to the font.</param>
-    public readonly record struct FontInfo(string FontFamily, float FontSize, FontStyle Style);
+    /// <param name="Family">The font family name.</param>
+    /// <param name="Size">The font size in pixels.</param>
+    /// <param name="Style">The font style.</param>
+    public readonly record struct FontInfo(string Family, float Size, FontStyle Style)
+    {
+        /// <summary>
+        /// Gets a value indicating whether this font is dynamic.
+        /// </summary>
+        public bool IsDynamic => Size <= 0;
+
+        /// <summary>
+        /// Creates a new instance of <see cref="FontInfo"/> with the specified size.
+        /// </summary>
+        /// <param name="size">The new size.</param>
+        /// <returns>A new instance with the specified size.</returns>
+        public FontInfo WithSize(float size) => this with { Size = size };
+    }
 }

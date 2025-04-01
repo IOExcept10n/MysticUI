@@ -1,4 +1,6 @@
-﻿namespace Icy.Assets.Importers
+﻿using Icy.Configuration;
+
+namespace Icy.Assets.Importers
 {
     /// <summary>
     /// Represents a default implementation of the <see cref="IImportContext"/> type.
