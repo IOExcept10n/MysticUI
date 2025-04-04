@@ -165,7 +165,6 @@ namespace Icy.Data
             return MemoryMarshal.CreateSpan(ref Unsafe.As<T, byte>(ref value), Unsafe.SizeOf<T>());
         }
 
-
         /// <summary>
         /// Throws a <see cref="FileNotFoundException"/> with the specified message, file name, and inner exception.
         /// </summary>

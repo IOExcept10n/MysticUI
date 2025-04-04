@@ -12,10 +12,10 @@ namespace Icy.Rendering.Fonts
     /// </summary>
     public class DynamicFontAtlas : IFontAtlas
     {
-        private readonly Dictionary<StyledGlyphDefinition, FontGlyph> glyphs;
         private readonly IRenderContext context;
-        private readonly List<Page> pages;
+        private readonly Dictionary<StyledGlyphDefinition, FontGlyph> glyphs;
         private readonly uint maxPages;
+        private readonly List<Page> pages;
         private uint currentPageIndex;
 
         /// <summary>
@@ -34,20 +34,22 @@ namespace Icy.Rendering.Fonts
             currentPageIndex = 0;
         }
 
-        /// <inheritdoc/>
-        public int PageCount => pages.Count;
+        private enum SizeRange
+        {
+            Small,       // 1-8px
+            Medium,      // 9-16px
+            Large,       // 17-32px
+            ExtraLarge,  // >32px
+        }
 
         /// <inheritdoc/>
         public IReadOnlyDictionary<StyledGlyphDefinition, FontGlyph> Glyphs => glyphs;
 
         /// <inheritdoc/>
-        public IReadOnlyCollection<ITexture> Textures => pages.AsCollection(p => p.Texture);
+        public int PageCount => pages.Count;
 
         /// <inheritdoc/>
-        public FontGlyph? GetGlyph(StyledGlyphDefinition codepoint)
-        {
-            return glyphs.TryGetValue(codepoint, out var glyph) ? glyph : null;
-        }
+        public IReadOnlyCollection<ITexture> Textures => pages.AsCollection(p => p.Texture);
 
         /// <summary>
         /// Adds an empty glyph for rendering purposes.
@@ -55,14 +57,46 @@ namespace Icy.Rendering.Fonts
         /// <remarks>
         /// This method can be used for non-rendered glyphs that represent some unique spacings or kernings.
         /// The most common example of an "empty" glyph is a whitespace.
+        /// These glyphs are not saved to the atlas so they don't affect textures. However, they're used in calculations.
         /// </remarks>
         /// <param name="glyph">An instance of the <see cref="FontGlyph"/> to add to a font.</param>
+        /// <param name="fontInfo">Info about the font to store font-specific glyph info for.</param>
         public void AddEmptyGlyph(FontGlyph glyph, FontInfo fontInfo)
         {
             glyphs[new(glyph.Codepoint, fontInfo.Size, fontInfo.Style)] = glyph;
         }
 
+        /// <summary>
+        /// Clears all atlas data by removing all the pages and glyphs data.
+        /// </summary>
+        public void Clear()
+        {
+            glyphs.Clear();
+            foreach (var page in pages)
+            {
+                page.Dispose();
+            }
+
+            pages.Clear();
+            currentPageIndex = 0;
+        }
+
         /// <inheritdoc/>
+        public FontGlyph? GetGlyph(StyledGlyphDefinition codepoint)
+        {
+            return glyphs.TryGetValue(codepoint, out var glyph) ? glyph : null;
+        }
+
+        /// <inheritdoc/>
+        public ITexture GetGlyphPage(in FontGlyph glyph) => pages[(int)glyph.PageIndex].Texture;
+
+        /// <summary>
+        /// Tries to add a glyph to this atlas instance.
+        /// </summary>
+        /// <param name="glyph">A glyph to add to the atlas.</param>
+        /// <param name="pixels">Pixels buffer to add to the texture.</param>
+        /// <param name="fontInfo">Info about the font that adds a glyph.</param>
+        /// <returns>Modified glyph instance with page index and texture region set.</returns>
         public FontGlyph TryAddGlyph(FontGlyph glyph, Memory<byte> pixels, FontInfo fontInfo)
         {
             Guard.IsNotNull(pixels, nameof(pixels));
@@ -81,18 +115,13 @@ namespace Icy.Rendering.Fonts
             return glyphs[def] = page.TryAddGlyph(glyph, pixels);
         }
 
-        /// <inheritdoc/>
-        public void Clear()
+        private static SizeRange GetSizeRange(int height) => height switch
         {
-            glyphs.Clear();
-            foreach (var page in pages)
-            {
-                page.Dispose();
-            }
-
-            pages.Clear();
-            currentPageIndex = 0;
-        }
+            <= 8 => SizeRange.Small,
+            <= 16 => SizeRange.Medium,
+            <= 32 => SizeRange.Large,
+            _ => SizeRange.ExtraLarge,
+        };
 
         private Page GetOrCreatePage(SizeRange sizeRange)
         {
@@ -119,39 +148,15 @@ namespace Icy.Rendering.Fonts
             return oldestPage;
         }
 
-        private static SizeRange GetSizeRange(int height) => height switch
-        {
-            <= 8 => SizeRange.Small,
-            <= 16 => SizeRange.Medium,
-            <= 32 => SizeRange.Large,
-            _ => SizeRange.ExtraLarge,
-        };
-
-        public ITexture GetGlyphPage(in FontGlyph glyph) => pages[(int)glyph.PageIndex].Texture;
-
-        private enum SizeRange
-        {
-            Small,       // 1-8px
-            Medium,      // 9-16px
-            Large,       // 17-32px
-            ExtraLarge,  // >32px
-        }
-
         private class Page : IDisposable
         {
             private readonly IRenderContext context;
-            private readonly ITexture texture;
-            private readonly SizeRange sizeRange;
             private readonly uint pageIndex;
+            private readonly SizeRange sizeRange;
+            private readonly ITexture texture;
             private int currentX;
             private int currentY;
             private int rowHeight;
-
-            public ITexture Texture => texture;
-
-            public SizeRange SizeRange => sizeRange;
-
-            public bool HasSpace => currentY + rowHeight < texture.Size.Height;
 
             public Page(IRenderContext context, SizeRange sizeRange, uint pageIndex)
             {
@@ -172,6 +177,18 @@ namespace Icy.Rendering.Fonts
                 texture = context.CreateTexture(textureSize, textureSize, arr);
                 ArrayPool<Rgba32>.Shared.Return(arr);
                 Reset();
+            }
+
+            public bool HasSpace => currentY + rowHeight < texture.Size.Height;
+
+            public SizeRange SizeRange => sizeRange;
+
+            public ITexture Texture => texture;
+
+            public void Dispose()
+            {
+                if (texture is IDisposable disposable)
+                    disposable.Dispose();
             }
 
             public FontGlyph TryAddGlyph(FontGlyph glyph, Memory<byte> pixels)
@@ -199,16 +216,10 @@ namespace Icy.Rendering.Fonts
                 return glyph with { PageIndex = pageIndex, TextureRegion = region };
             }
 
-            private void Reset()
-            {
-                currentX = 0;
-                currentY = 0;
-                rowHeight = 0;
-            }
-
             private void CopyGlyphToAtlas(Memory<byte> pixels, Rectangle region)
             {
                 int square = region.Width * region.Height;
+
                 // Convert grayscale pixels to RGBA32 colors without allocation
                 var colors = ArrayPool<Rgba32>.Shared.Rent(square);
                 try
@@ -230,10 +241,11 @@ namespace Icy.Rendering.Fonts
                 }
             }
 
-            public void Dispose()
+            private void Reset()
             {
-                if (texture is IDisposable disposable)
-                    disposable.Dispose();
+                currentX = 0;
+                currentY = 0;
+                rowHeight = 0;
             }
         }
     }

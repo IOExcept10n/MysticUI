@@ -186,7 +186,7 @@ namespace Icy.Rendering.Fonts
                                                                                                      let info = DynamicFontsHelper.GetFontInfo(filePath)[0]
                                                                                                      select ((VectorFontInfo)info, fileName);
 
-        private IFont ReuseFont(FontInfo info, SharedDynamicFontData data)
+        private DynamicSpriteFont ReuseFont(FontInfo info, SharedDynamicFontData data)
         {
             var font = new DynamicSpriteFont(info, data.Rasterizer, data.Atlas, FontResolver);
             fontsCache[info] = font;

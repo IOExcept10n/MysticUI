@@ -29,15 +29,15 @@ namespace Icy.Data
             float yz = q.Y * q.Z;
             float xw = q.X * q.W;
 
-            float m11 = 1.0f - 2.0f * (yy + zz);
+            float m11 = 1.0f - (2.0f * (yy + zz));
             float m12 = 2.0f * (xy + zw);
 
             float m21 = 2.0f * (xy - zw);
-            float m22 = 1.0f - 2.0f * (zz + xx);
+            float m22 = 1.0f - (2.0f * (zz + xx));
 
             float m31 = 2.0f * (zx + yw);
             float m32 = 2.0f * (yz - xw);
-            float m33 = 1.0f - 2.0f * (yy + xx);
+            float m33 = 1.0f - (2.0f * (yy + xx));
 
             /*** Refer to Matrix.Decompose(out float yaw, out float pitch, out float roll) for code and license ***/
             if (MathF.Abs(MathF.Abs(m32) - 1) < 0.001f)

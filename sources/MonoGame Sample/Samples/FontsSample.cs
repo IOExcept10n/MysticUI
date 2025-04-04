@@ -1,6 +1,4 @@
 ﻿using Icy.Configuration;
-using Icy.Data;
-using Icy.Input.Devices;
 using Icy.MonoGame;
 using Icy.Rendering;
 using Icy.Rendering.Fonts;

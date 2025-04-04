@@ -75,6 +75,7 @@ Output: {outputBuilder}
 Error: {errorBuilder}";
                     throw new TimeoutException(timeoutError);
                 }
+
                 if (process.ExitCode == 0)
                 {
                     return outputBuilder.ToString();

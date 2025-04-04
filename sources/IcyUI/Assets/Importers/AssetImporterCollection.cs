@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Icy.Assets.Importers
 {
     /// <summary>
-    /// Represents a collection of asset importers optimized for searching importers ready to read assets in specified
+    /// Represents a collection of asset importers optimized for searching importers ready to read assets in specified.
     /// </summary>
     internal class AssetImporterCollection : Collection<IFormatReadChecker>
     {

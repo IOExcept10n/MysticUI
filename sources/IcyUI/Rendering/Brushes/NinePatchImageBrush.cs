@@ -70,6 +70,11 @@ namespace Icy.Rendering.Brushes
             }
         }
 
+        private static void DrawPatch(IRenderContext context, ITexture texture, in TextureRenderingOptions options)
+        {
+            context.Draw(texture, options);
+        }
+
         private void CalculateCachedPatches(Rectangle destination)
         {
             int leftWidth = (int)PatchSplitPadding.Left;
@@ -98,11 +103,6 @@ namespace Icy.Rendering.Brushes
             cachedPatches[8] = new Rectangle(destination.X + leftWidth + centerWidth, destination.Y + topHeight + centerHeight, rightWidth, bottomHeight); // Bottom Right
 
             cacheIsValid = true; // Mark cache as valid
-        }
-
-        private static void DrawPatch(IRenderContext context, ITexture texture, in TextureRenderingOptions options)
-        {
-            context.Draw(texture, options);
         }
     }
 }

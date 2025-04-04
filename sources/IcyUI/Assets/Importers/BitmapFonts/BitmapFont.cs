@@ -264,13 +264,13 @@ namespace Icy.Assets.Importers.BitmapFonts
 
                 // HACK: little note, for now I found that texture atlases for my fonts somehow use black background for characters.
                 // My rendering system requires transparent characters to work with. This way I need to restore alpha channel from my picture.
-                PremultiplyAlpha(atlases[i]);
+                NormalizeAlpha(atlases[i]);
             }
 
             return atlases;
         }
 
-        private static void PremultiplyAlpha(ITexture texture) => texture.Modify<Rgba32>(x => x with { A = x.GetIntensity() });
+        private static void NormalizeAlpha(ITexture texture) => texture.Modify<Rgba32>(x => x with { A = x.GetIntensity() });
 
         private IEnumerable<FontGlyph> GetGlyphs()
         {

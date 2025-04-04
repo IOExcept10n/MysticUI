@@ -128,11 +128,6 @@ namespace Icy.Data.Bindings
         protected readonly struct PathSegment
         {
             /// <summary>
-            /// Gets a value indicating whether the path segment can't be assigned to.
-            /// </summary>
-            public bool IsReadOnly { get; init; }
-
-            /// <summary>
             /// Gets the parameters to call the indexer.
             /// </summary>
             public readonly object?[]? Params;
@@ -167,6 +162,11 @@ namespace Icy.Data.Bindings
             [MemberNotNullWhen(true, nameof(Params))]
             [MemberNotNullWhen(false, nameof(Property))]
             public readonly bool IsArray { get; init; }
+
+            /// <summary>
+            /// Gets a value indicating whether the path segment can't be assigned to.
+            /// </summary>
+            public bool IsReadOnly { get; init; }
 
             /// <summary>
             /// Gets an indexer call segment.
@@ -226,9 +226,8 @@ namespace Icy.Data.Bindings
             public void SetValue(object target, object? value)
             {
                 if (IsReadOnly)
-                {
                     ThrowHelper.ThrowInvalidOperationException("Can't assign value to the readonly path segment.");
-                }
+
                 if (IsArray)
                     ((Array)target).SetValue(value, Array.ConvertAll(Params!, x => (int)x!));
                 Property!.SetValue(target, value, Params);

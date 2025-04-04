@@ -5,15 +5,15 @@ using System.Runtime.InteropServices;
 
 namespace Icy.Input.Devices
 {
-#pragma warning disable CS1574 // Stride is not referenced in this library.
+    // This struct uses the same definition as in Stride.Engine.Input.GamePadState.
+
     /// <summary>
     /// Describes the state of a typical gamepad.
     /// </summary>
     /// <remarks>
-    /// This struct uses the same definition as in <see cref="Stride.Engine.Input.GamePadState"/>.
+    /// You can see the API docs of this struct on <a href="https://doc.stride3d.net/4.1/en/api/Stride.Input.GamePadState.html">Official Stride3D website</a>.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
-#pragma warning restore CS1574
     public readonly struct GamePadState : IEquatable<GamePadState>, IEqualityOperators<GamePadState, GamePadState, bool>
     {
         /// <summary>
@@ -46,7 +46,6 @@ namespace Icy.Input.Devices
         /// Some controllers are not supporting the range of value and may act as a simple button returning only 0 or 1.
         /// </remarks>
         public readonly float RightTrigger;
-
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GamePadState"/> struct.

@@ -1,9 +1,9 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using Icy.Rendering;
-using Microsoft.Xna.Framework.Graphics;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
+using Icy.Rendering;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Icy.MonoGame.Rendering
 {
@@ -13,45 +13,17 @@ namespace Icy.MonoGame.Rendering
     /// <param name="texture">An instance of the texture to use.</param>
     internal class TextureAdapter(Texture2D texture) : ITexture
     {
-        private static Texture2D? White;
-        private static TextureAdapter? WhiteWrapper;
+        /// <inheritdoc/>
+        public Size Size => new(Texture.Bounds.Width, Texture.Bounds.Height);
 
         /// <summary>
         /// Gets the texture instance used to incapsulate into <see cref="ITexture"/>.
         /// </summary>
         public Texture2D Texture { get; private set; } = texture;
 
-        /// <inheritdoc/>
-        public Size Size => new(Texture.Bounds.Width, Texture.Bounds.Height);
+        public static implicit operator TextureAdapter(Texture2D texture) => new(texture);
 
-        /// <inheritdoc/>
-        public static TextureAdapter CreateTexture<TColor>(GraphicsDevice graphics, int width, int height, TColor[] data) where TColor : unmanaged
-        {
-            var texture = new Texture2D(graphics, width, height);
-            texture.SetData(data);
-            return texture;
-        }
-
-        /// <inheritdoc/>
-        public static TextureAdapter GetWhite(GraphicsDevice graphics)
-        {
-            if (WhiteWrapper == null)
-            {
-                CreateWhiteTexture(graphics);
-                WhiteWrapper = White;
-            }
-            return WhiteWrapper;
-        }
-
-        /// <inheritdoc/>
-        [MemberNotNull(nameof(White))]
-        private static void CreateWhiteTexture(GraphicsDevice graphics)
-        {
-            White = new(graphics, 2, 2);
-            Microsoft.Xna.Framework.Color white = Color.White.AsEngineColor();
-            // The most simple way to fill texture with white color
-            White.SetData([white, white, white, white]);
-        }
+        public static explicit operator Texture2D(TextureAdapter wrapper) => wrapper.Texture;
 
         /// <inheritdoc/>
         public void GetTextureData<TColor>(Rectangle? region, TColor[] buffer, int startIndex, int count)
@@ -66,9 +38,5 @@ namespace Icy.MonoGame.Rendering
         {
             Texture.SetData(0, region?.AsEngineRectangle(), buffer, startIndex, count);
         }
-
-        public static implicit operator TextureAdapter(Texture2D texture) => new(texture);
-
-        public static explicit operator Texture2D(TextureAdapter wrapper) => wrapper.Texture;
     }
 }

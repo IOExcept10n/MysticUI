@@ -25,7 +25,7 @@ namespace Icy.Rendering.Fonts
         {
             this.fontData = fontData;
             fontInfo = new stbtt_fontinfo();
-            kerningCache = new Dictionary<(int First, int Second, float Size, FontStyle Style), float>();
+            kerningCache = [];
 
             unsafe
             {
@@ -41,37 +41,39 @@ namespace Icy.Rendering.Fonts
             }
         }
 
-        /// <inheritdoc/>
-        public IMemoryOwner<byte>? RasterizeGlyph(int codepoint, float size, FontStyle style)
+        /// <summary>
+        /// Finalizes an instance of the <see cref="StbTrueTypeRasterizer"/> class.
+        /// </summary>
+        /// <remarks>
+        /// This rasterizer uses C <see langword="STB_TrueType"/> library which needs manual font data release.
+        /// </remarks>
+        ~StbTrueTypeRasterizer()
         {
-            unsafe
-            {
-                float scale = stbtt_ScaleForPixelHeight(fontInfo, size);
-                int index = stbtt_FindGlyphIndex(fontInfo, codepoint);
+            Dispose(disposing: false);
+        }
 
-                // Get glyph metrics
-                int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-                stbtt_GetGlyphBitmapBox(fontInfo, index, scale, scale, &x0, &y0, &x1, &y1);
+        /// <inheritdoc/>
+        public bool ContainsGlyph(int codepoint) => stbtt_FindGlyphIndex(fontInfo, codepoint) != 0;
 
-                // Calculate dimensions
-                int width = x1 - x0;
-                int height = y1 - y0;
-                if (width <= 0 || height <= 0)
-                    return null;
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
 
-                // Allocate bitmap with padding for hinting
-                int padding = size <= 16 ? 1 : 0;
-                int paddedWidth = width + padding * 2;
-                int paddedHeight = height + padding * 2;
-                IMemoryOwner<byte> bitmap = MemoryPool<byte>.Shared.Rent(paddedWidth * paddedHeight);
-
-                fixed (byte* ptr = bitmap.Memory.Span)
-                {
-                    stbtt_MakeGlyphBitmap(fontInfo, ptr, paddedWidth, paddedHeight, paddedWidth, scale, scale, index);
-                }
-
-                return bitmap;
-            }
+        /// <inheritdoc/>
+        public unsafe FontMetrics GetFontMetrics(float fontSize, FontStyle style)
+        {
+            // For uninitialized or template fonts metrics are unavailable.
+            if (fontSize == 0 || float.IsNaN(fontSize))
+                return default;
+            float scaled = stbtt_ScaleForPixelHeight(fontInfo, fontSize);
+            int ascent, descent, lineGap;
+            stbtt_GetFontVMetrics(fontInfo, &ascent, &descent, &lineGap);
+            var capitalMetric = GetGlyphMetrics('X', fontSize, style);
+            var lowercaseMetric = GetGlyphMetrics('x', fontSize, style);
+            return new FontMetrics(ascent * scaled, descent * scaled, lineGap * scaled, lowercaseMetric.Size.Height, capitalMetric.Size.Height);
         }
 
         /// <inheritdoc/>
@@ -128,22 +130,42 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <inheritdoc/>
-        public unsafe FontMetrics GetFontMetrics(float fontSize, FontStyle style)
+        public IMemoryOwner<byte>? RasterizeGlyph(int codepoint, float size, FontStyle style)
         {
-            // For uninitialized or template fonts metrics are unavailable.
-            if (fontSize == 0 || float.IsNaN(fontSize))
-                return default;
-            float scaled = stbtt_ScaleForPixelHeight(fontInfo, fontSize);
-            int ascent, descent, lineGap;
-            stbtt_GetFontVMetrics(fontInfo, &ascent, &descent, &lineGap);
-            var capitalMetric = GetGlyphMetrics('X', fontSize, style);
-            var lowercaseMetric = GetGlyphMetrics('x', fontSize, style);
-            return new FontMetrics(ascent * scaled, descent * scaled, lineGap * scaled, lowercaseMetric.Size.Height, capitalMetric.Size.Height);
+            unsafe
+            {
+                float scale = stbtt_ScaleForPixelHeight(fontInfo, size);
+                int index = stbtt_FindGlyphIndex(fontInfo, codepoint);
+
+                // Get glyph metrics
+                int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+                stbtt_GetGlyphBitmapBox(fontInfo, index, scale, scale, &x0, &y0, &x1, &y1);
+
+                // Calculate dimensions
+                int width = x1 - x0;
+                int height = y1 - y0;
+                if (width <= 0 || height <= 0)
+                    return null;
+
+                // Allocate bitmap with padding for hinting
+                int padding = size <= 16 ? 1 : 0;
+                int paddedWidth = width + (padding * 2);
+                int paddedHeight = height + (padding * 2);
+                IMemoryOwner<byte> bitmap = MemoryPool<byte>.Shared.Rent(paddedWidth * paddedHeight);
+
+                fixed (byte* ptr = bitmap.Memory.Span)
+                {
+                    stbtt_MakeGlyphBitmap(fontInfo, ptr, paddedWidth, paddedHeight, paddedWidth, scale, scale, index);
+                }
+
+                return bitmap;
+            }
         }
 
-        /// <inheritdoc/>
-        public bool ContainsGlyph(int codepoint) => stbtt_FindGlyphIndex(fontInfo, codepoint) != 0;
-
+        /// <summary>
+        /// Performs internal resources clean-up operations.
+        /// </summary>
+        /// <param name="disposing">Indicates whether the disposing was initialized by user or finalizer.</param>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -157,16 +179,5 @@ namespace Icy.Rendering.Fonts
                 disposedValue = true;
             }
         }
-
-        ~StbTrueTypeRasterizer()
-        {
-            Dispose(disposing: false);
-        }
-
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
     }
-} 
+}

@@ -32,5 +32,4 @@ namespace Icy.Data
         /// </returns>
         Type? FindType(string name);
     }
-
 }

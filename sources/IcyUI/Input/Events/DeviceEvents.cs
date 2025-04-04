@@ -23,10 +23,16 @@ namespace Icy.Input.Events
         }
 
         /// <inheritdoc/>
-        public event EventHandler<GenericEventArgs<IInputDeviceListener>>? DeviceConnected;
+        public event EventHandler<GenericEventArgs<IInputDeviceListener>>? DeviceConnected
+        {
+            add { } remove { }
+        }
 
         /// <inheritdoc/>
-        public event EventHandler<GenericEventArgs<IInputDeviceListener>>? DeviceDisconnected;
+        public event EventHandler<GenericEventArgs<IInputDeviceListener>>? DeviceDisconnected
+        {
+            add { } remove { }
+        }
 
         /// <inheritdoc/>
         public IInputSystem InputSystem { get; }

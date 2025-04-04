@@ -4,8 +4,12 @@ using System.Text;
 using CommunityToolkit.Diagnostics;
 using Icy.Data;
 
+#pragma warning disable IDE0059 // Unnecessary variable assignment - they're needed at least for the
 namespace Icy.Rendering.Fonts
 {
+    /// <summary>
+    /// Represents a helper class that gets font details from the vector font files such as <c>TTF</c>, <c>OTF</c> and <c>TTC</c>.
+    /// </summary>
     public class DynamicFontsHelper
     {
         // The 'name' in HEX BE code.
@@ -76,7 +80,7 @@ namespace Icy.Rendering.Fonts
             ushort majorVersion = fontStream.ReadBigEndian<ushort>();
             ushort minorVersion = fontStream.ReadBigEndian<ushort>();
             uint numFonts = fontStream.ReadBigEndian<uint>();
-            var fontInfos = new FontInfo[numFonts];
+            var fontsInfo = new FontInfo[numFonts];
 
             var offsets = new uint[numFonts];
             for (int i = 0; i < numFonts; i++)
@@ -87,10 +91,10 @@ namespace Icy.Rendering.Fonts
             for (int i = 0; i < numFonts; i++)
             {
                 fontStream.Position = offsets[i];
-                fontInfos[i] = ReadTTF(fontStream);
+                fontsInfo[i] = ReadTTF(fontStream);
             }
 
-            return fontInfos;
+            return fontsInfo;
         }
 
         private static FontInfo ReadTTF(Stream fontStream)
@@ -104,10 +108,10 @@ namespace Icy.Rendering.Fonts
             if (!TryFindTable(fontStream, numTables, out uint offset, out uint length))
                 return ThrowHelper.ThrowFormatException<FontInfo>("Input file doesn't contain font info to read from.");
 
-            return ReadNameTable(fontStream, offset, length);
+            return ReadNameTable(fontStream, offset);
         }
 
-        private static FontInfo ReadNameTable(Stream fontStream, uint offset, uint length)
+        private static FontInfo ReadNameTable(Stream fontStream, uint offset)
         {
             fontStream.Position = offset;
             ushort format = fontStream.ReadBigEndian<ushort>();
@@ -131,7 +135,7 @@ namespace Icy.Rendering.Fonts
                 using var memory = MemoryPool<byte>.Shared.Rent(locLength);
                 var buffer = memory.Memory.Span[..locLength];
                 fontStream.ReadExactly(buffer);
-                var value = ReadString(buffer, platformId, platformSpecificId);
+                var value = ReadString(buffer, platformId);
                 fontStream.Position = pos;
 
                 switch (nameId)
@@ -154,7 +158,7 @@ namespace Icy.Rendering.Fonts
             return new FontInfo(family ?? fullName ?? string.Empty, 0, styleCode);
         }
 
-        private static string ReadString(Span<byte> bytes, ushort platformID, ushort platformSpecificId) => platformID switch
+        private static string ReadString(Span<byte> bytes, ushort platformID) => platformID switch
         {
             1 => Encoding.GetEncoding(10000).GetString(bytes), // Mac
             3 => Encoding.BigEndianUnicode.GetString(bytes), // Windows, Unicode BMP
