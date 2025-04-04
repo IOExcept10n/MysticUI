@@ -7,13 +7,14 @@ using Icy.MonoGameSample.Samples;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using SharpDX.Direct3D9;
 using System;
 
 namespace Icy.MonoGameSample
 {
     public class SampleGame : Game
     {
-        private readonly GraphicsDeviceManager _graphics;
+        private readonly GraphicsDeviceManager graphics;
         private readonly SamplesRunner samplesRunner;
 
         private SpriteBatch diagSb;
@@ -22,7 +23,7 @@ namespace Icy.MonoGameSample
 
         public SampleGame()
         {
-            _graphics = new(this);
+            graphics = new(this);
             samplesRunner = new(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
@@ -42,14 +43,32 @@ namespace Icy.MonoGameSample
 
             var upCommand = new RelayCommand(_ => samplesRunner.Selection++);
             var downCommand = new RelayCommand(_ => samplesRunner.Selection--);
+            var switchFullScreen = new RelayCommand(_ => 
+            {
+                if (!graphics.IsFullScreen) ToFullScreen();
+                else ToWindow();
+                graphics.ApplyChanges();
+            });
             uiConfiguration.Input.Events.RegisterCommand(upCommand, new(Input.Devices.Keys.PageUp));
             uiConfiguration.Input.Events.RegisterCommand(downCommand, new(Input.Devices.Keys.PageDown));
-
-            _graphics.IsFullScreen = false;
-            _graphics.PreferredBackBufferHeight = 720;
-            _graphics.PreferredBackBufferWidth = 1280;
-            _graphics.ApplyChanges();
+            uiConfiguration.Input.Events.RegisterCommand(switchFullScreen, new(Input.Devices.Keys.Enter, Input.Devices.ModifierKeys.Alt));
+            ToWindow();
+            graphics.ApplyChanges();
             base.Initialize();
+        }
+
+        private void ToWindow()
+        {
+            graphics.PreferredBackBufferHeight = 720;
+            graphics.PreferredBackBufferWidth = 1280;
+            graphics.IsFullScreen = false;
+        }
+
+        private void ToFullScreen()
+        {
+            graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+            graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            graphics.IsFullScreen = true;
         }
 
         protected override void LoadContent()
@@ -63,6 +82,7 @@ namespace Icy.MonoGameSample
         {
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
+
             base.Update(gameTime);
         }
 

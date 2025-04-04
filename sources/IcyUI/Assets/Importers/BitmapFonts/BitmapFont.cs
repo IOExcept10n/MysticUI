@@ -48,7 +48,7 @@ namespace Icy.Assets.Importers.BitmapFonts
         /// </summary>
         /// <param name="importContext">Context to import texture atlases for the font.</param>
         /// <returns>An instance of the <see cref="StaticSpriteFont"/> ready to draw.</returns>
-        public StaticSpriteFont ToSpriteFont(IImportContext importContext) => new(Info.ToFontInfo(), GetAtlases(importContext), GetKernings(), GetGlyphs(), 0);
+        public StaticSpriteFont ToSpriteFont(IImportContext importContext) => new(Info.ToFontInfo(), GetAtlases(importContext), GetKernings(), GetGlyphs());
 
         /// <summary>
         /// Loads a <see cref="BitmapFont"/> from the data stream.

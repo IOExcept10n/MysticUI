@@ -44,5 +44,12 @@ namespace Icy.Rendering.Fonts
         /// <param name="style">Font style.</param>
         /// <returns>The kerning value in pixels.</returns>
         float GetKerning(int first, int second, float size, FontStyle style);
+
+        /// <summary>
+        /// Checks if the character is supported in this font.
+        /// </summary>
+        /// <param name="codepoint">Unicode character codepoint to check.</param>
+        /// <returns><see langword="true"/> if the character with the specified codepoint is supported by this font instance; otherwise <see langword="false"/>.</returns>
+        bool ContainsGlyph(int codepoint);
     }
 }

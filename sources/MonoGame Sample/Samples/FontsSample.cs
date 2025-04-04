@@ -1,6 +1,7 @@
 ﻿using Icy.Configuration;
 using Icy.Data;
 using Icy.Input.Devices;
+using Icy.MonoGame;
 using Icy.Rendering;
 using Icy.Rendering.Fonts;
 using Microsoft.Xna.Framework;
@@ -12,6 +13,10 @@ namespace Icy.MonoGameSample.Samples
         private IFont font;
 
         private int fontSize = 24;
+        private bool displayText = true;
+        private bool displayOutline = false;
+        private bool displayBoxes = false;
+        private bool displayAtlases = false;
 
         public FontsSample(Game game, IcyConfiguration configuration) : base(game, configuration, "Fonts sample")
         {
@@ -20,33 +25,63 @@ namespace Icy.MonoGameSample.Samples
         protected override void LoadContent()
         {
             //var context = UIConfiguration.Assets.DefaultAssetContext.Combine("Resources/Fonts/");
-            UIConfiguration.Input.Events.RegisterCommand(new RelayCommand(x => fontSize++), KeyGesture.Parse("Ctrl++", null));
-            UIConfiguration.Input.Events.RegisterCommand(new RelayCommand(x => fontSize--), KeyGesture.Parse("Ctrl+-", null));
+            UIConfiguration.Fonts.EnableSystemFonts();
+            UIConfiguration.Fonts.ImportSystemFont(new("Yu Gothic", 24, FontStyle.Regular));
+            UIConfiguration.Fonts.ImportSystemFont(new("Segoe UI Emoji", 24, FontStyle.Regular));
+
+            RegisterCommand("Ctrl++", x => fontSize++);
+            RegisterCommand("Ctrl+-", x => fontSize--);
+            RegisterCommand("Ctrl+Shift+T", x => displayText = !displayText);
+            RegisterCommand("Ctrl+O", x => displayOutline = !displayOutline);
+            RegisterCommand("Ctrl+B", x => displayBoxes = !displayBoxes);
+            RegisterCommand("Ctrl+A", x => displayAtlases = !displayAtlases);
             base.LoadContent();
         }
 
         public override void Draw(GameTime gameTime)
         {
-            font = UIConfiguration.Fonts.GetOrLoad(new FontInfo("Verdana", fontSize, FontStyle.Regular));
-            var options = default(FontRenderingOptions) with { Position = new(50, 100), Color = System.Drawing.Color.Black };
-            UIConfiguration.RenderContext.Begin();
+            font = UIConfiguration.Fonts.GetOrLoad(new FontInfo("Arial", fontSize, FontStyle.Regular));
+            var options = default(FontRenderingOptions) with { Position = new(50, 20), Color = System.Drawing.Color.Black };
             string Text = $"""
 Hello, world!
-Here's an example of the multiline text printed with dynamic {font.Info.Family} font of size {fontSize}.
+{font.Info.Family} font of size {fontSize}
+Here's an example of the multiline text.
 Also I can write here numbers: 0123456789, and even punctuation!
 Best wishes - IOExcept10n!
 И немного текста на русском для проверки.
 ちょっと日本語もいいですよね！
+P.S. Смайлики теперь тоже можно 😁
 """;
-            font.DrawString(UIConfiguration.RenderContext, Text, options);
+
+            UIConfiguration.RenderContext.Begin();
+
+            if (displayText) font.DrawString(UIConfiguration.RenderContext, Text, options);
             //UIConfiguration.RenderContext.Draw(fontAtlas, new(new(50, 100, 256, 256)));
-            //var glyphs = font.GetRenderGlyphs(Text, options);
-            //foreach (var glyph in glyphs)
-            //{
-            //    UIConfiguration.RenderContext.DrawRectangle(glyph.Bounds, System.Drawing.Color.Red);
-            //}
-            var bounds = font.CalculateBounds(Text, options);
-            UIConfiguration.RenderContext.DrawRectangle(bounds, System.Drawing.Color.Blue);
+            if (displayBoxes)
+            {
+                var glyphs = font.GetRenderGlyphs(Text, options);
+                foreach (var glyph in glyphs)
+                {
+                    UIConfiguration.RenderContext.DrawRectangle(glyph.Bounds, System.Drawing.Color.Red);
+                }
+            }
+            if (displayOutline)
+            {
+                var bounds = font.CalculateBounds(Text, options);
+                UIConfiguration.RenderContext.DrawRectangle(bounds, System.Drawing.Color.Blue);
+            }
+            if (displayAtlases)
+            {
+                Vector2 pos = new(0, 20);
+                foreach (var tex in ((SpriteFont)font).Atlas.Textures)
+                {
+                    System.Drawing.Rectangle drawArea = new(pos.AsSystemPoint(), tex.Size);
+                    //UIConfiguration.RenderContext.FillRectangle(drawArea, Color.Black.AsSystemColor());
+                    UIConfiguration.RenderContext.Draw(tex, new(drawArea, null, Color.Black.AsSystemColor()));
+                    pos.X += tex.Size.Width;
+                }
+            }
+
             UIConfiguration.RenderContext.End();
             base.Draw(gameTime);
         }

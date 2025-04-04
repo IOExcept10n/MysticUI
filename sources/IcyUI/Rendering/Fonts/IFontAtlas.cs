@@ -1,7 +1,5 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using System.Drawing;
-
 namespace Icy.Rendering.Fonts
 {
     /// <summary>
@@ -10,11 +8,6 @@ namespace Icy.Rendering.Fonts
     public interface IFontAtlas
     {
         /// <summary>
-        /// Gets the size of each texture page.
-        /// </summary>
-        Size PageSize { get; }
-
-        /// <summary>
         /// Gets the number of texture pages.
         /// </summary>
         int PageCount { get; }
@@ -22,7 +15,12 @@ namespace Icy.Rendering.Fonts
         /// <summary>
         /// Gets all glyphs stored in the atlas.
         /// </summary>
-        IReadOnlyDictionary<int, FontGlyph> Glyphs { get; }
+        IReadOnlyDictionary<StyledGlyphDefinition, FontGlyph> Glyphs { get; }
+
+        /// <summary>
+        /// Gets the font textures.
+        /// </summary>
+        IReadOnlyCollection<ITexture> Textures { get; }
 
         /// <summary>
         /// Gets a page for the glyph with the specified codepoint.
@@ -34,8 +32,16 @@ namespace Icy.Rendering.Fonts
         /// <summary>
         /// Gets the glyph for a codepoint.
         /// </summary>
-        /// <param name="codepoint">The Unicode codepoint of the glyph.</param>
+        /// <param name="glyphDefinition">Info about glyph codepoint and style to get glyph details for.</param>
         /// <returns>The glyph if it exists; otherwise, <see langword="null"/>.</returns>
-        FontGlyph? GetGlyph(int codepoint);
+        FontGlyph? GetGlyph(StyledGlyphDefinition glyphDefinition);
     }
+
+    /// <summary>
+    /// Represents an identification data for the glyph for the search in font atlas.
+    /// </summary>
+    /// <param name="Codepoint">The Unicode codepoint of the glyph.</param>
+    /// <param name="FontSize">Glyph font size in points.</param>
+    /// <param name="Style">Glyph font style info.</param>
+    public readonly record struct StyledGlyphDefinition(int Codepoint, float FontSize, FontStyle Style);
 }

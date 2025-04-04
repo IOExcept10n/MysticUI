@@ -1,10 +1,9 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Collections.Frozen;
 using System.Drawing;
 using System.Numerics;
-using CommunityToolkit.Diagnostics;
 using Icy.Data;
-using Icy.Rendering.Brushes;
 
 namespace Icy.Rendering.Fonts
 {
@@ -23,27 +22,23 @@ namespace Icy.Rendering.Fonts
     /// </remarks>
     public abstract class SpriteFont : ISpanDrawableFont
     {
-        private readonly IFontAtlas atlas;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="SpriteFont"/> class.
         /// </summary>
         /// <param name="info">Info about the created font.</param>
         /// <param name="atlas">The texture atlas containing the font's glyphs.</param>
-        protected SpriteFont(FontInfo info, IFontAtlas atlas)
+        /// <param name="fontResolver">An instance of the service that helps with finding fallback fonts for cases when glyph is not found.</param>
+        protected SpriteFont(FontInfo info, IFontAtlas atlas, IFallbackFontResolver? fontResolver)
         {
             Info = info;
-            this.atlas = atlas;
+            Atlas = atlas;
+            FontResolver = fontResolver;
         }
 
-        /// <inheritdoc/>
-        public IReadOnlyDictionary<int, FontGlyph> Glyphs => atlas.Glyphs;
-
-        /// <inheritdoc/>
-        public FontInfo Info { get; protected set; }
-
-        /// <inheritdoc/>
-        public FontMetrics Metrics { get; protected set; }
+        /// <summary>
+        /// Gets an instance of the <see cref="IFontAtlas"/> that stores all the font glyphs.
+        /// </summary>
+        public IFontAtlas Atlas { get; }
 
         /// <summary>
         /// Gets or sets a codepoint of the default font character.
@@ -52,6 +47,20 @@ namespace Icy.Rendering.Fonts
         /// This character will be returned in case when requested character not found in the font.
         /// </remarks>
         public int DefaultCodepoint { get; set; }
+
+        /// <inheritdoc/>
+        public IReadOnlyDictionary<int, FontGlyph> Glyphs => Atlas.Glyphs.ToFrozenDictionary(x => x.Key.Codepoint, y => y.Value);
+
+        /// <inheritdoc/>
+        public FontInfo Info { get; protected set; }
+
+        /// <inheritdoc/>
+        public FontMetrics Metrics { get; protected set; }
+
+        /// <summary>
+        /// Gets or sets an instance of the service to resolve fallback fonts when character is not found.
+        /// </summary>
+        public IFallbackFontResolver? FontResolver { get; protected set; }
 
         /// <summary>
         /// Gets or sets the multiplier for the font rendering size.
@@ -73,7 +82,7 @@ namespace Icy.Rendering.Fonts
             Vector2 min = bounds.Location;
             Vector2 max = bounds.Location;
 
-            ProcessText(text, localOptions, lineHeight, ref bounds, (glyph, glyphPos) =>
+            ProcessText(text, localOptions, lineHeight, ref bounds, (glyph, font, glyphPos) =>
             {
                 min = Vector2.Min(min, glyphPos);
                 max = Vector2.Max(max, glyphPos + new Vector2(glyph.Size.Width, glyph.Size.Height));
@@ -85,6 +94,49 @@ namespace Icy.Rendering.Fonts
         /// <inheritdoc/>
         public Rectangle CalculateBounds(string text, in FontRenderingOptions options) =>
             CalculateBounds(text.AsSpan(), options);
+
+        /// <inheritdoc/>
+        public void DrawString(IRenderContext context, ReadOnlySpan<char> text, in FontRenderingOptions options)
+        {
+            if (text.IsEmpty)
+                return;
+
+            var localOptions = options;
+            Transform2D transform = CreateTransform(localOptions);
+            Prepare(text, localOptions, out int baseline, out int lineHeight);
+            BoundsInfo renderBounds = new(new Vector2(0, baseline), localOptions.Position.X);
+
+            ProcessText(text, localOptions, lineHeight, ref renderBounds, (glyph, font, glyphPos) =>
+            {
+                if (!glyph.IsEmpty)
+                {
+                    Rectangle glyphBounds = new((int)glyphPos.X, (int)glyphPos.Y, glyph.Size.Width, glyph.Size.Height);
+
+                    var renderGlyphBounds = transform.Apply(glyphBounds);
+                    var glyphTexture = ((font as SpriteFont) ?? this)?.GetGlyphTexture(glyph);
+
+                    // Unfortunately, we can't support fonts that can't provide a texture for the specified glyph.
+                    if (glyphTexture == null)
+                        return;
+
+                    var textureGlyphBounds = glyph.TextureRegion;
+
+                    TextureRenderingOptions renderOptions = new(
+                        Destination: renderGlyphBounds,
+                        Source: textureGlyphBounds,
+                        Color: localOptions.Color,
+                        Rotation: localOptions.Rotation,
+                        Origin: localOptions.Origin,
+                        Depth: localOptions.Depth);
+
+                    context.Draw(glyphTexture, renderOptions);
+                }
+            });
+        }
+
+        /// <inheritdoc/>
+        public void DrawString(IRenderContext context, string text, in FontRenderingOptions options) =>
+            DrawString(context, text.AsSpan(), options);
 
         /// <inheritdoc/>
         public List<RenderGlyph> GetRenderGlyphs(ReadOnlySpan<char> text, in FontRenderingOptions options)
@@ -99,7 +151,7 @@ namespace Icy.Rendering.Fonts
             BoundsInfo renderBounds = new(new Vector2(0, baseline), localOptions.Position.X);
             int i = 0;
 
-            ProcessText(text, localOptions, lineHeight, ref renderBounds, (glyph, glyphPos) =>
+            ProcessText(text, localOptions, lineHeight, ref renderBounds, (glyph, font, glyphPos) =>
             {
                 Rectangle glyphBounds = new((int)glyphPos.X, (int)glyphPos.Y, glyph.Size.Width, glyph.Size.Height);
 
@@ -126,58 +178,22 @@ namespace Icy.Rendering.Fonts
             MeasureString(text.AsSpan(), options);
 
         /// <inheritdoc/>
-        public void DrawString(IRenderContext context, ReadOnlySpan<char> text, in FontRenderingOptions options)
-        {
-            if (text.IsEmpty)
-                return;
-
-            var localOptions = options;
-            Transform2D transform = CreateTransform(localOptions);
-            Prepare(text, localOptions, out int baseline, out int lineHeight);
-            BoundsInfo renderBounds = new(new Vector2(0, baseline), localOptions.Position.X);
-
-            ProcessText(text, localOptions, lineHeight, ref renderBounds, (glyph, glyphPos) =>
-            {
-                if (!glyph.IsEmpty)
-                {
-                    Rectangle glyphBounds = new((int)glyphPos.X, (int)glyphPos.Y, glyph.Size.Width, glyph.Size.Height);
-
-                    var renderGlyphBounds = transform.Apply(glyphBounds);
-                    var glyphTexture = GetGlyphTexture(glyph);
-                    var textureGlyphBounds = glyph.TextureRegion;
-
-                    TextureRenderingOptions renderOptions = new(
-                        Destination: renderGlyphBounds,
-                        Source: textureGlyphBounds,
-                        Color: localOptions.Color,
-                        Rotation: localOptions.Rotation,
-                        Origin: localOptions.Origin,
-                        Depth: localOptions.Depth);
-
-                    context.Draw(glyphTexture, renderOptions);
-                }
-            });
-        }
-
-        /// <inheritdoc/>
-        public void DrawString(IRenderContext context, string text, in FontRenderingOptions options) =>
-            DrawString(context, text.AsSpan(), options);
+        public abstract bool SupportsCharacter(int codepoint);
 
         /// <summary>
         /// Gets the glyph for the specified character codepoint.
         /// </summary>
         /// <param name="codepoint">Codepoint to get glyph for.</param>
-        /// <param name="options">Rendering options to get glyph more precise.</param>
         /// <returns>Glyph info to use with this font.</returns>
         /// <remarks>
         /// If the requested codepoint is not found in the font, this method will attempt to return
         /// the glyph for <see cref="DefaultCodepoint"/>. If that also fails, it returns <see cref="FontGlyph.None"/>.
         /// </remarks>
-        protected virtual FontGlyph GetGlyph(int codepoint, in FontRenderingOptions options)
+        public virtual FontGlyph GetGlyph(int codepoint)
         {
-            if (atlas.GetGlyph(codepoint) is FontGlyph glyph)
+            if (Atlas.GetGlyph(GetStyledGlyph(codepoint)) is FontGlyph glyph)
                 return glyph;
-            if (DefaultCodepoint != 0 && atlas.GetGlyph(DefaultCodepoint) is FontGlyph defaultGlyph)
+            if (DefaultCodepoint != 0 && Atlas.GetGlyph(GetStyledGlyph(DefaultCodepoint)) is FontGlyph defaultGlyph)
                 return defaultGlyph;
             return FontGlyph.None;
         }
@@ -187,7 +203,7 @@ namespace Icy.Rendering.Fonts
         /// </summary>
         /// <param name="glyph">Glyph to get image for.</param>
         /// <returns>An instance of the texture atlas for the specified glyph.</returns>
-        protected ITexture GetGlyphTexture(FontGlyph glyph) => atlas.GetGlyphPage(glyph);
+        protected ITexture GetGlyphTexture(FontGlyph glyph) => Atlas.GetGlyphPage(glyph);
 
         /// <summary>
         /// Gets the kerning between two glyphs.
@@ -202,6 +218,13 @@ namespace Icy.Rendering.Fonts
         protected abstract float GetKerning(FontGlyph current, FontGlyph previous);
 
         /// <summary>
+        /// Gets an instance of the <see cref="StyledGlyphDefinition"/> for the specified codepoint for this font instance.
+        /// </summary>
+        /// <param name="codepoint">Character codepoint to get glyph info for.</param>
+        /// <returns>An instance of the <see cref="StyledGlyphDefinition"/> with info from this font and specified <paramref name="codepoint"/>.</returns>
+        protected StyledGlyphDefinition GetStyledGlyph(int codepoint) => new(codepoint, Info.Size, Info.Style);
+
+        /// <summary>
         /// Prepares for the rendering and calculates font parameters such as <paramref name="baseline"/> and <paramref name="lineHeight"/>.
         /// </summary>
         /// <param name="text">Text to prepare.</param>
@@ -212,12 +235,9 @@ namespace Icy.Rendering.Fonts
         /// The baseline is the imaginary line upon which most characters sit. Some characters may descend below it (like 'g', 'j', 'p').
         /// The line height determines the vertical space between lines of text, including ascenders and descenders.
         /// </remarks>
-        protected void Prepare(ReadOnlySpan<char> text, in FontRenderingOptions options, out int baseline, out int lineHeight)
+        protected virtual void Prepare(ReadOnlySpan<char> text, in FontRenderingOptions options, out int baseline, out int lineHeight)
         {
-            // Calculate baseline position based on ascent and descent
             baseline = (int)(Metrics.Ascent + options.Position.Y);
-
-            // Line height is the total height of a line (ascent + descent + line gap)
             lineHeight = (int)(Metrics.Ascent - Metrics.Descent + Metrics.LineGap);
         }
 
@@ -244,6 +264,15 @@ namespace Icy.Rendering.Fonts
             return false;
         }
 
+        private void AddSpacing(FontGlyph glyph, float spacing, ref BoundsInfo bounds)
+        {
+            if (bounds.Previous != FontGlyph.None)
+                bounds.Location.X += spacing + GetKerning(glyph, bounds.Previous);
+        }
+
+        private Transform2D CreateTransform(in FontRenderingOptions options) =>
+                    Transform2D.Create(options.Position, options.Rotation, options.Origin, (options.Scale ?? Vector2.One) * RenderSizeMultiplier);
+
         /// <summary>
         /// Processes text by iterating over codepoints and handling glyphs.
         /// </summary>
@@ -251,20 +280,47 @@ namespace Icy.Rendering.Fonts
         /// <param name="options">Rendering options.</param>
         /// <param name="lineHeight">Height of a line of text.</param>
         /// <param name="bounds">Current bounds information.</param>
-        /// <param name="glyphCallback">Callback to handle each glyph.</param>
+        /// <param name="glyphCallback">
+        /// Callback to handle each glyph.
+        /// It provides the following info:
+        /// <list type="bullet">
+        /// <item>
+        /// Info about the selected glyph.
+        /// </item>
+        /// <item>
+        /// Info about the fallback font instance that retrieved this glyph (<see langword="null"/> if the glyph is from this original font).
+        /// </item>
+        /// <item>
+        /// Position to render glyph at.
+        /// </item>
+        /// </list>
+        /// </param>
         private void ProcessText(
             ReadOnlySpan<char> text,
             in FontRenderingOptions options,
             int lineHeight,
             ref BoundsInfo bounds,
-            Action<FontGlyph, Vector2> glyphCallback)
+            Action<FontGlyph, IFont?, Vector2> glyphCallback)
         {
             foreach (int codepoint in text.EnumerateCodepoints())
             {
                 if (HandleControlCode(codepoint, options, lineHeight, ref bounds))
                     continue;
 
-                var glyph = GetGlyph(codepoint, options);
+                FontGlyph glyph;
+                IFont? fallbackFont = null;
+                if (SupportsCharacter(codepoint))
+                {
+                    glyph = GetGlyph(codepoint);
+                }
+                else
+                {
+                    fallbackFont = FontResolver?.GetFallbackFont(GetStyledGlyph(codepoint));
+                    if (fallbackFont == null)
+                        continue;
+                    glyph = fallbackFont.GetGlyph(codepoint);
+                }
+
                 if (glyph == FontGlyph.None)
                     continue;
 
@@ -273,7 +329,7 @@ namespace Icy.Rendering.Fonts
 
                 // Calculate glyph position relative to baseline
                 Vector2 glyphPos = bounds.Location + glyph.Bearing;
-                glyphCallback(glyph, glyphPos);
+                glyphCallback(glyph, fallbackFont, glyphPos);
 
                 // Move to next glyph position
                 bounds.Location.X += glyph.Advance;
@@ -281,21 +337,12 @@ namespace Icy.Rendering.Fonts
             }
         }
 
-        private void AddSpacing(FontGlyph glyph, float spacing, ref BoundsInfo bounds)
-        {
-            if (bounds.Previous != FontGlyph.None)
-                bounds.Location.X += spacing + GetKerning(glyph, bounds.Previous);
-        }
-
-        private Transform2D CreateTransform(in FontRenderingOptions options) =>
-            Transform2D.Create(options.Position, options.Rotation, options.Origin, (options.Scale ?? Vector2.One) * RenderSizeMultiplier);
-
         private struct BoundsInfo
         {
             public Vector2 LastLocation;
+            public float LineStartX;
             public Vector2 Location;
             public FontGlyph Previous;
-            public float LineStartX;
 
             public BoundsInfo(Vector2 position, float lineStartX)
             {

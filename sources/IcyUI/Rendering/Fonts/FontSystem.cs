@@ -1,4 +1,7 @@
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Diagnostics;
 using Icy.Assets;
 using Icy.Configuration;
@@ -8,18 +11,18 @@ namespace Icy.Rendering.Fonts
     /// <summary>
     /// Manages font loading and resolution.
     /// </summary>
-    public class FontSystem
+    public class FontSystem : IDisposable
     {
         private static readonly string SystemFontsPath = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
         private static readonly AssetContext SystemFontsAssetContext = new(SystemFontsPath + '/');
-        private static readonly FrozenDictionary<VectorFontInfo, string> SystemFontFileNames = EnumerateSystemFonts()
-                                                                                                .DistinctBy(x => x.Info)
-                                                                                                .ToFrozenDictionary(x => x.Info, y => y.FileName);
 
-        // Dynamic fonts with the same family and style share their rasterizer and atlas, so it them storing almost all their data in one place.
-        private readonly Dictionary<VectorFontInfo, IGlyphRasterizer> rasterizers;
-        private readonly Dictionary<FontInfo, IFont> fontsCache;
         private readonly IcyConfiguration config;
+        private readonly Dictionary<FontInfo, IFont> fontsCache;
+
+        // Dynamic fonts with the same family and style share their rasterizer and atlas, so store almost all their data in one place.
+        private readonly Dictionary<VectorFontInfo, SharedDynamicFontData> rasterizationData;
+
+        private FrozenDictionary<VectorFontInfo, string>? systemFontFileNames;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FontSystem"/> class.
@@ -30,18 +33,76 @@ namespace Icy.Rendering.Fonts
             Guard.IsNotNull(config);
 
             this.config = config;
-            rasterizers = [];
+            rasterizationData = [];
             fontsCache = [];
+            FontResolver = new FallbackResolver();
         }
 
-        public IFont FallbackFont { get; set; }
+        /// <summary>
+        /// Gets or sets the maximal number of texture pages to use in atlas of a single dynamic font family.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When imported, dynamic fonts get an expandable texture atlas for rasterized glyphs.
+        /// Each font family in a single font system has its own atlas instance shared across style and size variations of this font.
+        /// Dynamic font atlas has support for multiple pages in case of large font sizes or inefficient glyphs placement.
+        /// By default the count of pages is equal to <c>4</c>.
+        /// </para>
+        /// <para>
+        /// It is recommended to have at least 4 pages limit because an atlas groups glyphs by size.
+        /// Each glyph size category should have its own atlas page for efficient search and placement.
+        /// </para>
+        /// </remarks>
+        public uint AtlasPageLimit { get; set; } = 4;
+
+        /// <summary>
+        /// Gets or sets a font to be used when an instance of the requested font couldn't be found or created.
+        /// </summary>
+        public IFont? FallbackFont { get; set; }
+
+        /// <summary>
+        /// Gets or sets an instance of the <see cref="IFallbackFontResolver"/> to get fonts that should be used as fallback ones if characters are not supported.
+        /// </summary>
+        /// <remarks>
+        /// If any font can't find a character to write, it asks <see cref="FontResolver"/> to provide an instance of the font that can write it.
+        /// </remarks>
+        public IFallbackFontResolver FontResolver { get; set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the system fonts are enabled and ready for import.
+        /// </summary>
+        [MemberNotNullWhen(true, nameof(systemFontFileNames))]
+        public bool AreSystemFontsEnabled => systemFontFileNames != null;
+
+        /// <summary>
+        /// Clears all font caches.
+        /// </summary>
+        public void Clear()
+        {
+            foreach (var (rasterizer, atlas) in rasterizationData.Values)
+            {
+                rasterizer.Dispose();
+                atlas.Clear();
+            }
+
+            rasterizationData.Clear();
+            fontsCache.Clear();
+            (FontResolver as FallbackResolver)?.Clear();
+        }
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            GC.SuppressFinalize(this);
+            Clear();
+        }
 
         /// <summary>
         /// Gets or loads a font with the specified information.
         /// </summary>
         /// <param name="info">Information about the font to get or load.</param>
         /// <returns>The font instance.</returns>
-        public IFont GetOrLoad(FontInfo info)
+        public IFont? GetOrLoad(FontInfo info)
         {
             // If already registered, return an existing instance.
             if (fontsCache.TryGetValue(info, out var font))
@@ -50,38 +111,29 @@ namespace Icy.Rendering.Fonts
             }
 
             // If can create dynamic based on already loaded font, make it.
-            if (rasterizers.TryGetValue(info, out var rasterizer))
+            if (rasterizationData.TryGetValue(info, out var pair))
             {
-                return fontsCache[info] = new DynamicSpriteFont(info, rasterizer, new(config.RenderContext));
+                return ReuseFont(info, pair);
             }
 
-            // If font is installed on target OS, try to load it.
-            if (SystemFontFileNames.TryGetValue(info, out string? systemPath) && SystemFontsAssetContext.IsAvailable(systemPath))
-            {
-                ImportFont(info.Family, SystemFontsAssetContext, systemPath);
+            if (AreSystemFontsEnabled)
+                font = ImportSystemFont(info);
 
-                // After importing this shared data should be available.
-                rasterizer = rasterizers[info];
-                return fontsCache[info] = new DynamicSpriteFont(info, rasterizer, new(config.RenderContext));
-            }
-
-            return FallbackFont;
+            return font ?? FallbackFont;
         }
 
         /// <summary>
         /// Imports a font from a file.
         /// </summary>
         /// <typeparam name="TContext">Type of the context used to load font assets.</typeparam>
-        /// <param name="family">The font family name.</param>
         /// <param name="assetContext">The asset context to load from.</param>
         /// <param name="filePath">Path to the font file.</param>
         /// <returns>
         /// An instance of the <see cref="IFont"/> loaded from the specified path.
         /// </returns>
-        public IFont ImportFont<TContext>(string family, TContext assetContext, string filePath)
+        public IFont ImportFont<TContext>(TContext assetContext, string filePath)
             where TContext : IAssetContext
         {
-            Guard.IsNotNullOrEmpty(family, nameof(family));
             Guard.IsNotNullOrEmpty(filePath, nameof(filePath));
 
             var font = config.Assets.AssetResolver.LoadAsset<IFont>(assetContext, filePath);
@@ -90,24 +142,57 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <summary>
-        /// Clears all font caches.
+        /// Imports a new instance of the font with the specified family, style and size from the system fonts storage.
         /// </summary>
-        public void Clear()
+        /// <param name="info">Font info to get an instance of the <see cref="IFont"/> for.</param>
+        /// <returns>An instance of the <see cref="IFont"/> with the specified family, size and style.</returns>
+        public IFont ImportSystemFont(FontInfo info)
         {
-            foreach (var rasterizer in rasterizers.Values)
+            if (!AreSystemFontsEnabled)
+                return ThrowHelper.ThrowInvalidOperationException<IFont>($"Couldn't import a system fonts when system fonts support is disabled. Try calling {nameof(EnableSystemFonts)} first.");
+
+            if (!systemFontFileNames.TryGetValue(info, out string? systemPath))
             {
-                rasterizer.Dispose();
+                systemPath = info.Family;
             }
 
-            rasterizers.Clear();
-            fontsCache.Clear();
+            // If font is installed on target OS, try to load it.
+            if (SystemFontsAssetContext.IsAvailable(systemPath))
+            {
+                ImportFont(SystemFontsAssetContext, systemPath);
+
+                // After importing this shared data should be available.
+                var data = rasterizationData[info];
+                return ReuseFont(info, data);
+            }
+
+            return ThrowHelper.ThrowArgumentException<IFont>("Couldn't find system font with the specified font info.");
         }
+
+        /// <summary>
+        /// Enables support for importing system installed fonts by their family names and styles.
+        /// </summary>
+        /// <remarks>
+        /// This method indexes system fonts directory so make sure an app has access to it (by default it has).
+        /// </remarks>
+        public void EnableSystemFonts() =>
+            systemFontFileNames = EnumerateSystemFonts()
+                                  .DistinctBy(x => x.Info)
+                                  .ToFrozenDictionary(x => x.Info, y => y.FileName);
 
         private static IEnumerable<(VectorFontInfo Info, string FileName)> EnumerateSystemFonts() => from filePath in Directory.EnumerateFiles(SystemFontsPath)
                                                                                                      let fileName = Path.GetFileName(filePath)
                                                                                                      where DynamicFontsHelper.IsFontFileName(fileName)
-                                                                                                     let info = DynamicFontsHelper.GetFontInfo(filePath)
+                                                                                                     let info = DynamicFontsHelper.GetFontInfo(filePath)[0]
                                                                                                      select ((VectorFontInfo)info, fileName);
+
+        private IFont ReuseFont(FontInfo info, SharedDynamicFontData data)
+        {
+            var font = new DynamicSpriteFont(info, data.Rasterizer, data.Atlas, FontResolver);
+            fontsCache[info] = font;
+            (FontResolver as FallbackResolver)?.AddFont(font);
+            return font;
+        }
 
         private void RegisterFont(IFont font)
         {
@@ -115,7 +200,8 @@ namespace Icy.Rendering.Fonts
             if (font is DynamicSpriteFont dyn)
             {
                 // Cache atlas and rasterizer used in this font to not reload fonts if available.
-                rasterizers[font.Info] = dyn.Rasterizer;
+                // If the font has an atlas, use it, instead create new one.
+                rasterizationData[font.Info] = new(dyn.Rasterizer, dyn.DynamicAtlas ??= new(config.RenderContext, AtlasPageLimit));
             }
 
             fontsCache[font.Info] = font;
@@ -123,9 +209,46 @@ namespace Icy.Rendering.Fonts
 
         private readonly record struct SharedDynamicFontData(IGlyphRasterizer Rasterizer, DynamicFontAtlas Atlas);
 
+        private readonly record struct FontStyleInfo(float FontSize, FontStyle Style)
+        {
+            public static implicit operator FontStyleInfo(FontInfo info) => new(info.Size, info.Style);
+
+            public static implicit operator FontStyleInfo(StyledGlyphDefinition glyph) => new(glyph.FontSize, glyph.Style);
+        }
+
         private readonly record struct VectorFontInfo(string Family, FontStyle Style)
         {
             public static implicit operator VectorFontInfo(FontInfo info) => new(info.Family, info.Style);
+        }
+
+        private class FallbackResolver : IFallbackFontResolver
+        {
+            private readonly Dictionary<FontStyleInfo, List<IFont>> styleGroups = [];
+
+            public void AddFont(IFont font)
+            {
+                if (!styleGroups.TryGetValue(font.Info, out var group))
+                {
+                    styleGroups[font.Info] = group = [];
+                }
+
+                group.Add(font);
+            }
+
+            public void Clear()
+            {
+                styleGroups.Clear();
+            }
+
+            public IFont? GetFallbackFont(StyledGlyphDefinition glyph)
+            {
+                if (styleGroups.TryGetValue(glyph, out var group))
+                {
+                    return group.FirstOrDefault(x => x.SupportsCharacter(glyph.Codepoint));
+                }
+
+                return null;
+            }
         }
     }
 }

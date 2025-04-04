@@ -3,9 +3,7 @@
 using System.Buffers;
 using System.Drawing;
 using CommunityToolkit.Diagnostics;
-using CommunityToolkit.HighPerformance;
-using Icy.Configuration;
-using Icy.Rendering.Brushes;
+using Icy.Data;
 
 namespace Icy.Rendering.Fonts
 {
@@ -14,7 +12,7 @@ namespace Icy.Rendering.Fonts
     /// </summary>
     public class DynamicFontAtlas : IFontAtlas
     {
-        private readonly Dictionary<int, FontGlyph> glyphs;
+        private readonly Dictionary<StyledGlyphDefinition, FontGlyph> glyphs;
         private readonly IRenderContext context;
         private readonly List<Page> pages;
         private readonly uint maxPages;
@@ -31,25 +29,22 @@ namespace Icy.Rendering.Fonts
 
             this.maxPages = maxPages;
             this.context = context;
-            glyphs = new Dictionary<int, FontGlyph>();
-            pages = new List<Page>();
+            glyphs = [];
+            pages = [];
             currentPageIndex = 0;
         }
-
-        /// <inheritdoc/>
-        public Size PageSize => new Size(1024, 1024); // Maximum page size
 
         /// <inheritdoc/>
         public int PageCount => pages.Count;
 
         /// <inheritdoc/>
-        public IReadOnlyDictionary<int, FontGlyph> Glyphs => glyphs;
+        public IReadOnlyDictionary<StyledGlyphDefinition, FontGlyph> Glyphs => glyphs;
 
         /// <inheritdoc/>
-        public IReadOnlyList<ITexture> Textures => pages.Select(p => p.Texture).ToList();
+        public IReadOnlyCollection<ITexture> Textures => pages.AsCollection(p => p.Texture);
 
         /// <inheritdoc/>
-        public FontGlyph? GetGlyph(int codepoint)
+        public FontGlyph? GetGlyph(StyledGlyphDefinition codepoint)
         {
             return glyphs.TryGetValue(codepoint, out var glyph) ? glyph : null;
         }
@@ -62,18 +57,20 @@ namespace Icy.Rendering.Fonts
         /// The most common example of an "empty" glyph is a whitespace.
         /// </remarks>
         /// <param name="glyph">An instance of the <see cref="FontGlyph"/> to add to a font.</param>
-        public void AddEmptyGlyph(FontGlyph glyph)
+        public void AddEmptyGlyph(FontGlyph glyph, FontInfo fontInfo)
         {
-            glyphs[glyph.Codepoint] = glyph;
+            glyphs[new(glyph.Codepoint, fontInfo.Size, fontInfo.Style)] = glyph;
         }
 
         /// <inheritdoc/>
-        public FontGlyph TryAddGlyph(FontGlyph glyph, Memory<byte> pixels)
+        public FontGlyph TryAddGlyph(FontGlyph glyph, Memory<byte> pixels, FontInfo fontInfo)
         {
             Guard.IsNotNull(pixels, nameof(pixels));
 
+            StyledGlyphDefinition def = new(glyph.Codepoint, fontInfo.Size, fontInfo.Style);
+
             // Check if glyph already exists
-            if (glyphs.TryGetValue(glyph.Codepoint, out var cached))
+            if (glyphs.TryGetValue(def, out var cached))
                 return cached;
 
             // Get size range for the glyph
@@ -81,7 +78,7 @@ namespace Icy.Rendering.Fonts
             var page = GetOrCreatePage(sizeRange);
 
             // Update glyph with page index and texture region
-            return glyphs[glyph.Codepoint] = page.TryAddGlyph(glyph, pixels);
+            return glyphs[def] = page.TryAddGlyph(glyph, pixels);
         }
 
         /// <inheritdoc/>
@@ -92,6 +89,7 @@ namespace Icy.Rendering.Fonts
             {
                 page.Dispose();
             }
+
             pages.Clear();
             currentPageIndex = 0;
         }

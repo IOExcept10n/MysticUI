@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using CommunityToolkit.Diagnostics;
 using Icy.Data;
@@ -9,6 +10,12 @@ namespace Icy.Rendering.Fonts
     {
         // The 'name' in HEX BE code.
         private const uint NameTableTag = 0x6E616D65;
+        private const uint TTCHeader = 0x74746366;
+
+        static DynamicFontsHelper()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); // To enable Mac encodings support.
+        }
 
         private enum NameId : ushort
         {
@@ -30,6 +37,7 @@ namespace Icy.Rendering.Fonts
         public static bool IsFontFileName(string? fileName) =>
             !string.IsNullOrEmpty(fileName) &&
             (fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
             fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
@@ -37,7 +45,7 @@ namespace Icy.Rendering.Fonts
         /// </summary>
         /// <param name="fontPath">Path to a font file to read info from.</param>
         /// <returns>Information about the font.</returns>
-        public static FontInfo GetFontInfo(string fontPath)
+        public static FontInfo[] GetFontInfo(string fontPath)
         {
             using var fontStream = File.OpenRead(fontPath);
             return GetFontInfo(fontStream);
@@ -48,10 +56,45 @@ namespace Icy.Rendering.Fonts
         /// </summary>
         /// <param name="fontStream">Zero-placed TTF/OTF font file stream.</param>
         /// <returns>Information about the font.</returns>
-        public static FontInfo GetFontInfo(Stream fontStream)
+        public static FontInfo[] GetFontInfo(Stream fontStream)
         {
             Guard.CanRead(fontStream);
             Guard.CanSeek(fontStream);
+            uint version = fontStream.ReadBigEndian<uint>();
+
+            if (version == TTCHeader)
+            {
+                return ReadTTC(fontStream);
+            }
+
+            fontStream.Seek(-Unsafe.SizeOf<uint>(), SeekOrigin.Current);
+            return [ReadTTF(fontStream)];
+        }
+
+        private static FontInfo[] ReadTTC(Stream fontStream)
+        {
+            ushort majorVersion = fontStream.ReadBigEndian<ushort>();
+            ushort minorVersion = fontStream.ReadBigEndian<ushort>();
+            uint numFonts = fontStream.ReadBigEndian<uint>();
+            var fontInfos = new FontInfo[numFonts];
+
+            var offsets = new uint[numFonts];
+            for (int i = 0; i < numFonts; i++)
+            {
+                offsets[i] = fontStream.ReadBigEndian<uint>();
+            }
+
+            for (int i = 0; i < numFonts; i++)
+            {
+                fontStream.Position = offsets[i];
+                fontInfos[i] = ReadTTF(fontStream);
+            }
+
+            return fontInfos;
+        }
+
+        private static FontInfo ReadTTF(Stream fontStream)
+        {
             uint version = fontStream.ReadBigEndian<uint>();
             ushort numTables = fontStream.ReadBigEndian<ushort>();
             ushort searchRange = fontStream.ReadBigEndian<ushort>();
@@ -72,11 +115,12 @@ namespace Icy.Rendering.Fonts
             ushort stringOffset = fontStream.ReadBigEndian<ushort>();
 
             string? family = null, style = null, fullName = null, version = null, copyright = null;
+            FontStyle styleCode = default;
 
             for (int i = 0; i < count; i++)
             {
                 ushort platformId = fontStream.ReadBigEndian<ushort>();
-                ushort encodingId = fontStream.ReadBigEndian<ushort>();
+                ushort platformSpecificId = fontStream.ReadBigEndian<ushort>();
                 ushort languageId = fontStream.ReadBigEndian<ushort>();
                 NameId nameId = fontStream.ReadBigEndian<NameId>();
                 ushort locLength = fontStream.ReadBigEndian<ushort>();
@@ -87,34 +131,40 @@ namespace Icy.Rendering.Fonts
                 using var memory = MemoryPool<byte>.Shared.Rent(locLength);
                 var buffer = memory.Memory.Span[..locLength];
                 fontStream.ReadExactly(buffer);
-                var value = ReadString(buffer, platformId, encodingId);
+                var value = ReadString(buffer, platformId, platformSpecificId);
                 fontStream.Position = pos;
 
                 switch (nameId)
                 {
                     case NameId.Copyright:
-                        copyright = value; break;
+                        copyright ??= value; break;
                     case NameId.Family:
-                        family = value; break;
+                        family ??= value; break;
                     case NameId.Subfamily:
-                        style = value; break;
+                        style ??= value;
+                        styleCode |= GetStyle(value);
+                        break;
                     case NameId.FullName:
-                        fullName = value; break;
+                        fullName ??= value; break;
                     case NameId.Version:
-                        version = value; break;
+                        version ??= value; break;
                 }
             }
 
-            if (!Enum.TryParse(style, out FontStyle styleCode)) styleCode = FontStyle.Regular;
             return new FontInfo(family ?? fullName ?? string.Empty, 0, styleCode);
         }
 
-        private static string ReadString(Span<byte> bytes, ushort platformID, ushort encodingID) => platformID switch
+        private static string ReadString(Span<byte> bytes, ushort platformID, ushort platformSpecificId) => platformID switch
         {
-            1 => Encoding.ASCII.GetString(bytes), // Mac
-            3 when encodingID == 1 => Encoding.BigEndianUnicode.GetString(bytes), // Windows, Unicode BMP
-            3 when encodingID == 10 => Encoding.UTF32.GetString(bytes), // Windows, Unicode full
-            _ => Encoding.ASCII.GetString(bytes), // Default, ASCII
+            1 => Encoding.GetEncoding(10000).GetString(bytes), // Mac
+            3 => Encoding.BigEndianUnicode.GetString(bytes), // Windows, Unicode BMP
+            _ => Encoding.BigEndianUnicode.GetString(bytes), // Default, big endian unicode
+        };
+
+        private static FontStyle GetStyle(string name) => name.ToLowerInvariant().Replace(' ', ',') switch
+        {
+            var val when Enum.TryParse(val, true, out FontStyle style) => style,
+            _ => FontStyle.Regular,
         };
 
         private static bool TryFindTable(Stream fontStream, uint numTables, out uint offset, out uint length)

@@ -31,8 +31,12 @@ namespace Icy.Rendering.Fonts
             {
                 fixed (byte* ptr = fontData)
                 {
-                    if (stbtt_InitFont(fontInfo, ptr, 0) == 0)
-                        throw new InvalidOperationException("Failed to initialize font.");
+                    if (stbtt_GetNumberOfFonts(ptr) > 0)
+                    {
+                        int offset = stbtt_GetFontOffsetForIndex(ptr, 0);
+                        if (stbtt_InitFont(fontInfo, ptr, offset) == 0)
+                            throw new InvalidOperationException("Failed to initialize font.");
+                    }
                 }
             }
         }
@@ -136,6 +140,9 @@ namespace Icy.Rendering.Fonts
             var lowercaseMetric = GetGlyphMetrics('x', fontSize, style);
             return new FontMetrics(ascent * scaled, descent * scaled, lineGap * scaled, lowercaseMetric.Size.Height, capitalMetric.Size.Height);
         }
+
+        /// <inheritdoc/>
+        public bool ContainsGlyph(int codepoint) => stbtt_FindGlyphIndex(fontInfo, codepoint) != 0;
 
         protected virtual void Dispose(bool disposing)
         {

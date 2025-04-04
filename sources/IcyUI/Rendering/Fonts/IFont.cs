@@ -26,6 +26,31 @@ namespace Icy.Rendering.Fonts
         IReadOnlyDictionary<int, FontGlyph> Glyphs { get; }
 
         /// <summary>
+        /// Checks if a font supports specified codepoint instance.
+        /// </summary>
+        /// <param name="codepoint">The Unicode codepoint for the character to use.</param>
+        /// <returns><see langword="true"/> if this font instance can render specified character; otherwise <see langword="false"/>.</returns>
+        bool SupportsCharacter(int codepoint);
+
+        /// <summary>
+        /// Gets the glyph for the specified character codepoint.
+        /// </summary>
+        /// <param name="codepoint">Codepoint to get glyph for.</param>
+        /// <returns>Glyph info to use with this font.</returns>
+        /// <remarks>
+        /// <para>
+        /// If the requested codepoint is not found in the font, this method will attempt to return
+        /// the glyph for default codepoint. If that also fails, it returns <see cref="FontGlyph.None"/>.
+        /// </para>
+        /// <para>
+        /// We recommend you to use this method instead of calling <see cref="Glyphs"/> by indexer
+        /// because this method can have additional logic for the glyphs preparation.
+        /// For instance, the <see cref="DynamicSpriteFont"/> rasterizes glyphs only when this method is called.
+        /// </para>
+        /// </remarks>
+        FontGlyph GetGlyph(int codepoint);
+
+        /// <summary>
         /// Gets the space required to draw string with this font.
         /// </summary>
         /// <param name="text">The text to measure.</param>

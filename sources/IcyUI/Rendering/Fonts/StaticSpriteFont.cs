@@ -22,13 +22,18 @@ namespace Icy.Rendering.Fonts
         /// <param name="kernings">Map of kernings for all the defined pairs.</param>
         /// <param name="glyphs">List of all the glyphs used in the font.</param>
         /// <param name="lineGap">Recommended spacing between two lines of text.</param>
+        /// <param name="resolver">An instance of the service that helps with getting glyphs that are not presented in this font.</param>
         public StaticSpriteFont(
             FontInfo info,
             ITexture[] atlas,
             IReadOnlyDictionary<CodepointsPair, int> kernings,
             IEnumerable<FontGlyph> glyphs,
+            IFallbackFontResolver? resolver = null,
             float lineGap = 0)
-            : base(info, new StaticFontAtlas(atlas[0].Size, atlas, glyphs.ToFrozenDictionary(x => x.Codepoint)))
+            : base(
+                info,
+                new StaticFontAtlas(atlas, glyphs.ToFrozenDictionary(x => new StyledGlyphDefinition(x.Codepoint, info.Size, info.Style))),
+                resolver)
         {
             this.kernings = kernings.ToFrozenDictionary();
             this.atlas = atlas;
@@ -41,7 +46,10 @@ namespace Icy.Rendering.Fonts
         public bool EnableKernings { get; set; }
 
         /// <inheritdoc/>
-        protected override FontGlyph GetGlyph(int codepoint, in FontRenderingOptions options)
+        public override bool SupportsCharacter(int codepoint) => Atlas.Glyphs.ContainsKey(GetStyledGlyph(codepoint));
+
+        /// <inheritdoc/>
+        public override FontGlyph GetGlyph(int codepoint)
         {
             if (!Glyphs.TryGetValue(codepoint, out var glyph) && !Glyphs.TryGetValue(DefaultCodepoint, out glyph))
             {

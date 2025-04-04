@@ -16,6 +16,7 @@ namespace Icy.Assets.Importers.DynamicFonts
         public bool CanRead(string? format) =>
             format == MediaTypeNames.Font.Ttf ||
             format == MediaTypeNames.Font.Otf ||
+            format == MediaTypeNames.Font.Collection ||
             format == MediaTypeNames.Application.Octet ||
             string.IsNullOrEmpty(format);
 
@@ -30,7 +31,8 @@ namespace Icy.Assets.Importers.DynamicFonts
             // Also each font has its own glyph atlas which is generated at initialization
             // An imported font is just a template for creating other instances based on the same rasterizer.
             // We recommend using FontSystem class for fonts manipulation, instead of creating font instances manually.
-            return new DynamicSpriteFont(DynamicFontsHelper.GetFontInfo(stream), rasterizer, null!);
+            // For the same reason we don't provide an instance of the fallback font resolver
+            return new DynamicSpriteFont(DynamicFontsHelper.GetFontInfo(stream)[0], rasterizer, null!);
         }
     }
 }

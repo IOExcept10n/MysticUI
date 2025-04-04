@@ -14,6 +14,7 @@ namespace Icy.Assets.Importers.DynamicFonts
         public bool CanRead(string? format) =>
             format == MediaTypeNames.Font.Ttf ||
             format == MediaTypeNames.Font.Otf ||
+            format == MediaTypeNames.Font.Collection ||
             format == MediaTypeNames.Application.Octet ||
             string.IsNullOrEmpty(format);
 
