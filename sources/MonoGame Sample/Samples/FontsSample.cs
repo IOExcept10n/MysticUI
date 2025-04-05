@@ -24,6 +24,7 @@ namespace Icy.MonoGameSample.Samples
         {
             //var context = UIConfiguration.Assets.DefaultAssetContext.Combine("Resources/Fonts/");
             UIConfiguration.Fonts.EnableSystemFonts();
+            UIConfiguration.Fonts.ImportFont(UIConfiguration.Assets.DefaultAssetContext, @"Resources\Fonts\Airfool.otf");
             UIConfiguration.Fonts.ImportSystemFont(new("Yu Gothic", 24, FontStyle.Regular));
             UIConfiguration.Fonts.ImportSystemFont(new("Segoe UI Emoji", 24, FontStyle.Regular));
 
@@ -33,12 +34,15 @@ namespace Icy.MonoGameSample.Samples
             RegisterCommand("Ctrl+O", x => displayOutline = !displayOutline);
             RegisterCommand("Ctrl+B", x => displayBoxes = !displayBoxes);
             RegisterCommand("Ctrl+A", x => displayAtlases = !displayAtlases);
+            RegisterCommand("Ctrl+Shift+C", x => UIConfiguration.Fonts.Clear());
             base.LoadContent();
         }
 
         public override void Draw(GameTime gameTime)
         {
-            font = UIConfiguration.Fonts.GetOrLoad(new FontInfo("Arial", fontSize, FontStyle.Regular));
+            font = UIConfiguration.Fonts.GetOrLoad(new FontInfo("Airfool", fontSize, FontStyle.Regular));
+            if (font == null)
+                return;
             var options = default(FontRenderingOptions) with { Position = new(50, 20), Color = System.Drawing.Color.Black };
             string Text = $"""
 Hello, world!
@@ -48,13 +52,13 @@ Also I can write here numbers: 0123456789, and even punctuation!
 Best wishes - IOExcept10n!
 И немного текста на русском для проверки.
 ちょっと日本語もいいですよね！
-P.S. Смайлики теперь тоже можно 😁
+P.S. Смайлики теперь тоже можно 🫧
 """;
 
             UIConfiguration.RenderContext.Begin();
 
             if (displayText) font.DrawString(UIConfiguration.RenderContext, Text, options);
-            //UIConfiguration.RenderContext.Draw(fontAtlas, new(new(50, 100, 256, 256)));
+
             if (displayBoxes)
             {
                 var glyphs = font.GetRenderGlyphs(Text, options);

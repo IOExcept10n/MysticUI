@@ -21,6 +21,8 @@ namespace Icy.MonoGameSample
         private SpriteFont diagFont;
         private IcyConfiguration uiConfiguration;
 
+        private Type unsafeMemoryStats = typeof(IcyConfiguration).Assembly.GetType("Hebron.Runtime.MemoryStats");
+
         public SampleGame()
         {
             graphics = new(this);
@@ -91,8 +93,8 @@ namespace Icy.MonoGameSample
             GraphicsDevice.Clear(Color.White);
             diagSb.Begin();
             diagSb.DrawString(diagFont, $"Current test: {samplesRunner.CurrentSample.Name}. Use PgUp/PgDown to switch tests.", Vector2.One, Color.DarkGreen);
+            diagSb.DrawString(diagFont, $"FPS: {1 / gameTime.ElapsedGameTime.TotalSeconds}, Memory stats: Heap size = {GC.GetGCMemoryInfo().HeapSizeBytes}B, Memory excluding fragmentation = {GC.GetTotalMemory(false)}B, Total memory = {GC.GetTotalAllocatedBytes()}B Unsafe allocations={unsafeMemoryStats.GetProperty("Allocations").GetValue(null)}.", new(1, 20), Color.DarkGreen);
             diagSb.End();
-            
             base.Draw(gameTime);
         }
 

@@ -3,6 +3,7 @@
 using System.Buffers;
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using static StbTrueTypeSharp.StbTrueType;
 
 namespace Icy.Rendering.Fonts
@@ -10,11 +11,12 @@ namespace Icy.Rendering.Fonts
     /// <summary>
     /// Represents a glyph rasterizer that uses StbTrueTypeSharp for TrueType font rendering.
     /// </summary>
-    public class StbTrueTypeRasterizer : IGlyphRasterizer
+    public unsafe class StbTrueTypeRasterizer : IGlyphRasterizer
     {
         private readonly byte[] fontData;
         private readonly stbtt_fontinfo fontInfo;
         private readonly Dictionary<(int First, int Second, float Size, FontStyle Style), float> kerningCache;
+        private readonly GCHandle dataHandle;
         private bool disposedValue;
 
         /// <summary>
@@ -26,6 +28,7 @@ namespace Icy.Rendering.Fonts
             this.fontData = fontData;
             fontInfo = new stbtt_fontinfo();
             kerningCache = [];
+            dataHandle = GCHandle.Alloc(fontData, GCHandleType.Pinned);
 
             unsafe
             {
@@ -173,6 +176,11 @@ namespace Icy.Rendering.Fonts
                 if (disposing)
                 {
                     kerningCache.Clear();
+                }
+
+                if (dataHandle.IsAllocated)
+                {
+                    dataHandle.Free();
                 }
 
                 fontInfo.Dispose();

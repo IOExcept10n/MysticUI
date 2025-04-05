@@ -21,6 +21,9 @@
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="Resources\Fonts\Airfool.otf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\Fonts\Inter-Italic-VariableFont_opsz,wght.ttf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

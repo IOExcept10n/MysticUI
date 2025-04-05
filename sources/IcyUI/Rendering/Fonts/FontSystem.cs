@@ -46,7 +46,7 @@ namespace Icy.Rendering.Fonts
         /// When imported, dynamic fonts get an expandable texture atlas for rasterized glyphs.
         /// Each font family in a single font system has its own atlas instance shared across style and size variations of this font.
         /// Dynamic font atlas has support for multiple pages in case of large font sizes or inefficient glyphs placement.
-        /// By default the count of pages is equal to <c>4</c>.
+        /// By default the number of pages is equal to <c>4</c>.
         /// </para>
         /// <para>
         /// It is recommended to have at least 4 pages limit because an atlas groups glyphs by size.
@@ -117,7 +117,15 @@ namespace Icy.Rendering.Fonts
             }
 
             if (AreSystemFontsEnabled)
-                font = ImportSystemFont(info);
+            {
+                try
+                {
+                    font = ImportSystemFont(info);
+                }
+                catch
+                {
+                }
+            }
 
             return font ?? FallbackFont;
         }

@@ -1259,7 +1259,7 @@ namespace Icy.Assets
 
             if (dotIndex != -1 && fileName.Length > dotIndex + 1)
             {
-                return TypeMap.TryGetValue(fileName.Substring(dotIndex + 1), out mimeType);
+                return TypeMap.TryGetValue(fileName[(dotIndex + 1)..], out mimeType);
             }
 
             mimeType = null;

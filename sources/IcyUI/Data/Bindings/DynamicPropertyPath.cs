@@ -13,18 +13,15 @@ namespace Icy.Data.Bindings
     {
         private readonly string displayPath;
         private readonly string[] pathSegments;
-        private readonly ITypeConverter typeConverter;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DynamicPropertyPath"/> class.
         /// </summary>
         /// <param name="path">The path to access properties.</param>
-        /// <param name="converter">An instance of the type converter to parse path parts.</param>
-        public DynamicPropertyPath(string path, ITypeConverter converter)
+        public DynamicPropertyPath(string path)
         {
             pathSegments = path.Split('.');
             displayPath = path;
-            typeConverter = converter;
         }
 
         /// <inheritdoc/>
@@ -40,7 +37,7 @@ namespace Icy.Data.Bindings
                 {
                     if (current == null)
                         return null;
-                    current = CallGet(current, segment, typeConverter);
+                    current = CallGet(current, segment);
                 }
 
                 return current;
@@ -65,11 +62,11 @@ namespace Icy.Data.Bindings
 
                     if (i == pathSegments.Length - 1)
                     {
-                        CallSet(current, segment, value, typeConverter);
+                        CallSet(current, segment, value);
                     }
                     else
                     {
-                        current = CallGet(current, segment, typeConverter);
+                        current = CallGet(current, segment);
                     }
                 }
             }
@@ -78,7 +75,7 @@ namespace Icy.Data.Bindings
             }
         }
 
-        private static void CallSet(object current, string segment, object? value, ITypeConverter converter)
+        private static void CallSet(object current, string segment, object? value)
         {
             int indexerDefinition = segment.IndexOf('[');
             if (indexerDefinition != -1)
@@ -101,7 +98,7 @@ namespace Icy.Data.Bindings
                     }
                     else
                     {
-                        var indexer = current.GetType().GetIndexer(converter, indexerArgs, out var parsedArgs);
+                        var indexer = current.GetType().GetIndexer(indexerArgs, out var parsedArgs);
                         indexer?.SetValue(current, value, parsedArgs);
                     }
                 }
@@ -113,7 +110,7 @@ namespace Icy.Data.Bindings
             }
         }
 
-        private static object? CallGet(object? current, string segment, ITypeConverter converter)
+        private static object? CallGet(object? current, string segment)
         {
             int indexerDefinition = segment.IndexOf('[');
             if (indexerDefinition != -1)
@@ -136,7 +133,7 @@ namespace Icy.Data.Bindings
                     }
                     else
                     {
-                        var indexer = current.GetType().GetIndexer(converter, indexerArgs, out var parsedArgs);
+                        var indexer = current.GetType().GetIndexer(indexerArgs, out var parsedArgs);
                         current = indexer.GetValue(current, parsedArgs);
                     }
                 }

@@ -1,6 +1,5 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using Icy.Rendering;
 using Microsoft.Xna.Framework.Graphics;
@@ -37,6 +36,12 @@ namespace Icy.MonoGame.Rendering
             where TColor : struct
         {
             Texture.SetData(0, region?.AsEngineRectangle(), buffer, startIndex, count);
+        }
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            Texture.Dispose();
         }
     }
 }

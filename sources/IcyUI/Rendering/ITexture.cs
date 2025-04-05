@@ -9,7 +9,7 @@ namespace Icy.Rendering
     /// <summary>
     /// Represents generalized interface for platform texture type adapters.
     /// </summary>
-    public interface ITexture
+    public interface ITexture : IDisposable
     {
         /// <summary>
         /// Gets the size of a texture.

@@ -18,9 +18,8 @@ namespace Icy.Data.Bindings
         /// </summary>
         /// <param name="path">The path to access an object.</param>
         /// <param name="typeContext">The type to get info about properties.</param>
-        /// <param name="converter">An instance of the type converter to parse path parts.</param>
-        public CompiledPropertyPath(string path, Type typeContext, ITypeConverter converter)
-            : base(path, typeContext, converter)
+        public CompiledPropertyPath(string path, Type typeContext)
+            : base(path, typeContext)
         {
             var parameter = Expression.Parameter(typeof(object));
             Type setType = null!;

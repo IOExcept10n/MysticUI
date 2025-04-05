@@ -187,8 +187,7 @@ namespace Icy.Rendering.Fonts
 
             public void Dispose()
             {
-                if (texture is IDisposable disposable)
-                    disposable.Dispose();
+                texture.Dispose();
             }
 
             public FontGlyph TryAddGlyph(FontGlyph glyph, Memory<byte> pixels)
