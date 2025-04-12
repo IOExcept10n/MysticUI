@@ -1,6 +1,7 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Reflection;
+using Icy.Data.Markup;
 
 namespace Icy.Data
 {
@@ -46,5 +47,8 @@ namespace Icy.Data
 
             return typesCache[name] = result;
         }
+
+        /// <inheritdoc/>
+        public IEnumerable<Assembly> GetAssemblies() => AppDomain.CurrentDomain.GetAssemblies();
     }
 }

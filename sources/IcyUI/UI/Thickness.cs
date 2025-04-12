@@ -8,7 +8,7 @@ using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 
-namespace Icy.Controls
+namespace Icy.UI
 {
     /// <summary>
     /// Represents the same base struct for both paddings and margins.

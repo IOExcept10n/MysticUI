@@ -1,5 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Diagnostics;
 
@@ -10,7 +11,7 @@ namespace Icy.Data.Markup
     /// </summary>
     public static class DependencyPropertyRegistry
     {
-        private static readonly Dictionary<Type, List<IDependencyProperty>> Registry = [];
+        private static readonly ConcurrentDictionary<Type, Dictionary<string, IDependencyProperty>> Registry = [];
 
         /// <inheritdoc cref="GetProperties(Type, bool)"/>
         public static IEnumerable<IDependencyProperty> GetProperties(Type type)
@@ -29,18 +30,30 @@ namespace Icy.Data.Markup
         }
 
         /// <summary>
+        /// Ensures that the specified type is registered for the dependency properties mechanism usage.
+        /// </summary>
+        /// <param name="type">Type to check.</param>
+        public static void EnsureRegistered(Type type)
+        {
+            do
+            {
+                if (Registry.ContainsKey(type))
+                    return;
+
+                Registry.TryAdd(type, DependencyObjectRegistration.ResolveProperties(type).ToDictionary(x => x.Name));
+                type = type.BaseType!;
+            }
+            while (type != null && type.GetInterface(nameof(IDependencyObject)) != null);
+        }
+
+        /// <summary>
         /// Registers all the dependency properties for the specified type.
         /// </summary>
         /// <remarks>
         /// The method skips initialization if the type has been already registered.
         /// </remarks>
         /// <param name="type">The type to register properties for.</param>
-        public static void RegisterType(Type type)
-        {
-            if (IsRegistered(type))
-                return;
-            Registry[type] = DependencyObjectRegistration.ResolveProperties(type);
-        }
+        public static void RegisterType(Type type) => EnsureRegistered(type);
 
         /// <summary>
         /// Gets all the properties registered for the specified type.
@@ -55,7 +68,7 @@ namespace Icy.Data.Markup
             {
                 if (Registry.TryGetValue(type, out var properties))
                 {
-                    result = [.. result, .. properties];
+                    result = [.. result, .. properties.Values];
                 }
             }
             while (inherit && type != null);
@@ -78,13 +91,12 @@ namespace Icy.Data.Markup
         /// <exception cref="InvalidOperationException">Occurs when there are no properties with the specified name registered for the requested type.</exception>
         public static IDependencyProperty GetProperty(Type type, string name, bool inherit)
         {
+            EnsureRegistered(type);
             do
             {
-                if (Registry.TryGetValue(type, out var properties))
+                if (Registry.TryGetValue(type, out var properties) && properties.TryGetValue(name, out var property))
                 {
-                    var property = properties.FirstOrDefault(p => p.Name == name);
-                    if (property != null)
-                        return property;
+                    return property;
                 }
 
                 type = type.BaseType!;
@@ -123,13 +135,13 @@ namespace Icy.Data.Markup
             return result;
         }
 
-        /// =<inheritdoc cref="RegisterProperty(string, Type, Type, PropertyMetadata, ValidateValueCallback)"/>
+        /// <inheritdoc cref="RegisterProperty(string, Type, Type, PropertyMetadata, ValidateValueCallback)"/>
         public static IDependencyProperty RegisterProperty(string name, Type propertyType, Type ownerType)
         {
             return RegisterProperty(name, propertyType, ownerType, PropertyMetadata.Default, null);
         }
 
-        /// =<inheritdoc cref="RegisterProperty(string, Type, Type, PropertyMetadata, ValidateValueCallback)"/>
+        /// <inheritdoc cref="RegisterProperty(string, Type, Type, PropertyMetadata, ValidateValueCallback)"/>
         public static IDependencyProperty RegisterProperty(string name, Type propertyType, Type ownerType, PropertyMetadata metadata)
         {
             return RegisterProperty(name, propertyType, ownerType, metadata, null);
@@ -175,11 +187,9 @@ namespace Icy.Data.Markup
             property = null;
             do
             {
-                if (Registry.TryGetValue(type, out var properties))
+                if (Registry.TryGetValue(type, out var properties) && properties.TryGetValue(name, out property))
                 {
-                    property = properties.FirstOrDefault(p => p.Name == name);
-                    if (property != null)
-                        return true;
+                    return true;
                 }
 
                 type = type.BaseType!;
@@ -190,13 +200,13 @@ namespace Icy.Data.Markup
 
         private static void RegisterInternal(Type ownerType, DependencyProperty result)
         {
-            if (Registry.TryGetValue(ownerType, out List<IDependencyProperty>? value))
+            if (Registry.TryGetValue(ownerType, out var value))
             {
-                value.Add(result);
+                value.Add(result.Name, result);
             }
             else
             {
-                Registry.Add(ownerType, [result]);
+                Registry.TryAdd(ownerType, new() { { result.Name, result } });
             }
         }
     }

@@ -21,6 +21,11 @@ namespace Icy.Rendering
         ITexture WhiteTexture { get; }
 
         /// <summary>
+        /// Gets or sets the transform used for rendering.
+        /// </summary>
+        Transform2D Transform { get; set; }
+
+        /// <summary>
         /// Applies an effect to the next draw calls.
         /// </summary>
         /// <param name="effect">Effect instance to apply.</param>

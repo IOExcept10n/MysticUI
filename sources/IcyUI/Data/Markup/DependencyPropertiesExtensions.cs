@@ -41,5 +41,17 @@ namespace Icy.Data.Markup
             var property = DependencyPropertyRegistry.GetProperty(dp.GetType(), propertyName, true);
             dp.SetValue(property, value);
         }
+
+        /// <summary>
+        /// Gets the default for the specified property of the dependency object by its name.
+        /// </summary>
+        /// <param name="dp">The dependency object to access properties for.</param>
+        /// <param name="propertyName">Name of the property to access.</param>
+        /// <returns>The default value of the specified dependency property.</returns>
+        public static object? GetDefaultValue(this IDependencyObject dp, string propertyName)
+        {
+            var property = DependencyPropertyRegistry.GetProperty(dp.GetType(), propertyName, true);
+            return property.Metadata.DefaultValue;
+        }
     }
 }

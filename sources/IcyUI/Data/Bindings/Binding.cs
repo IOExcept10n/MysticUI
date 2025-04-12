@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Diagnostics;
-using Icy.Controls;
+using Icy.UI;
 using Icy.Data.Markup;
 
 namespace Icy.Data.Bindings
@@ -22,7 +22,7 @@ namespace Icy.Data.Bindings
         private bool disposedValue;
         private bool isEnabled;
         private object? source;
-        private IDependencyObject target;
+        private IBindingTarget target;
         private IDependencyProperty targetProperty;
         private UpdateSourceTrigger trigger;
 

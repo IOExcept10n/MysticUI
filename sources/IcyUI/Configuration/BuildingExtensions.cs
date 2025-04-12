@@ -4,7 +4,6 @@ using Icy.Assets.Importers.BitmapFonts;
 using Icy.Assets.Importers.DynamicFonts;
 using Icy.Assets.Parsers;
 using Icy.Data;
-using Icy.Rendering;
 using Icy.Rendering.Fonts;
 
 namespace Icy.Configuration

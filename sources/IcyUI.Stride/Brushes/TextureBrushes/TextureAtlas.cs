@@ -1,4 +1,4 @@
-using Icy.Controls;
+using Icy.UI;
 using Icy.Parsing;
 using Stride.Core.Mathematics;
 using Stride.Graphics;

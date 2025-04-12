@@ -38,7 +38,7 @@ namespace Icy.Data.Markup
 
         /// <summary>
         /// Gets the registered callback for the property value validation.
-        /// This property returns <see langword="null"/> for all the properties that doesn't have validation methods regietered.
+        /// This property returns <see langword="null"/> for all the properties that doesn't have validation methods registered.
         /// </summary>
         ValidateValueCallback? ValidationCallback { get; }
     }

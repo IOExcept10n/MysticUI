@@ -40,7 +40,7 @@ namespace Icy.Rendering
         }
 
         /// <summary>
-        /// Gets or sets the rotation to apply for the points.
+        /// Gets or sets the rotation in radians to apply for the points.
         /// </summary>
         public float Rotation
         {
@@ -79,10 +79,11 @@ namespace Icy.Rendering
         }
 
         /// <summary>
-        /// Creates a combined transform.
+        /// Creates an instance of the <see cref="Transform2D"/> struct
+        /// with specified <paramref name="position"/>, <paramref name="rotation"/> around <paramref name="origin"/>, and <paramref name="scale"/>.
         /// </summary>
         /// <param name="position">Position to translate.</param>
-        /// <param name="rotation">Rotation to rotate.</param>
+        /// <param name="rotation">Rotation in radians to apply.</param>
         /// <param name="origin">Origin of the rotation.</param>
         /// <param name="scale">Scale to apply.</param>
         /// <returns>New instance of the <see cref="Transform2D"/> struct with specified parameters.</returns>

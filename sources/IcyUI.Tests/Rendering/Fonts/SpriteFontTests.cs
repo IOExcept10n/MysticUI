@@ -35,7 +35,7 @@ namespace Icy.Tests.Rendering.Fonts
 
             font = new MockSpriteFont(
                 new FontInfo("TestFont", 12, FontStyle.Regular),
-                glyphs,
+                glyphs.ToDictionary(p => new StyledGlyphDefinition(p.Key, 0, 0), p => p.Value),
                 kernings);
 
             defaultOptions = new FontRenderingOptions(
@@ -157,14 +157,14 @@ namespace Icy.Tests.Rendering.Fonts
 
         private class MockSpriteFont : SpriteFont
         {
-            private readonly Dictionary<int, FontGlyph> glyphs;
+            private readonly Dictionary<StyledGlyphDefinition, FontGlyph> glyphs;
             private readonly Dictionary<CodepointsPair, int> kernings;
 
             public MockSpriteFont(
                 FontInfo info,
-                Dictionary<int, FontGlyph> glyphs,
+                Dictionary<StyledGlyphDefinition, FontGlyph> glyphs,
                 Dictionary<CodepointsPair, int> kernings)
-                : base(info, new MockFontAtlas(glyphs))
+                : base(info, new MockFontAtlas(glyphs), null)
             {
                 this.glyphs = glyphs;
                 this.kernings = kernings;
@@ -180,6 +180,11 @@ namespace Icy.Tests.Rendering.Fonts
                     .Max(g => g.Size.Height);
 
                 Metrics = new FontMetrics(maxAscent, minDescent, 2, lowercaseHeight, capitalHeight);
+            }
+
+            public override bool SupportsCharacter(int codepoint)
+            {
+                throw new NotImplementedException();
             }
 
             protected override float GetKerning(FontGlyph current, FontGlyph previous)
@@ -200,25 +205,28 @@ namespace Icy.Tests.Rendering.Fonts
 
         private class MockFontAtlas : IFontAtlas
         {
-            private readonly Dictionary<int, FontGlyph> glyphs;
+            private readonly Dictionary<StyledGlyphDefinition, FontGlyph> glyphs;
 
-            public MockFontAtlas(Dictionary<int, FontGlyph> glyphs)
+            public MockFontAtlas(Dictionary<StyledGlyphDefinition, FontGlyph> glyphs)
             {
                 this.glyphs = glyphs;
-                PageSize = new Size(128, 128);
             }
-
-            public IReadOnlyDictionary<int, FontGlyph> Glyphs => glyphs;
-
-            public IReadOnlyList<ITexture> Textures => [];
-
-            public Size PageSize { get; }
 
             public int PageCount => 1;
 
-            public FontGlyph? GetGlyph(int codepoint) => glyphs.GetValueOrDefault(codepoint);
+            public IReadOnlyDictionary<StyledGlyphDefinition, FontGlyph> Glyphs => glyphs;
 
-            public int? GetGlyphPage(int codepoint) => 0;
+            public IReadOnlyCollection<ITexture> Textures => [];
+
+            public FontGlyph? GetGlyph(StyledGlyphDefinition glyphDefinition)
+            {
+                return glyphs.GetValueOrDefault(glyphDefinition);
+            }
+
+            public ITexture GetGlyphPage(in FontGlyph glyph)
+            {
+                return Textures.First();
+            }
         }
     }
 } 

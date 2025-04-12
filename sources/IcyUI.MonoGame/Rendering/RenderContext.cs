@@ -37,6 +37,9 @@ namespace Icy.MonoGame.Rendering
         public ITexture WhiteTexture { get; }
 
         /// <inheritdoc/>
+        public Transform2D Transform { get; set; }
+
+        /// <inheritdoc/>
         public void ApplyEffect(IEffect effect)
         {
             if (!Options.EnableEffects)
@@ -95,7 +98,33 @@ namespace Icy.MonoGame.Rendering
         }
 
         /// <inheritdoc/>
-        public void Draw(ITexture texture, in TextureRenderingOptions options) => spriteBatch.Draw(texture.Unwrap(), options);
+        public void Draw(ITexture texture, in TextureRenderingOptions options)
+        {
+            Texture2D tex = texture.Unwrap();
+            Vector2 size;
+            if (options.Source != null)
+            {
+                size = new Vector2(options.Source.Value.Width, options.Source.Value.Height);
+            }
+            else
+            {
+                size = new Vector2(tex.Width, tex.Height);
+            }
+
+            var pos = new Vector2(options.Destination.X, options.Destination.Y);
+            var scale = new Vector2(options.Destination.Width / size.X, options.Destination.Height / size.Y);
+
+            spriteBatch.Draw(
+                tex,
+                Transform.Apply(pos.AsSystemVector()),
+                options.Source?.AsEngineRectangle(),
+                options.Color.AsEngineColor() * Options.Opacity,
+                options.Rotation + Transform.Rotation,
+                options.Origin + Transform.Origin,
+                scale * Transform.Scale,
+                SpriteEffects.None,
+                options.Depth);
+        }
 
         /// <inheritdoc/>
         public void End()

@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using Icy.Controls;
+using Icy.UI;
 using Icy.Data.Bindings;
 
 namespace Icy.Data.Markup

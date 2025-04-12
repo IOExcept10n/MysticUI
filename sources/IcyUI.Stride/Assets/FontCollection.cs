@@ -1,5 +1,5 @@
 using FontStashSharp;
-using Icy.Controls;
+using Icy.UI;
 using Icy.Parsing;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
@@ -26,7 +26,7 @@ namespace Icy.Assets
             {
                 try
                 {
-                    string key = $"{name},{Control.DefaultFontSize}";
+                    string key = $"{name},{UIElement.DefaultFontSize}";
                     if (fonts.TryGetValue(key, out SpriteFontBase? spriteFont) || fonts.TryGetValue(name, out spriteFont)) return spriteFont;
                     SpriteFontBase font = (SpriteFontBase)fontLoader.Parse(typeof(SpriteFontBase), key);
                     if (font is StaticSpriteFont)
@@ -96,7 +96,7 @@ namespace Icy.Assets
         /// <returns></returns>
         /// <exception cref="ArgumentException"/>
         /// <exception cref="FileNotFoundException"/>
-        public SpriteFontBase LoadFont(string name, int fontSize = Control.DefaultFontSize)
+        public SpriteFontBase LoadFont(string name, int fontSize = UIElement.DefaultFontSize)
         {
             string key = $"{name},{fontSize}";
             if (fonts.TryGetValue(key, out SpriteFontBase? spriteFont) || fonts.TryGetValue(name, out spriteFont)) return spriteFont;

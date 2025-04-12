@@ -31,5 +31,11 @@ namespace Icy.Data
         /// The found type if it exists; otherwise, <see langword="null"/>.
         /// </returns>
         Type? FindType(string name);
+
+        /// <summary>
+        /// Gets all the assemblies that can store UI elements or used in library for any purposes.
+        /// </summary>
+        /// <returns>An enumerable of all registered assemblies.</returns>
+        IEnumerable<Assembly> GetAssemblies();
     }
 }

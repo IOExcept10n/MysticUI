@@ -1,5 +1,5 @@
 // Code here is based on Myra project: https://github.com/rds1983/Myra
-using Icy.Controls;
+using Icy.UI;
 using Stride.Core.Mathematics;
 using Stride.Graphics;
 

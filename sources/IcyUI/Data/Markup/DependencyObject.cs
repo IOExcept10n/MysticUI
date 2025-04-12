@@ -1,5 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.ComponentModel.DataAnnotations;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Bindings;
 
@@ -11,6 +12,9 @@ namespace Icy.Data.Markup
     public abstract class DependencyObject : BindableObject, IDependencyObject
     {
         private readonly Dictionary<IDependencyProperty, object?> propertyValues = [];
+
+        /// <inheritdoc/>
+        public event EventHandler<GenericEventArgs<ValidationResult?>>? ValidationFailed;
 
         /// <inheritdoc/>
         public void ClearValue(IDependencyProperty property)
@@ -40,11 +44,11 @@ namespace Icy.Data.Markup
         /// <inheritdoc/>
         public void SetValue(IDependencyProperty property, object? value)
         {
-            if (!propertyValues.ContainsKey(property))
+            if (!this.ContainsProperty(property))
                 ThrowHelper.ThrowArgumentException<object?>(nameof(property), "Can't access the property in this dependency object.");
 
             // Special cases: bindings, animations etc.
-            if (value is IBinding binding)
+            if (value is IBinding binding && (property.Metadata as DependencyPropertyMetadata)?.IsBindable != false)
             {
                 Bind(binding);
                 return;
@@ -63,18 +67,13 @@ namespace Icy.Data.Markup
         }
 
         /// <summary>
-        /// Updates the local value of a specified dependency property.
+        /// Indicates that the property value has been changed.
         /// </summary>
-        /// <param name="property">A property to update value.</param>
-        /// <param name="newValue">New property value to set.</param>
-        protected internal void UpdateValue(IDependencyProperty property, object? newValue)
+        /// <param name="property">A dependency property that initiated the update.</param>
+        /// <param name="oldValue">Previous property value.</param>
+        /// <param name="newValue">New property value.</param>
+        protected virtual void OnValueSet(IDependencyProperty property, object? oldValue, object? newValue)
         {
-            if (propertyValues.TryGetValue(property, out var oldValue) && oldValue != newValue)
-            {
-                propertyValues[property] = newValue;
-                property.Metadata.PropertyChangedCallback?.Invoke(this, new(property.Name));
-                OnPropertyChanged(property.Name);
-            }
         }
 
         /// <summary>
@@ -88,6 +87,29 @@ namespace Icy.Data.Markup
         protected virtual object? GetDefaultValue(IDependencyProperty property)
         {
             return property.Metadata.DefaultValue;
+        }
+
+        /// <summary>
+        /// Updates the local value of a specified dependency property.
+        /// </summary>
+        /// <param name="property">A property to update value.</param>
+        /// <param name="newValue">New property value to set.</param>
+        private void UpdateValue(IDependencyProperty property, object? newValue)
+        {
+            if (!propertyValues.TryGetValue(property, out var oldValue) || oldValue != newValue)
+            {
+                var result = property.ValidationCallback?.Invoke(newValue!);
+                if (result != ValidationResult.Success)
+                {
+                    ValidationFailed?.Invoke(this, result);
+                    return;
+                }
+
+                propertyValues[property] = newValue;
+                OnValueSet(property, oldValue, newValue);
+                property.Metadata.PropertyChangedCallback?.Invoke(this, new(property.Name));
+                OnPropertyChanged(property.Name);
+            }
         }
     }
 }

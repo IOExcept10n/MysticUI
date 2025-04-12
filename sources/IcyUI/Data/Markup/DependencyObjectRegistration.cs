@@ -39,6 +39,7 @@ namespace Icy.Data.Markup
                 MethodInfo? validation = SearchMethod(property, validationCallback),
                             update = SearchMethod(property, updateCallback);
                 bool affectsArrange = false,
+                     affectsTransform = false,
                      affectsMeasure = false,
                      affectsParentMeasure = false,
                      defaultTwoWayBinding = true,
@@ -56,6 +57,8 @@ namespace Icy.Data.Markup
                             affectsMeasure = true;
                             affectsParentMeasure = measure.AffectsParentMeasure;
                             break;
+                        case AffectsTransformAttribute:
+                            affectsTransform = true; break;
 
                         case NonAnimatableAttribute:
                             isAnimationProhibited = true; break;
@@ -80,6 +83,7 @@ namespace Icy.Data.Markup
                 var metadata = new DependencyPropertyMetadata(
                     defaultPropertyValue,
                     update?.CreateDelegate<PropertyChangedEventHandler>(),
+                    affectsTransform,
                     affectsArrange,
                     affectsMeasure,
                     affectsParentMeasure,
