@@ -2,10 +2,12 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System;
 using System.Text;
+using CommunityToolkit.Mvvm.Input;
 using Icy.Configuration;
 using Icy.Data;
 using Icy.Input;
 using Icy.Input.Diagnostics;
+using Icy.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -22,7 +24,7 @@ namespace Icy.MonoGameSample.Samples
         private SpriteFont displayFont;
         private SpriteBatch spriteBatch;
 
-        public InputLoggingSample(Game game, IcyConfiguration configuration) : base(game, configuration, "Input logging")
+        public InputLoggingSample(Game game, IcyConfiguration configuration, Canvas canvas) : base(game, configuration, canvas, "Input logging")
         {
             input = configuration.Input;
             var deviceListener = new DeviceEventsAggregator(input);
@@ -34,10 +36,10 @@ namespace Icy.MonoGameSample.Samples
 
         public override void Initialize()
         {
-            var clearDeviceLogs = new RelayCommand(_ => deviceEventLogs.Clear());
-            var clearInputLogs = new RelayCommand(_ => inputEventLogs.Clear());
-            var enableText = new RelayCommand(_ => input.Events.Text.EnableTextInput());
-            var disableText = new RelayCommand(_ => input.Events.Text.DisableTextInput());
+            var clearDeviceLogs = new RelayCommand(() => deviceEventLogs.Clear());
+            var clearInputLogs = new RelayCommand(() => inputEventLogs.Clear());
+            var enableText = new RelayCommand(input.Events.Text.EnableTextInput);
+            var disableText = new RelayCommand(input.Events.Text.DisableTextInput);
 
             input.Events.RegisterCommand(clearDeviceLogs, new(Input.Devices.Keys.D, Input.Devices.ModifierKeys.Ctrl));
             input.Events.RegisterCommand(clearInputLogs, new(Input.Devices.Keys.E, Input.Devices.ModifierKeys.Ctrl));
@@ -63,7 +65,7 @@ namespace Icy.MonoGameSample.Samples
             base.Draw(gameTime);
         }
 
-        private void OnInputEvent(object sender, InputEventsAggregator.LoggerEventInfo e)
+        private void OnInputEvent(object sender, InputEventsAggregator.EventInfo e)
         {
             string line = $"[{DateTime.UtcNow:hh:mm:ss:ffffff}]: ({e.InputEventListener.GetType().Name}) {{{e.EventType}}}: {(e.Args as IDataEventArgs)?.Data}";
             if (line.Length > MaxLength)
@@ -80,7 +82,7 @@ namespace Icy.MonoGameSample.Samples
             }
         }
 
-        private void OnDeviceEvent(object sender, DeviceEventsAggregator.LoggerEventInfo e)
+        private void OnDeviceEvent(object sender, DeviceEventsAggregator.EventInfo e)
         {
             string line = $"[{DateTime.UtcNow:hh:mm:ss:ffffff}]: ({e.InputDevice.GetType().Name}) {{{e.EventType}}}: {(e.Args as IDataEventArgs)?.Data}";
             if (line.Length > MaxLength)

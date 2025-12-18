@@ -1,6 +1,17 @@
 namespace Icy.Data
 {
     /// <summary>
+    /// Represents a delegate for the events that provide additional data.
+    /// </summary>
+    /// <remarks>
+    /// This delegate is contravariant to <see cref="EventHandler"/> so it can be used for any classic event handlers.
+    /// </remarks>
+    /// <typeparam name="T">Type of the data passed with <see cref="GenericEventArgs{T}"/> argument.</typeparam>
+    /// <param name="sender">An object that initiated the event.</param>
+    /// <param name="e">Arguments passed to the event.</param>
+    public delegate void DataEventHandler<T>(object? sender, GenericEventArgs<T> e);
+
+    /// <summary>
     /// A class for any event args with data of given type.
     /// </summary>
     /// <typeparam name="T">Type fo data stored in the event args.</typeparam>

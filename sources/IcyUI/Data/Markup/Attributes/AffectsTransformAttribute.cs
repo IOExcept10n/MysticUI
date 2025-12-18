@@ -5,6 +5,10 @@ namespace Icy.Data.Markup.Attributes
     /// <summary>
     /// Represents the attribute for the properties that affect element transform when updated.
     /// </summary>
+    /// <remarks>
+    /// This attribute is just an annotation for properties that can invalidate element transform as a side-effect.
+    /// It <b>doesn't</b> make properties call <see cref="UI.UIElement.InvalidateTransform"/> or similar methods automatically.
+    /// </remarks>
     [AttributeUsage(AttributeTargets.Property, Inherited = true)]
     public sealed class AffectsTransformAttribute : Attribute
     {

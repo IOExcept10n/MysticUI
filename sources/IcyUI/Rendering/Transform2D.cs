@@ -121,18 +121,16 @@ namespace Icy.Rendering
         /// <param name="position">Position to apply transform to.</param>
         /// <param name="origin">Origin location to translate from.</param>
         /// <param name="scale">Scale to apply.</param>
-        /// <param name="rotation">Rotation to apply.</param>
+        /// <param name="rotation">Rotation in radians to apply.</param>
         /// <returns>New instance of the <see cref="Transform2D"/> struct with specified parameters.</returns>
         public static Transform2D Create(Vector2 position, Vector2 origin, Vector2 scale, float rotation)
         {
-            // Create the scale and rotation matrix
-            Matrix3x2 result = Matrix3x2.CreateScale(scale) * Matrix3x2.CreateRotation(rotation);
-
-            // Apply the transform according to new difference between origin and position.
-            float offsetX = position.X - (origin.X * result.M11) - (origin.Y * result.M21);
-            float offsetY = position.Y - (origin.X * result.M12) - (origin.Y * result.M22);
-            result.M31 = offsetX + origin.X;
-            result.M32 = offsetY + origin.Y;
+            // To transform an item, we should translate it towards origin,
+            // then scale and rotate and finally translate (with restoring origin offset)
+            Matrix3x2 result = Matrix3x2.CreateTranslation(position + origin) *
+                               Matrix3x2.CreateRotation(rotation) *
+                               Matrix3x2.CreateScale(scale) *
+                               Matrix3x2.CreateTranslation(-origin);
 
             // Return the new Transform2D object with the calculated matrix
             var transform = new Transform2D()
@@ -149,7 +147,7 @@ namespace Icy.Rendering
         /// <param name="other">Other transform to add.</param>
         public void AddTransform(in Transform2D other)
         {
-            matrix = Matrix3x2.Multiply(matrix, other.Matrix);
+            matrix = Matrix3x2.Multiply(other.Matrix, matrix);
             DecomposeMatrix();
         }
 

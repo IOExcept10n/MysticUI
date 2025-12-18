@@ -3,6 +3,14 @@ using System.ComponentModel;
 namespace Icy.Data
 {
     /// <summary>
+    /// Represents an event handler delegate for events that support cancellation.
+    /// </summary>
+    /// <typeparam name="T">Type of an argument passed to the event.</typeparam>
+    /// <param name="sender">An object that initiated an event.</param>
+    /// <param name="e">Arguments passed to the event.</param>
+    public delegate void CancellableEventHandler<T>(object? sender, CancellableEventArgs<T> e);
+
+    /// <summary>
     /// A class for any event args that can be cancelled.
     /// </summary>
     /// <typeparam name="T">Type fo data stored in the event args.</typeparam>

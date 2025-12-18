@@ -3,19 +3,14 @@
 namespace Icy.Data.Markup.Attributes
 {
     /// <summary>
-    /// Represents an attribute for the property that can be used in a markup dependencies system.
+    /// Represents an attribute for the property that should automatically generate <see cref="IPropertyReference"/> at the type initialization.
     /// </summary>
     [AttributeUsage(AttributeTargets.Property)]
-    public sealed class DependencyPropertyAttribute : Attribute
+    public sealed class RegisterReferenceAttribute : Attribute
     {
         /// <summary>
         /// Gets or sets the name of the validation callback method. Method signature should match the <see cref="ValidateValueCallback"/> delegate.
         /// </summary>
         public string? ValidationCallback { get; set; }
-
-        /// <summary>
-        /// Gets or sets the name of the property update callback method.
-        /// </summary>
-        public string? UpdateCallback { get; set; }
     }
 }

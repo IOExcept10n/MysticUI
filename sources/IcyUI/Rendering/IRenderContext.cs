@@ -1,5 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Drawing;
+
 namespace Icy.Rendering
 {
     /// <summary>
@@ -10,6 +12,11 @@ namespace Icy.Rendering
     /// </remarks>
     public interface IRenderContext : IDisposable
     {
+        /// <summary>
+        /// Occurs when size of the viewport changes.
+        /// </summary>
+        event EventHandler? ViewportResize;
+
         /// <summary>
         /// Gets the current rendering options.
         /// </summary>
@@ -24,6 +31,14 @@ namespace Icy.Rendering
         /// Gets or sets the transform used for rendering.
         /// </summary>
         Transform2D Transform { get; set; }
+
+        /// <summary>
+        /// Gets the actual size of the viewport to render into.
+        /// </summary>
+        /// <remarks>
+        /// Typically, the viewport size represent the actual size of the graphics device back buffer.
+        /// </remarks>
+        Size ViewportSize { get; }
 
         /// <summary>
         /// Applies an effect to the next draw calls.

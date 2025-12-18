@@ -2,6 +2,7 @@
 using Icy.MonoGame;
 using Icy.Rendering;
 using Icy.Rendering.Fonts;
+using Icy.UI;
 using Microsoft.Xna.Framework;
 
 namespace Icy.MonoGameSample.Samples
@@ -16,7 +17,7 @@ namespace Icy.MonoGameSample.Samples
         private bool displayBoxes = false;
         private bool displayAtlases = false;
 
-        public FontsSample(Game game, IcyConfiguration configuration) : base(game, configuration, "Fonts sample")
+        public FontsSample(Game game, IcyConfiguration configuration, Canvas canvas) : base(game, configuration, canvas, "Fonts sample")
         {
         }
 
@@ -28,13 +29,13 @@ namespace Icy.MonoGameSample.Samples
             UIConfiguration.Fonts.ImportSystemFont(new("Yu Gothic", 24, FontStyle.Regular));
             UIConfiguration.Fonts.ImportSystemFont(new("Segoe UI Emoji", 24, FontStyle.Regular));
 
-            RegisterCommand("Ctrl++", x => fontSize++);
-            RegisterCommand("Ctrl+-", x => fontSize--);
-            RegisterCommand("Ctrl+Shift+T", x => displayText = !displayText);
-            RegisterCommand("Ctrl+O", x => displayOutline = !displayOutline);
-            RegisterCommand("Ctrl+B", x => displayBoxes = !displayBoxes);
-            RegisterCommand("Ctrl+A", x => displayAtlases = !displayAtlases);
-            RegisterCommand("Ctrl+Shift+C", x => UIConfiguration.Fonts.Clear());
+            RegisterCommand("Ctrl++", () => fontSize++);
+            RegisterCommand("Ctrl+-", () => fontSize--);
+            RegisterCommand("Ctrl+Shift+T", () => displayText = !displayText);
+            RegisterCommand("Ctrl+O", () => displayOutline = !displayOutline);
+            RegisterCommand("Ctrl+B", () => displayBoxes = !displayBoxes);
+            RegisterCommand("Ctrl+A", () => displayAtlases = !displayAtlases);
+            RegisterCommand("Ctrl+Shift+C", UIConfiguration.Fonts.Clear);
             base.LoadContent();
         }
 

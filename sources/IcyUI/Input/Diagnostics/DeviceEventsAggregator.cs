@@ -28,7 +28,7 @@ namespace Icy.Input.Diagnostics
         /// <summary>
         /// Occurs when any device-related event is raised.
         /// </summary>
-        public event EventHandler<LoggerEventInfo>? OnEvent;
+        public event EventHandler<EventInfo>? OnEvent;
 
         /// <summary>
         /// Defines the type of the event captured by <see cref="DeviceEventsAggregator"/> class.
@@ -224,15 +224,15 @@ namespace Icy.Input.Diagnostics
         private void RaiseEvent(DeviceEventType type, object? sender, EventArgs args)
         {
             if (sender is IInputDeviceListener device)
-                OnEvent?.Invoke(this, new LoggerEventInfo(device, type, args));
+                OnEvent?.Invoke(this, new EventInfo(device, type, args));
         }
 
         /// <summary>
-        /// Provides arguments for the logger events.
+        /// Provides arguments for the logged events.
         /// </summary>
         /// <param name="InputDevice">Gets an instance of the input device listener that raised the event.</param>
         /// <param name="EventType">Gets the aggregated event type.</param>
         /// <param name="Args">Gets the arguments provided with an event.</param>
-        public readonly record struct LoggerEventInfo(IInputDeviceListener InputDevice, DeviceEventType EventType, EventArgs Args);
+        public readonly record struct EventInfo(IInputDeviceListener InputDevice, DeviceEventType EventType, EventArgs Args);
     }
 }

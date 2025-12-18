@@ -2,7 +2,6 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Reflection;
-using CommunityToolkit.Diagnostics;
 using Icy.Data.Bindings.Attributes;
 using Icy.Data.Markup.Attributes;
 
@@ -11,33 +10,27 @@ namespace Icy.Data.Markup
     /// <summary>
     /// Helper class to scan types for the defined dependency properties as attributes.
     /// </summary>
-    internal static class DependencyObjectRegistration
+    internal static class PropertyReferencesRegistration
     {
         /// <summary>
         /// Scans the type for the defined dependency properties and returns the list of found and formed properties (not yet registered).
         /// </summary>
         /// <param name="targetType">The type to scan.</param>
         /// <returns>The list of properties built by resolver.</returns>
-        public static List<IDependencyProperty> ResolveProperties(Type targetType)
+        public static List<IPropertyReference> ResolveProperties(Type targetType)
         {
-            if (targetType.GetInterface(nameof(IDependencyObject)) == null)
-            {
-                return ThrowHelper.ThrowInvalidOperationException<List<IDependencyProperty>>($"Can't register dependency properties for object that doesn't implement {nameof(IDependencyObject)} interface.");
-            }
-
-            List<IDependencyProperty> result = [];
+            List<IPropertyReference> result = [];
 
             foreach (PropertyInfo property in targetType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
             {
                 if (!property.CanWrite)
                     continue;
-                var dp = property.GetCustomAttribute<DependencyPropertyAttribute>();
+                var dp = property.GetCustomAttribute<RegisterReferenceAttribute>();
                 if (dp == null)
                     continue;
-                string? validationCallback = dp.ValidationCallback,
-                        updateCallback = dp.UpdateCallback;
-                MethodInfo? validation = SearchMethod(property, validationCallback),
-                            update = SearchMethod(property, updateCallback);
+                string? validationCallback = dp.ValidationCallback;
+                string? categoryName = null;
+                MethodInfo? validation = SearchMethod(property, validationCallback);
                 bool affectsArrange = false,
                      affectsTransform = false,
                      affectsMeasure = false,
@@ -77,12 +70,14 @@ namespace Icy.Data.Markup
                         case UpdateSourceTriggerOverrideAttribute triggerOverride:
                             defaultUpdateSourceTrigger = triggerOverride.UpdateSourceTrigger;
                             break;
+                        case CategoryAttribute category:
+                            categoryName = category.Category;
+                            break;
                     }
                 }
 
-                var metadata = new DependencyPropertyMetadata(
+                var metadata = new UIPropertyMetadata(
                     defaultPropertyValue,
-                    update?.CreateDelegate<PropertyChangedEventHandler>(),
                     affectsTransform,
                     affectsArrange,
                     affectsMeasure,
@@ -93,15 +88,33 @@ namespace Icy.Data.Markup
                     false,
                     isBindable);
 
-                result.Add(new DependencyProperty(
-                    targetType,
-                    property.Name,
-                    property.PropertyType)
-                {
-                    Metadata = metadata,
-                    ValidationCallback = validation?.CreateDelegate<ValidateValueCallback>(),
-                });
+                result.Add((IPropertyReference)Activator.CreateInstance(
+                    typeof(PropertyReference<,>).MakeGenericType(targetType, property.PropertyType),
+                    [
+                        property,
+                        categoryName,
+                        metadata,
+                        validation?.CreateDelegate<ValidateValueCallback>()
+                    ])!);
             }
+
+            // TODO: implement attached properties
+            //foreach (var attachedDefinition in targetType.GetCustomAttributes<AttachedPropertyAttribute>())
+            //{
+            //    var getterMethod = targetType.GetMethod(attachedDefinition.GetterName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            //    var setterMethod = targetType.GetMethod(attachedDefinition.SetterName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            //    if (getterMethod == null || setterMethod == null) continue;
+            //    var getParams = getterMethod.GetParameters();
+            //    var setParams = setterMethod.GetParameters();
+
+            //    // Check if the accessors are valid to simulate the property
+            //    if (getParams.Length != 1 ||
+            //        setParams.Length != 2 ||
+            //        getParams[0].ParameterType != setParams[0].ParameterType ||
+            //        getterMethod.ReturnType != setParams[1].ParameterType)
+            //        continue;
+
+            //}
 
             return result;
         }
@@ -110,7 +123,7 @@ namespace Icy.Data.Markup
         {
             if (callbackName != null)
             {
-                return property.DeclaringType?.GetMethod(callbackName, BindingFlags.Instance | BindingFlags.Public);
+                return property.DeclaringType?.GetMethod(callbackName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
             }
 
             return null;

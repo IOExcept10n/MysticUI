@@ -1,7 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using Icy.Data.Markup;
 
 namespace Icy.Data.Bindings
@@ -9,12 +8,9 @@ namespace Icy.Data.Bindings
     /// <summary>
     /// Represents an object that supports general bindings as target.
     /// </summary>
-    public abstract class BindableObject : DispatcherObject, IBindingTarget
+    public abstract partial class BindableObject : ObservableDispatcherObject, IBindingTarget
     {
         private readonly List<IBinding> bindings = [];
-
-        /// <inheritdoc/>
-        public event PropertyChangedEventHandler? PropertyChanged;
 
         /// <inheritdoc/>
         public IReadOnlyCollection<IBinding> Bindings => bindings;
@@ -62,13 +58,11 @@ namespace Icy.Data.Bindings
             return count;
         }
 
-        /// <summary>
-        /// Handles the property update process.
-        /// </summary>
-        /// <param name="propertyName">Name of the calling property.</param>
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = "")
+        /// <inheritdoc/>
+        protected override void OnPropertyChanging(PropertyChangingEventArgs e)
         {
-            PropertyChanged?.Invoke(this, new(propertyName));
+            Dispatcher.VerifyAccess();
+            base.OnPropertyChanging(e);
         }
     }
 }

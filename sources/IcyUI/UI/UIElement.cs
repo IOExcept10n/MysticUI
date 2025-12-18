@@ -5,13 +5,17 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 using CommunityToolkit.Diagnostics;
+using Icy.Configuration;
+using Icy.Data;
+using Icy.Data.Bindings.Attributes;
 using Icy.Data.Markup;
 using Icy.Data.Markup.Attributes;
 using Icy.Rendering;
+using Icy.Rendering.Brushes;
+using Icy.UI.Styles;
 
 namespace Icy.UI
 {
@@ -25,16 +29,49 @@ namespace Icy.UI
     /// in the game interface derive from this class.
     /// </para>
     /// <para>
-    /// This class implements a dependency property system for efficient property
+    /// This class implements a property references system for efficient property
     /// change notification and value inheritance. It also provides a comprehensive
     /// event system for handling user input and state changes.
     /// </para>
     /// </remarks>
-    public abstract class UIElement : DependencyObject//, INotifyFocusChanged
+    public class UIElement : DependencyObject// , INotifyFocusChanged
     {
-        private UpdateFlags updateFlags;
-        private Transform2D transform;
-        private Transform2D inverseTransform;
+        private Rectangle actualBounds;
+        private IBrush background = new SolidColorBrush(Color.Transparent);
+        private IBrush? border;
+        private Thickness borderThickness;
+        private Canvas? canvas;
+        private bool clipToBounds = true;
+        private Size desiredSize;
+        private Color foreground = Color.Black;
+        private float height = float.NaN;
+        private HorizontalAlignment horizontalAlignment = HorizontalAlignment.Stretch;
+        private Transform2D inverseLayoutTransform;
+        private bool isVisible = true;
+        private float layerIndex;
+        private Vector2 layoutOffset;
+        private float layoutRotation;
+        private Vector2 layoutScale = Vector2.One;
+        private Transform2D layoutTransform;
+        private Vector2 layoutTransformOrigin = new(0.5f, 0.5f);
+        private Thickness margin;
+        private float maxHeight = float.NaN;
+        private float maxWidth = float.NaN;
+        private float minHeight = float.NaN;
+        private float minWidth = float.NaN;
+        private string? name;
+        private float opacity = 1;
+        private Thickness padding;
+        private UIElement? parent;
+        private Vector2 renderOffset;
+        private float renderRotation;
+        private Vector2 renderScale = Vector2.One;
+        private Transform2D renderTransform;
+        private Vector2 renderTransformOrigin = new(0.5f, 0.5f);
+        private Style? style;
+        private UpdateFlags updateFlags = UpdateFlags.All;
+        private VerticalAlignment verticalAlignment = VerticalAlignment.Stretch;
+        private float width = float.NaN;
 
         /// <summary>
         /// Occurs when the <see cref="UIElement"/> arrange is updated.
@@ -42,9 +79,39 @@ namespace Icy.UI
         public event EventHandler? ArrangeUpdated;
 
         /// <summary>
+        /// Occurs when the location of the <see cref="UIElement"/> is changed.
+        /// </summary>
+        public event EventHandler? LocationChanged;
+
+        /// <summary>
+        /// Occurs when the value of the <see cref="Opacity"/> property of the <see cref="UIElement"/> is changed.
+        /// </summary>
+        public event EventHandler? OpacityChanged;
+
+        /// <summary>
         /// Occurs when the <see cref="UIElement"/> size is updated.
         /// </summary>
         public event EventHandler? SizeChanged;
+
+        /// <summary>
+        /// Occurs when the <see cref="UIElement"/> transform is updated.
+        /// </summary>
+        public event EventHandler? TransformUpdated;
+
+        /// <summary>
+        /// Occurs when the value of the <see cref="IsVisible"/> property of the <see cref="UIElement"/> is changed.
+        /// </summary>
+        public event EventHandler? VisibilityChanged;
+
+        /// <summary>
+        /// Occurs when the <see cref="UIElement"/> is attached to the <see cref="UI.Canvas"/> instance.
+        /// </summary>
+        public event EventHandler? Attached;
+
+        /// <summary>
+        /// Occurs when the <see cref="UIElement"/> is detached from the <see cref="UI.Canvas"/> instance.
+        /// </summary>
+        public event EventHandler? Detached;
 
         /// <summary>
         /// Defines a flag set for the <see cref="UIElement"/> instance layout invalidation state.
@@ -72,30 +139,84 @@ namespace Icy.UI
             Transform = 1 << 2,
 
             /// <summary>
+            /// The UI element rendering parameters need to be recalculated.
+            /// </summary>
+            Visual = 1 << 3,
+
+            /// <summary>
             /// All of the layout properties should be recalculated before rendering.
             /// </summary>
-            All = Measure | Arrange | Transform,
+            All = Measure | Arrange | Transform | Visual,
         }
 
         /// <summary>
         /// Gets or sets the actual bounds of the <see cref="UIElement"/> instance.
         /// </summary>
         [Category("Layout")]
-        [DependencyProperty]
+        [RegisterReference]
         [Browsable(false)]
         [XmlIgnore]
         [JsonIgnore]
-        public Rectangle ActualBounds { get => GetValue<Rectangle>(); protected set => SetValue(value); }
+        public Rectangle ActualBounds
+        {
+            get => actualBounds;
+            protected set
+            {
+                if (value.Location != actualBounds.Location)
+                {
+                    OnLocationChanged();
+                }
+
+                SetProperty(ref actualBounds, value);
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the background brush of the <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <value>
+        /// The brush used to paint the background of the element. The default is
+        /// a transparent solid color brush.
+        /// </value>
+        /// <remarks>
+        /// The background is drawn before any content or children of the element.
+        /// </remarks>
+        [Category("Appearance")]
+        [DefaultValue(typeof(SolidColorBrush), "Transparent")]
+        [RegisterReference]
+        public IBrush Background { get => background; set => SetProperty(ref background, value); }
+
+        /// <summary>
+        /// Gets or sets the border brush of the <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <value>
+        /// The brush used to paint the border of the element. The default is <see langword="null"/>.
+        /// </value>
+        [Category("Appearance")]
+        [DefaultValue(null)]
+        [RegisterReference]
+        public IBrush? Border { get => border; set => SetProperty(ref border, value); }
 
         /// <summary>
         /// Gets or sets the thickness of the border around <see cref="UIElement"/> instance.
         /// </summary>
         [Category("Layout")]
         [DefaultValue(typeof(Thickness), "0,0,0,0")]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
-        public Thickness BorderThickness { get => GetValue<Thickness>(); set => SetValue(value); }
+        public Thickness BorderThickness
+        {
+            get => borderThickness;
+            set
+            {
+                if (SetProperty(ref borderThickness, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets an instance of <see cref="UI.Canvas"/> that is used as the root for the hierarchy for this <see cref="UIElement"/> instance.
@@ -104,17 +225,54 @@ namespace Icy.UI
         [Browsable(false)]
         [XmlIgnore]
         [JsonIgnore]
-        public Canvas? Canvas { get; protected set; }
+        public Canvas? Canvas
+        {
+            get => canvas;
+            protected internal set
+            {
+                var oldValue = canvas;
+                if (SetProperty(ref canvas, value))
+                {
+                    if (oldValue != null) OnDetached();
+                    if (value != null) OnAttached();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the control contents should be clipped to the actual bounds when rendering.
+        /// </summary>
+        [Category("Appearance")]
+        [DefaultValue(true)]
+        [RegisterReference]
+        public bool ClipToBounds { get => clipToBounds; set => SetProperty(ref clipToBounds, value); }
 
         /// <summary>
         /// Gets or sets the size the <see cref="UIElement"/> instance wants to be.
         /// </summary>
         [Category("Layout")]
-        [DependencyProperty]
         [Browsable(false)]
         [XmlIgnore]
         [JsonIgnore]
-        public Size DesiredSize { get => GetValue<Size>(); set => SetValue(value); }
+        public Size DesiredSize
+        {
+            get => desiredSize;
+            protected set
+            {
+                if (SetProperty(ref desiredSize, value))
+                {
+                    OnSizeChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the foreground color of the <see cref="UIElement"/> instance.
+        /// </summary>
+        [Category("Appearance")]
+        [DefaultValue(typeof(Color), "Black")]
+        [RegisterReference]
+        public Color Foreground { get => foreground; set => SetProperty(ref foreground, value); }
 
         /// <summary>
         /// Gets or sets the height of the <see cref="UIElement"/> instance.
@@ -124,10 +282,26 @@ namespace Icy.UI
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsMeasure]
         [AffectsArrange]
-        public float Height { get => GetValue<float>(); set => SetValue(value); }
+        public float Height
+        {
+            get => height;
+            set
+            {
+                if (!float.IsNaN(value))
+                {
+                    Guard.IsGreaterThanOrEqualTo(value, 0);
+                }
+
+                if (SetProperty(ref height, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the horizontal alignment of the <see cref="UIElement"/> instance.
@@ -137,10 +311,159 @@ namespace Icy.UI
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(HorizontalAlignment.Stretch)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsMeasure]
         [AffectsArrange]
-        public HorizontalAlignment HorizontalAlignment { get => GetValue<HorizontalAlignment>(); set => SetValue(value); }
+        public HorizontalAlignment HorizontalAlignment
+        {
+            get => horizontalAlignment;
+            set
+            {
+                if (SetProperty(ref horizontalAlignment, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the <see cref="UIElement"/> is attached to any <see cref="UI.Canvas"/> instance.
+        /// </summary>
+        [JsonIgnore]
+        [XmlIgnore]
+        [Browsable(false)]
+        [MemberNotNullWhen(true, nameof(Configuration))]
+        public bool IsAttached => Canvas != null;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the <see cref="UIElement"/> instance is visible.
+        /// </summary>
+        /// <remarks>
+        /// When set to <see langword="false"/>, the <see cref="UIElement"/> instance and its children are not rendered.
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(true)]
+        [RegisterReference]
+        public bool IsVisible
+        {
+            get => isVisible;
+            set
+            {
+                if (SetProperty(ref isVisible, value))
+                {
+                    OnVisibilityChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the offset applied to the <see cref="UIElement"/> at layout.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The value represents pixels offset from the original layout location for the <see cref="UIElement"/> instance.
+        /// </para>
+        /// </remarks>
+        [Category("Transform")]
+        [DefaultValue(typeof(Vector2), "0,0")]
+        [RegisterReference]
+        [AffectsTransform]
+        public Vector2 LayoutOffset
+        {
+            get => layoutOffset;
+            set
+            {
+                if (SetProperty(ref layoutOffset, value))
+                {
+                    OnLocationChanged();
+                    InvalidateTransform();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the rotation of the <see cref="UIElement"/> instance in degrees.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Values are normalized to the range 0-360 degrees.
+        /// </para>
+        /// </remarks>
+        [Category("Transform")]
+        [DefaultValue(0.0f)]
+        [Range(0.0f, 360.0f)]
+        [RegisterReference]
+        [AffectsTransform]
+        public float LayoutRotation
+        {
+            get => layoutRotation;
+            set
+            {
+                value = (value + 360f) % 360f;
+                if (SetProperty(ref layoutRotation, value))
+                {
+                    InvalidateTransform();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the scale of the <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A scale of (1,1) represents the original size.
+        /// </para>
+        /// </remarks>
+        [Category("Transform")]
+        [DefaultValue(typeof(Vector2), "1,1")]
+        [RegisterReference]
+        [AffectsTransform]
+        public Vector2 LayoutScale
+        {
+            get => layoutScale;
+            set
+            {
+                if (SetProperty(ref layoutScale, value))
+                {
+                    InvalidateTransform();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the origin point for transforms applied to <see cref="UIElement"/> after layout.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The origin is specified as a relative point, where (0,0) is the top-left
+        /// and (1,1) is the bottom-right of the <see cref="UIElement"/> instance.
+        /// </para>
+        /// </remarks>
+        [Category("Transform")]
+        [DefaultValue(typeof(Vector2), "0.5,0.5")]
+        [RegisterReference]
+        [AffectsTransform]
+        public Vector2 LayoutTransformOrigin
+        {
+            get => layoutTransformOrigin;
+            set
+            {
+                if (SetProperty(ref layoutTransformOrigin, value))
+                {
+                    InvalidateTransform();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the logical parent of the <see cref="UIElement"/> instance.
+        /// </summary>
+        [XmlIgnore]
+        [JsonIgnore]
+        [Browsable(false)]
+        public IContainerLayout? LogicalParent => (IContainerLayout?)Parent ?? Canvas;
 
         /// <summary>
         /// Gets or sets the margin around the <see cref="UIElement"/> instance.
@@ -150,120 +473,316 @@ namespace Icy.UI
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(typeof(Thickness), "0,0,0,0")]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsMeasure]
         [AffectsArrange]
-        public Thickness Margin { get => GetValue<Thickness>(); set => SetValue(value); }
+        public Thickness Margin
+        {
+            get => margin;
+            set
+            {
+                if (SetProperty(ref margin, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the maximal <see cref="UIElement"/> height.
         /// </summary>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
-        public float MaxHeight { get => GetValue<float>(); set => SetValue(value); }
+        public float MaxHeight
+        {
+            get => maxHeight;
+            set
+            {
+                if (!float.IsNaN(value))
+                {
+                    Guard.IsGreaterThanOrEqualTo(value, 0);
+                }
+
+                if (SetProperty(ref maxHeight, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the maximal <see cref="UIElement"/> width.
         /// </summary>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
-        public float MaxWidth { get => GetValue<float>(); set => SetValue(value); }
+        public float MaxWidth
+        {
+            get => maxWidth;
+            set
+            {
+                if (!float.IsNaN(value))
+                {
+                    Guard.IsGreaterThanOrEqualTo(value, 0);
+                }
+
+                if (SetProperty(ref maxWidth, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the minimal <see cref="UIElement"/> height.
         /// </summary>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
-        public float MinHeight { get => GetValue<float>(); set => SetValue(value); }
+        public float MinHeight
+        {
+            get => minHeight;
+            set
+            {
+                if (!float.IsNaN(value))
+                {
+                    Guard.IsGreaterThanOrEqualTo(value, 0);
+                }
+
+                if (SetProperty(ref minHeight, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the minimal <see cref="UIElement"/> width.
         /// </summary>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
-        public float MinWidth { get => GetValue<float>(); set => SetValue(value); }
+        public float MinWidth
+        {
+            get => minWidth;
+            set
+            {
+                if (!float.IsNaN(value))
+                {
+                    Guard.IsGreaterThanOrEqualTo(value, 0);
+                }
+
+                if (SetProperty(ref minWidth, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the name of the <see cref="UIElement"/> instance.
+        /// </summary>
+        [Category("Design")]
+        [DefaultValue(null)]
+        [NonBindable]
+        [NonAnimatable]
+        public string? Name { get => name; set => SetProperty(ref name, value); }
+
+        /// <summary>
+        /// Gets or sets the opacity of the <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <remarks>
+        /// Values must be between 0.0 (fully transparent) and 1.0 (fully opaque).
+        /// </remarks>
+        [Category("Appearance")]
+        [DefaultValue(1.0f)]
+        [Range(0.0f, 1.0f)]
+        [RegisterReference]
+        public float Opacity
+        {
+            get => opacity;
+            set
+            {
+                Guard.IsInRange(value, 0, 1);
+
+                if (SetProperty(ref opacity, value))
+                {
+                    OnOpacityChanged();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the padding of the <see cref="UIElement"/> instance.
         /// </summary>
         [Category("Layout")]
         [DefaultValue(typeof(Thickness), "0,0,0,0")]
-        [DependencyProperty]
-        public Thickness Padding { get => GetValue<Thickness>(); set => SetValue(value); }
+        [RegisterReference]
+        [AffectsMeasure]
+        [AffectsArrange]
+        public Thickness Padding
+        {
+            get => padding;
+            set
+            {
+                if (SetProperty(ref padding, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+            }
+        }
 
         /// <summary>
-        /// Gets or sets the parent of this <see cref="UIElement"/> instance.
+        /// Gets the parent of this <see cref="UIElement"/> instance.
         /// </summary>
         [Category("Layout")]
         [Browsable(false)]
         [XmlIgnore]
         [JsonIgnore]
-        public UIElement? Parent { get; protected set; }
+        public UIElement? Parent { get => parent; internal set => SetProperty(ref parent, value); }
 
         /// <summary>
-        /// Gets or sets the origin point for transforms.
+        /// Gets or sets the offset applied to the <see cref="UIElement"/> at rendering.
         /// </summary>
         /// <remarks>
-        /// The origin is specified as a relative point, where (0,0) is the top-left
-        /// and (1,1) is the bottom-right of the <see cref="UIElement"/> instance.
+        /// <para>
+        /// The value represents pixels offset from the original rendering location for the <see cref="UIElement"/> instance.
+        /// </para>
+        /// <para>
+        /// The <see cref="RenderOffset"/> is used only at rendering and does not affect real element layout.
+        /// </para>
         /// </remarks>
         [Category("Transform")]
-        [DefaultValue(typeof(Vector2), "0.5,0.5")]
-        [DependencyProperty]
-        [AffectsArrange]
+        [DefaultValue(typeof(Vector2), "0,0")]
+        [RegisterReference]
         [AffectsTransform]
-        public Vector2 RenderTransformOrigin { get => GetValue<Vector2>(); set => SetValue(value); }
+        public Vector2 RenderOffset
+        {
+            get => renderOffset;
+            set
+            {
+                if (SetProperty(ref renderOffset, value))
+                {
+                    InvalidateVisual();
+                }
+            }
+        }
 
         /// <summary>
-        /// Gets or sets the rotation of the <see cref="UIElement"/> instance in degrees.
+        /// Gets or sets the rotation of the <see cref="UIElement"/> instance in degrees, applied to element while rendering.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Values are normalized to the range 0-360 degrees.
+        /// </para>
+        /// <para>
+        /// The <see cref="RenderRotation"/> is used only at rendering and does not affect real element layout.
+        /// </para>
         /// </remarks>
         [Category("Transform")]
         [DefaultValue(0.0f)]
         [Range(0.0f, 360.0f)]
-        [DependencyProperty]
-        [AffectsArrange]
-        public float Rotation { get => GetValue<float>(); set => SetValue(value); }
+        [RegisterReference]
+        [AffectsTransform]
+        public float RenderRotation
+        {
+            get => renderRotation;
+            set
+            {
+                value = (value + 360f) % 360f;
+
+                if (SetProperty(ref renderRotation, value))
+                {
+                    InvalidateVisual();
+                }
+            }
+        }
 
         /// <summary>
-        /// Gets or sets the scale of the <see cref="UIElement"/> instance.
+        /// Gets or sets the rendering scale of the <see cref="UIElement"/> instance.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// A scale of (1,1) represents the original size.
+        /// </para>
+        /// <para>
+        /// The <see cref="RenderScale"/> is used only at rendering and does not affect real element layout.
+        /// </para>
         /// </remarks>
         [Category("Transform")]
         [DefaultValue(typeof(Vector2), "1,1")]
-        [DependencyProperty]
-        [AffectsArrange]
+        [RegisterReference]
         [AffectsTransform]
-        public Vector2 Scale { get => GetValue<Vector2>(); set => SetValue(value); }
+        public Vector2 RenderScale
+        {
+            get => renderScale;
+            set
+            {
+                if (SetProperty(ref renderScale, value))
+                {
+                    InvalidateVisual();
+                }
+            }
+        }
 
         /// <summary>
-        /// Gets or sets the width of the <see cref="UIElement"/> instance.
+        /// Gets the actual render size of the component.
+        /// </summary>
+        [Browsable(false)]
+        [XmlIgnore]
+        [JsonIgnore]
+        public Size RenderSize => new((int)(ActualBounds.Width * LayoutScale.X * RenderScale.X), (int)(ActualBounds.Height * LayoutScale.Y * RenderScale.Y));
+
+        /// <summary>
+        /// Gets or sets the origin point for transforms used at <see cref="UIElement"/> rendering.
         /// </summary>
         /// <remarks>
-        /// If set to <see cref="float.NaN"/>, the <see cref="UIElement"/> will size to its content.
+        /// <para>
+        /// The origin is specified as a relative point, where (0,0) is the top-left
+        /// and (1,1) is the bottom-right of the <see cref="UIElement"/> instance.
+        /// </para>
+        /// <para>
+        /// The <see cref="RenderTransformOrigin"/> is used only at rendering and does not affect real element layout.
+        /// </para>
         /// </remarks>
-        [Category("Layout")]
-        [DefaultValue(float.NaN)]
-        [DependencyProperty]
-        [AffectsMeasure]
-        [AffectsArrange]
-        public float Width { get => GetValue<float>(); set => SetValue(value); }
+        [Category("Transform")]
+        [DefaultValue(typeof(Vector2), "0.5,0.5")]
+        [RegisterReference]
+        [AffectsTransform]
+        public Vector2 RenderTransformOrigin
+        {
+            get => renderTransformOrigin;
+            set
+            {
+                if (SetProperty(ref renderTransformOrigin, value))
+                {
+                    InvalidateVisual();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the style applied to the <see cref="UIElement"/> instance.
+        /// </summary>
+        [Category("Appearance")]
+        [DefaultValue(null)]
+        [RegisterReference]
+        public Style? Style { get => style; set => SetProperty(ref style, style); }
 
         /// <summary>
         /// Gets or sets the vertical alignment of the <see cref="UIElement"/> instance.
@@ -273,52 +792,69 @@ namespace Icy.UI
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(VerticalAlignment.Stretch)]
-        [DependencyProperty]
+        [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
-        public VerticalAlignment VerticalAlignment { get => GetValue<VerticalAlignment>(); set => SetValue(value); }
-
-        /// <summary>
-        /// Gets or sets the flags that indicate whether the <see cref="UIElement"/> instance should recalculate any of layout properties.
-        /// </summary>
-        protected UpdateFlags LayoutInvalid
+        public VerticalAlignment VerticalAlignment
         {
-            get => updateFlags;
+            get => verticalAlignment;
             set
             {
-                if (updateFlags == value) return;
-                updateFlags = value;
-                Parent?.InvalidateArrange();
+                if (SetProperty(ref verticalAlignment, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
             }
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the transform of the <see cref="UIElement"/> is invalid.
+        /// Gets or sets the width of the <see cref="UIElement"/> instance.
         /// </summary>
-        protected bool IsTransformInvalid
+        /// <remarks>
+        /// If set to <see cref="float.NaN"/>, the <see cref="UIElement"/> will size to its content.
+        /// </remarks>
+        [Category("Layout")]
+        [DefaultValue(float.NaN)]
+        [RegisterReference]
+        [AffectsMeasure]
+        [AffectsArrange]
+        public float Width
         {
-            get => (LayoutInvalid & UpdateFlags.Transform) != 0;
+            get => width;
             set
             {
-                if (value)
-                    LayoutInvalid |= UpdateFlags.Transform;
-                else
-                    LayoutInvalid &= ~UpdateFlags.Transform;
+                if (!float.IsNaN(value))
+                {
+                    Guard.IsGreaterThanOrEqualTo(value, 0);
+                }
+
+                if (SetProperty(ref width, value))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
             }
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the measure of the <see cref="UIElement"/> is invalid.
+        /// Gets or sets the Z-layer position of the <see cref="UIElement"/> instance. The less the number, the closer <see cref="UIElement"/> instance to the screen front.
         /// </summary>
-        protected bool IsMeasureInvalid
+        /// <remarks>
+        /// Controls with the same Z-index are placed in visual tree order – those that are closer to root are farther from the screen.
+        /// </remarks>
+        [Category("Appearance")]
+        [DefaultValue(0)]
+        [RegisterReference]
+        public float ZIndex
         {
-            get => (LayoutInvalid & UpdateFlags.Measure) != 0;
+            get => layerIndex;
             set
             {
-                if (value)
-                    LayoutInvalid |= UpdateFlags.Measure;
-                else
-                    LayoutInvalid &= ~UpdateFlags.Measure;
+                if (SetProperty(ref layerIndex, value))
+                {
+                    InvalidateVisual();
+                }
             }
         }
 
@@ -338,138 +874,159 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the measure of the <see cref="UIElement"/> is invalid.
+        /// </summary>
+        protected bool IsMeasureInvalid
+        {
+            get => (LayoutInvalid & UpdateFlags.Measure) != 0;
+            set
+            {
+                if (value)
+                    LayoutInvalid |= UpdateFlags.Measure;
+                else
+                    LayoutInvalid &= ~UpdateFlags.Measure;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the transform of the <see cref="UIElement"/> is invalid.
+        /// </summary>
+        protected bool IsTransformInvalid
+        {
+            get => (LayoutInvalid & UpdateFlags.Transform) != 0;
+            set
+            {
+                if (value)
+                    LayoutInvalid |= UpdateFlags.Transform;
+                else
+                    LayoutInvalid &= ~UpdateFlags.Transform;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the visual configuration of the <see cref="UIElement"/> is invalid.
+        /// </summary>
+        protected bool IsVisualInvalid
+        {
+            get => (LayoutInvalid & UpdateFlags.Visual) != 0;
+            set
+            {
+                if (value)
+                    LayoutInvalid |= UpdateFlags.Visual;
+                else
+                    LayoutInvalid &= ~UpdateFlags.Visual;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the flags that indicate whether the <see cref="UIElement"/> instance should recalculate any of layout properties.
+        /// </summary>
+        protected UpdateFlags LayoutInvalid
+        {
+            get => updateFlags;
+            set
+            {
+                if (SetProperty(ref updateFlags, value))
+                    Parent?.InvalidateArrange();
+            }
+        }
+
+        /// <summary>
+        /// Gets the library configuration for the <see cref="UI.Canvas"/> instance the <see cref="UIElement"/> is attached to.
+        /// </summary>
+        protected IcyConfiguration? Configuration => Canvas?.Configuration;
+
+        /// <summary>
         /// Arranges the <see cref="UIElement"/> instance in specified container bounds.
         /// </summary>
         public void Arrange()
         {
             if (!IsArrangeInvalid) return;
+            Rectangle containerBounds = LogicalParent?.ContentBounds ?? default;
 
-            var containerBounds = Rectangle.Empty;
-            if (Parent != null)
-            {
-                containerBounds = Parent.ActualBounds - Parent.Padding;
-            }
-            else if (Canvas != null)
-            {
-                containerBounds = Canvas.Viewport;
-            }
-
-            var desiredSize = Measure();
-
-            // Every property call redirects to DependencyObject lookup so cache this property for fast access
-            var margin = Margin;
-
-            // Calculate total required space (content + margins)
-            var totalWidth = desiredSize.Width + margin.Width;
-            var totalHeight = desiredSize.Height + margin.Height;
+            // Get current desired size and actual margin to calculate effective size and margin.
+            var effectiveSize = Measure();
+            var effectiveMargin = Margin;
 
             // Calculate effective margins and size (without modifying properties)
-            var effectiveMargin = margin;
-            var effectiveSize = desiredSize;
-
-            var availableWidth = containerBounds.Width - margin.Width;
-            var availableHeight = containerBounds.Height - margin.Height;
-
-            // Handle horizontal size and overflow
-            if (HorizontalAlignment == HorizontalAlignment.Stretch)
-            {
-                effectiveSize.Width = (int)float.Clamp(availableWidth, MinWidth, MaxWidth);
-            }
-            else if (totalWidth > containerBounds.Width)
-            {
-                // Handle width overflow
-                if (availableWidth >= MinWidth)
-                {
-                    effectiveSize.Width = (int)float.Clamp(availableWidth, MinWidth, MaxWidth);
-                }
-                else
-                {
-                    var marginRatio = (float)containerBounds.Width / totalWidth;
-                    effectiveMargin = effectiveMargin with
-                    {
-                        Left = (int)(margin.Left * marginRatio),
-                        Right = (int)(margin.Right * marginRatio),
-                    };
-                }
-            }
-
-            // Handle vertical size and overflow
-            if (VerticalAlignment == VerticalAlignment.Stretch)
-            {
-                effectiveSize.Height = (int)float.Clamp(availableHeight, MinHeight, MaxHeight);
-            }
-            else if (totalHeight > containerBounds.Height)
-            {
-                // Handle vertical overflow
-                if (availableHeight >= MinHeight)
-                {
-                    effectiveSize.Height = (int)float.Clamp(availableHeight, MinHeight, MaxHeight);
-                }
-                else
-                {
-                    var marginRatio = (float)containerBounds.Height / totalHeight;
-                    effectiveMargin = effectiveMargin with
-                    {
-                        Top = (int)(margin.Top * marginRatio),
-                        Bottom = (int)(margin.Bottom * marginRatio),
-                    };
-                }
-            }
+            CalculateOverflow(
+                containerBounds,
+                effectiveSize.Width + effectiveMargin.Width,
+                effectiveSize.Height + effectiveMargin.Height,
+                ref effectiveMargin,
+                ref effectiveSize);
 
             // Calculate position using effective margins and size
-            availableWidth = containerBounds.Width - effectiveSize.Width;
-            availableHeight = containerBounds.Height - effectiveSize.Height;
+            Point location = CalculateLocation(containerBounds, effectiveSize, effectiveMargin);
 
-            int x = containerBounds.X + HorizontalAlignment switch
-            {
-                HorizontalAlignment.Center => (availableWidth / 2) + effectiveMargin.Left,
-                HorizontalAlignment.Right => availableWidth - effectiveMargin.Right,
-                _ => effectiveMargin.Left,
-            };
-
-            int y = containerBounds.Y + VerticalAlignment switch
-            {
-                VerticalAlignment.Center => (availableHeight / 2) + effectiveMargin.Top,
-                VerticalAlignment.Bottom => availableHeight - effectiveMargin.Bottom,
-                _ => effectiveMargin.Top,
-            };
-
-            // Adjust for border
-            x += BorderThickness.Left;
-            y += BorderThickness.Top;
-
-            Point location = new(x, y);
             ActualBounds = new(location, effectiveSize);
 
             InvalidateTransform();
             ArrangeContent();
-            ArrangeUpdated?.Invoke(this, EventArgs.Empty);
+            OnArrangeUpdated();
             IsArrangeInvalid = false;
         }
 
         /// <summary>
-        /// Calculates desired <see cref="UIElement"/> size.
+        /// Draws the <see cref="UIElement"/> instance using specified render context.
         /// </summary>
-        /// <returns>Size recommended to display the <see cref="UIElement"/> instance.</returns>
-        public Size Measure()
+        /// <param name="context">The context to render <see cref="UIElement"/> with.</param>
+        public void Draw(IRenderContext context)
         {
-            if (IsMeasureInvalid)
+            if (!IsVisible || Opacity <= 0)
+                return;
+
+            // Apply opacity
+            context.Options.Opacity *= Opacity;
+
+            // Save current transform
+            var oldTransform = context.Transform;
+
+            // Apply UI element transform
+            if (IsTransformInvalid) UpdateTransformMatrix();
+            if (IsVisualInvalid) UpdateVisual();
+            var newTransform = oldTransform;
+            newTransform.AddTransform(layoutTransform);
+            newTransform.AddTransform(renderTransform);
+            context.Transform = newTransform;
+
+            Rectangle oldScissor = context.Options.Scissor;
+
+            if (ClipToBounds)
             {
-                Size s = MeasureContent();
-                if (!float.IsNaN(Width))
-                    s.Width = (int)Width;
-                if (!float.IsNaN(Height))
-                    s.Height = (int)Height;
-                float resultWidth = float.Clamp(s.Width, MinWidth, MaxWidth);
-                float resultHeight = float.Clamp(s.Height, MinHeight, MaxHeight);
-                var internalThickness = Padding;
-                resultWidth += internalThickness.Width;
-                resultHeight += internalThickness.Height;
-                DesiredSize = new((int)resultWidth, (int)resultHeight);
-                IsMeasureInvalid = false;
+                context.Options.Scissor = context.Options.Scissor.Cut(ActualBounds);
             }
 
-            return DesiredSize;
+            TextureRenderingOptions renderOptions = new(
+                Destination: new(Point.Empty, ActualBounds.Size),
+                Source: null,
+                Color: Color.White,
+                Rotation: 0,
+                Origin: Vector2.Zero,
+                Depth: ZIndex);
+
+            // Draw background
+            Background?.Draw(context, renderOptions);
+
+            // Draw border
+            if (Border != null && BorderThickness != Thickness.Zero)
+            {
+                var drawArea = renderOptions.Destination + BorderThickness;
+
+                // Draw the border as its parts
+                Border.Draw(context, renderOptions with { Destination = drawArea with { Height = BorderThickness.Top } });
+                Border.Draw(context, renderOptions with { Destination = drawArea with { Width = BorderThickness.Left } });
+                Border.Draw(context, renderOptions with { Destination = drawArea with { Height = BorderThickness.Bottom, Y = drawArea.Bottom - BorderThickness.Bottom } });
+                Border.Draw(context, renderOptions with { Destination = drawArea with { Width = BorderThickness.Right, X = drawArea.Right - BorderThickness.Right } });
+            }
+
+            // Draw content
+            OnRender(context);
+
+            // Restore rendering context options.
+            context.Transform = oldTransform;
+            context.Options.Opacity /= Opacity;
+            context.Options.Scissor = oldScissor;
         }
 
         /// <summary>
@@ -500,14 +1057,84 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Invalidates visual configuration of the <see cref="UIElement"/> to recalculate it on next rendering.
+        /// </summary>
+        public void InvalidateVisual()
+        {
+            IsVisualInvalid = true;
+        }
+
+        /// <summary>
+        /// Calculates desired <see cref="UIElement"/> size.
+        /// </summary>
+        /// <returns>Size recommended to display the <see cref="UIElement"/> instance.</returns>
+        public Size Measure()
+        {
+            if (IsMeasureInvalid)
+            {
+                Size s = MeasureContent();
+                if (!float.IsNaN(Width))
+                    s.Width = (int)Width;
+                if (!float.IsNaN(Height))
+                    s.Height = (int)Height;
+                float resultWidth = float.Clamp(s.Width, MinWidth, MaxWidth);
+                float resultHeight = float.Clamp(s.Height, MinHeight, MaxHeight);
+                var internalThickness = Padding;
+                resultWidth += internalThickness.Width;
+                resultHeight += internalThickness.Height;
+                DesiredSize = new((int)resultWidth, (int)resultHeight);
+                IsMeasureInvalid = false;
+            }
+
+            return DesiredSize;
+        }
+
+        /// <summary>
         /// Resets the transform to its default values.
         /// </summary>
         public void ResetTransform()
         {
-            Scale = Vector2.One;
-            Rotation = 0;
-            RenderTransformOrigin = new(0.5f, 0.5f);
+            LayoutScale = Vector2.One;
+            LayoutRotation = 0;
+            LayoutTransformOrigin = new(0.5f, 0.5f);
+            LayoutOffset = Vector2.Zero;
             InvalidateTransform();
+        }
+
+        /// <summary>
+        /// Resets the rendering transform to its default values.
+        /// </summary>
+        public void ResetVisual()
+        {
+            RenderScale = Vector2.One;
+            RenderRotation = 0;
+            RenderTransformOrigin = new(0.5f, 0.5f);
+            RenderOffset = Vector2.Zero;
+            InvalidateVisual();
+        }
+
+        /// <summary>
+        /// Handles custom arrange logic when overridden in any <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This method is called during the arrange pass to position and size the element's content
+        /// within its final bounds. The element's position and size are already determined by the
+        /// layout system and available in the <see cref="ActualBounds"/> property.
+        /// </para>
+        /// <para>
+        /// When implementing this method:
+        /// <list type="bullet">
+        ///     <item>Position child elements within the available space;</item>
+        ///     <item>Respect the element's padding when positioning content;</item>
+        ///     <item>Handle any content-specific layout requirements;</item>
+        ///     <item>Call <see cref="Arrange"/> on child elements if needed.</item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        protected virtual void ArrangeContent()
+        {
+            // Base implementation does nothing.
         }
 
         /// <summary>
@@ -537,27 +1164,88 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Handles custom arrange logic when overridden in any <see cref="UIElement"/> instance.
+        /// Raises the <see cref="ArrangeUpdated"/> event.
         /// </summary>
-        /// <remarks>
-        /// <para>
-        /// This method is called during the arrange pass to position and size the element's content
-        /// within its final bounds. The element's position and size are already determined by the
-        /// layout system and available in the <see cref="ActualBounds"/> property.
-        /// </para>
-        /// <para>
-        /// When implementing this method:
-        /// <list type="bullet">
-        ///     <item>Position child elements within the available space;</item>
-        ///     <item>Respect the element's padding when positioning content;</item>
-        ///     <item>Handle any content-specific layout requirements;</item>
-        ///     <item>Call <see cref="Arrange"/> on child elements if needed.</item>
-        /// </list>
-        /// </para>
-        /// </remarks>
-        protected virtual void ArrangeContent()
+        protected virtual void OnArrangeUpdated()
         {
-            // Base implementation does nothing.
+            ArrangeUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="LocationChanged"/> event.
+        /// </summary>
+        protected virtual void OnLocationChanged()
+        {
+            LocationChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="OpacityChanged"/> event.
+        /// </summary>
+        protected virtual void OnOpacityChanged()
+        {
+            OpacityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Handles custom render logic when overridden in any <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <param name="context">The context to render with.</param>
+        protected virtual void OnRender(IRenderContext context)
+        {
+            // Base implementation does nothing
+        }
+
+        /// <summary>
+        /// Raises the <see cref="SizeChanged"/> event.
+        /// </summary>
+        protected virtual void OnSizeChanged()
+        {
+            SizeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="TransformUpdated"/> event.
+        /// </summary>
+        protected virtual void OnTransformUpdated()
+        {
+            TransformUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="VisibilityChanged"/> event.
+        /// </summary>
+        protected virtual void OnVisibilityChanged()
+        {
+            VisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="Attached"/> event.
+        /// </summary>
+        protected virtual void OnAttached()
+        {
+            Attached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="Detached"/> event.
+        /// </summary>
+        protected virtual void OnDetached()
+        {
+            Detached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Recalculated default rendering options used for background drawing in the <see cref="UIElement"/> instance.
+        /// </summary>
+        protected void UpdateVisual()
+        {
+            renderTransform = Transform2D.Create(
+                RenderOffset,
+                float.DegreesToRadians(RenderRotation),
+                RenderTransformOrigin * new Vector2(ActualBounds.Width, ActualBounds.Height),
+                RenderScale);
         }
 
         /// <summary>
@@ -565,58 +1253,92 @@ namespace Icy.UI
         /// </summary>
         protected void UpdateTransformMatrix()
         {
-            Arrange();
-            transform = Transform2D.Create(
-                ActualBounds.Location.ToVector(),
-                float.DegreesToRadians(Rotation),
-                RenderTransformOrigin * new Vector2(ActualBounds.Width, ActualBounds.Height),
-                Scale);
-            if (Matrix3x2.Invert(transform.Matrix, out var inverseMatrix))
-                inverseTransform = Transform2D.Create(inverseMatrix);
-            IsTransformInvalid = false;
-        }
-
-        /// <summary>
-        /// Gets a value for the specified dependency property of the current <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <typeparam name="T">Requested value type (check for nullability).</typeparam>
-        /// <param name="propertyName">Name of the dependency property to get value for.</param>
-        /// <returns>
-        /// A value of the specified dependency property of the current <see cref="UIElement"/> instance.
-        /// If value is not set, the default value from the property metadata is used.
-        /// </returns>
-        protected T GetValue<T>([CallerMemberName][DisallowNull] string? propertyName = null!)
-        {
-            Guard.IsNotNull(propertyName);
-            object? actualValue = this.GetValue(propertyName) ??
-                                  this.GetDefaultValue(propertyName);
-            return (T)(actualValue ?? default(T));
-        }
-
-        /// <summary>
-        /// Sets a value to the specified dependency property of the current <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <typeparam name="T">Type of the value to set.</typeparam>
-        /// <param name="value">Value to set.</param>
-        /// <param name="propertyName">Name of the dependency property to set value for.</param>
-        protected void SetValue<T>(T value, [CallerMemberName][DisallowNull] string? propertyName = null!)
-        {
-            Guard.IsNotNull(propertyName);
-            this.SetValue(propertyName, value);
-        }
-
-        /// <inheritdoc/>
-        protected override void OnValueSet(IDependencyProperty property, object? oldValue, object? newValue)
-        {
-            if (property.Metadata is DependencyPropertyMetadata metadata)
+            if (IsTransformInvalid)
             {
-                if (metadata.AffectsTransform) InvalidateTransform();
-                if (metadata.AffectsArrange) InvalidateArrange();
-                if (metadata.AffectsMeasure) InvalidateMeasure();
-                if (metadata.AffectsParentMeasure) Parent?.InvalidateMeasure();
+                Arrange();
+                layoutTransform = Transform2D.Create(
+                    LayoutOffset + ActualBounds.Location.ToVector(),
+                    float.DegreesToRadians(LayoutRotation),
+                    LayoutTransformOrigin * ActualBounds.Size.AsVector(),
+                    LayoutScale);
+                if (Matrix3x2.Invert(layoutTransform.Matrix, out var inverseMatrix))
+                    inverseLayoutTransform = Transform2D.Create(inverseMatrix);
+                OnTransformUpdated();
+                IsTransformInvalid = false;
+            }
+        }
+
+        private Point CalculateLocation(Rectangle containerBounds, Size effectiveSize, Thickness effectiveMargin)
+        {
+            int availableWidth = containerBounds.Width - effectiveSize.Width;
+            int availableHeight = containerBounds.Height - effectiveSize.Height;
+
+            int x = containerBounds.X + HorizontalAlignment switch
+            {
+                HorizontalAlignment.Center | HorizontalAlignment.Stretch => (availableWidth / 2) + effectiveMargin.Left,
+                HorizontalAlignment.Right => availableWidth - effectiveMargin.Right,
+                _ => effectiveMargin.Left,
+            };
+            int y = containerBounds.Y + VerticalAlignment switch
+            {
+                VerticalAlignment.Center | VerticalAlignment.Stretch => (availableHeight / 2) + effectiveMargin.Top,
+                VerticalAlignment.Bottom => availableHeight - effectiveMargin.Bottom,
+                _ => effectiveMargin.Top,
+            };
+
+            return new(x, y);
+        }
+
+        private void CalculateOverflow(Rectangle containerBounds, int totalWidth, int totalHeight, ref Thickness effectiveMargin, ref Size effectiveSize)
+        {
+            int availableWidth = containerBounds.Width - effectiveMargin.Width;
+            int availableHeight = containerBounds.Height - effectiveMargin.Height;
+
+            // Handle horizontal size and overflow
+            if (HorizontalAlignment == HorizontalAlignment.Stretch && float.IsNaN(Width))
+            {
+                effectiveSize.Width = (int)float.Clamp(availableWidth, MinWidth, MaxWidth);
+            }
+            else if (totalWidth > containerBounds.Width)
+            {
+                // Handle width overflow
+                if (availableWidth >= MinWidth)
+                {
+                    effectiveSize.Width = (int)float.Clamp(availableWidth, MinWidth, MaxWidth);
+                }
+                else
+                {
+                    var marginRatio = (float)containerBounds.Width / totalWidth;
+                    effectiveMargin = effectiveMargin with
+                    {
+                        Left = (int)(margin.Left * marginRatio),
+                        Right = (int)(margin.Right * marginRatio),
+                    };
+                }
             }
 
-            base.OnValueSet(property, oldValue, newValue);
+            // Handle vertical size and overflow
+            if (VerticalAlignment == VerticalAlignment.Stretch && float.IsNaN(Height))
+            {
+                effectiveSize.Height = (int)float.Clamp(availableHeight, MinHeight, MaxHeight);
+            }
+            else if (totalHeight > containerBounds.Height)
+            {
+                // Handle vertical overflow
+                if (availableHeight >= MinHeight)
+                {
+                    effectiveSize.Height = (int)float.Clamp(availableHeight, MinHeight, MaxHeight);
+                }
+                else
+                {
+                    var marginRatio = (float)containerBounds.Height / totalHeight;
+                    effectiveMargin = effectiveMargin with
+                    {
+                        Top = (int)(margin.Top * marginRatio),
+                        Bottom = (int)(margin.Bottom * marginRatio),
+                    };
+                }
+            }
         }
     }
 }

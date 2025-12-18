@@ -1,14 +1,19 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using CommunityToolkit.Mvvm.Input;
 using Icy.Configuration;
 using Icy.Data;
+using Icy.MonoGame;
 using Icy.MonoGame.Configuration;
 using Icy.MonoGameSample.Samples;
+using Icy.Rendering.Brushes;
+using Icy.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using SharpDX.Direct3D9;
 using System;
+using System.Text;
 
 namespace Icy.MonoGameSample
 {
@@ -17,9 +22,12 @@ namespace Icy.MonoGameSample
         private readonly GraphicsDeviceManager graphics;
         private readonly SamplesRunner samplesRunner;
 
+        private readonly StringBuilder diagnosticsInfo = new();
+
         private SpriteBatch diagSb;
         private SpriteFont diagFont;
         private IcyConfiguration uiConfiguration;
+        private Canvas canvas;
 
         private Type unsafeMemoryStats = typeof(IcyConfiguration).Assembly.GetType("Hebron.Runtime.MemoryStats");
 
@@ -36,16 +44,18 @@ namespace Icy.MonoGameSample
             this.UseIcyUI();
 
             uiConfiguration = this.GetIcyConfiguration();
+            canvas = new(uiConfiguration);
 
             samplesRunner.Prepare([
-                new InputLoggingSample(this, uiConfiguration),
-                new FontsSample(this, uiConfiguration)
+                new InputLoggingSample(this, uiConfiguration, canvas),
+                new FontsSample(this, uiConfiguration, canvas),
+                //new UISample(this, uiConfiguration, canvas)
                 // TODO: add samples here.
                 ]);
 
-            var upCommand = new RelayCommand(_ => samplesRunner.Selection++);
-            var downCommand = new RelayCommand(_ => samplesRunner.Selection--);
-            var switchFullScreen = new RelayCommand(_ => 
+            var upCommand = new RelayCommand(() => samplesRunner.Selection++);
+            var downCommand = new RelayCommand(() => samplesRunner.Selection--);
+            var switchFullScreen = new RelayCommand(() => 
             {
                 if (!graphics.IsFullScreen) ToFullScreen();
                 else ToWindow();
@@ -91,9 +101,16 @@ namespace Icy.MonoGameSample
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.White);
+            canvas.Render();
             diagSb.Begin();
-            diagSb.DrawString(diagFont, $"Current test: {samplesRunner.CurrentSample.Name}. Use PgUp/PgDown to switch tests.", Vector2.One, Color.DarkGreen);
-            diagSb.DrawString(diagFont, $"FPS: {1 / gameTime.ElapsedGameTime.TotalSeconds}, Memory stats: Heap size = {GC.GetGCMemoryInfo().HeapSizeBytes}B, Memory excluding fragmentation = {GC.GetTotalMemory(false)}B, Total memory = {GC.GetTotalAllocatedBytes()}B Unsafe allocations={unsafeMemoryStats.GetProperty("Allocations").GetValue(null)}.", new(1, 20), Color.DarkGreen);
+            diagnosticsInfo.Clear();
+            diagnosticsInfo.Append("Current test:").Append(samplesRunner.CurrentSample.Name).AppendLine(". Use PgUp/PgDown to switch tests.")
+                           .Append("FPS: ").Append(1 / gameTime.ElapsedGameTime.TotalSeconds).AppendLine()
+                           .AppendLine("Memory stats:")
+                           .Append("Heap size:").Append(GC.GetGCMemoryInfo().HeapSizeBytes).Append('B').AppendLine()
+                           .Append("Memory excluding fragmentation: ").Append(GC.GetTotalMemory(false)).Append('B').AppendLine()
+                           .Append("Unsafe allocations: ").Append(unsafeMemoryStats.GetProperty("Allocations").GetValue(null)).Append('.').AppendLine();
+            diagSb.DrawString(diagFont, diagnosticsInfo.ToString(), Vector2.One, Color.DarkGreen);
             diagSb.End();
             base.Draw(gameTime);
         }

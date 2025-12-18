@@ -1,21 +1,18 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using System.ComponentModel;
-
 namespace Icy.Data.Markup
 {
     /// <summary>
-    /// Represents the metadata object for the <see cref="IDependencyProperty"/> instances.
+    /// Represents the metadata object for the <see cref="IPropertyReference"/> instances.
     /// </summary>
-    public class DependencyPropertyMetadata : PropertyMetadata
+    public class UIPropertyMetadata : PropertyMetadata
     {
         private readonly MetadataFlags flags = MetadataFlags.Bindable;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="DependencyPropertyMetadata"/> class.
+        /// Initializes a new instance of the <see cref="UIPropertyMetadata"/> class.
         /// </summary>
         /// <param name="defaultValue">The default value of the property.</param>
-        /// <param name="updateCallback">The callback on the property value update.</param>
         /// <param name="affectsTransform">A value indicating whether the property value change affects the element transform.</param>
         /// <param name="affectsArrange">A value indicating whether the property value change affects the element arrange.</param>
         /// <param name="affectsMeasure">A value indicating whether the property value change affects the element measure.</param>
@@ -25,9 +22,8 @@ namespace Icy.Data.Markup
         /// <param name="isAnimationProhibited">A value indicating whether the animation can't be applied for this property.</param>
         /// <param name="isAttached">A value indicating whether the property is attached property and doesn't exist in target type definition.</param>
         /// <param name="isBindable">A value indicating whether the property supports data bindings as target.</param>
-        public DependencyPropertyMetadata(
+        public UIPropertyMetadata(
             object? defaultValue,
-            PropertyChangedEventHandler? updateCallback,
             bool affectsTransform = false,
             bool affectsArrange = false,
             bool affectsMeasure = false,
@@ -37,7 +33,7 @@ namespace Icy.Data.Markup
             bool isAnimationProhibited = false,
             bool isAttached = false,
             bool isBindable = true)
-            : base(defaultValue, updateCallback)
+            : base(defaultValue)
         {
             flags = default;
             if (affectsTransform)
@@ -59,10 +55,12 @@ namespace Icy.Data.Markup
                 flags |= MetadataFlags.Bindable;
         }
 
-        public DependencyPropertyMetadata()
+        /// <summary>
+        /// Initializes a new instance of the <see cref="UIPropertyMetadata"/> class.
+        /// </summary>
+        public UIPropertyMetadata()
         {
         }
-
 
         [Flags]
         private enum MetadataFlags : byte
@@ -128,13 +126,12 @@ namespace Icy.Data.Markup
         /// </summary>
         /// <param name="prototype">An instance of the property metadata to make new one based on it.</param>
         /// <returns>New property metadata with the <see cref="IsAttached"/> property set to <see langword="true"/>.</returns>
-        internal static DependencyPropertyMetadata CreateAttached(PropertyMetadata prototype)
+        internal static UIPropertyMetadata CreateAttached(PropertyMetadata prototype)
         {
-            if (prototype is DependencyPropertyMetadata dp)
+            if (prototype is UIPropertyMetadata dp)
             {
                 return new(
                     dp.DefaultValue,
-                    dp.PropertyChangedCallback,
                     dp.AffectsTransform,
                     dp.AffectsArrange,
                     dp.AffectsMeasure,
@@ -149,7 +146,6 @@ namespace Icy.Data.Markup
             {
                 return new(
                     prototype.DefaultValue,
-                    prototype.PropertyChangedCallback,
                     false,
                     false,
                     false,

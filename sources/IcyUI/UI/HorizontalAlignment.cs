@@ -1,16 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Icy.UI
+﻿namespace Icy.UI
 {
+    /// <summary>
+    /// Defines the horizontal alignment of a UI element within its parent container.
+    /// </summary>
     public enum HorizontalAlignment
     {
+        /// <summary>
+        /// Aligns the UI element to the left of the parent container.
+        /// </summary>
         Left,
+
+        /// <summary>
+        /// Centers the UI element horizontally within the parent container.
+        /// </summary>
         Center,
+
+        /// <summary>
+        /// Aligns the UI element to the right of the parent container.
+        /// </summary>
         Right,
-        Stretch
+
+        /// <summary>
+        /// Stretches the UI element to fill the available horizontal space of the parent container.
+        /// </summary>
+        Stretch,
     }
 }

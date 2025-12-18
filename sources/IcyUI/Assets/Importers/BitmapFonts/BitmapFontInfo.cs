@@ -1,6 +1,5 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,9 +8,9 @@ using System.Xml.Linq;
 using CommunityToolkit.Diagnostics;
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
-using Icy.UI;
 using Icy.Data;
 using Icy.Rendering.Fonts;
+using Icy.UI;
 using static Icy.Assets.Importers.BitmapFonts.BitmapFont;
 
 namespace Icy.Assets.Importers.BitmapFonts

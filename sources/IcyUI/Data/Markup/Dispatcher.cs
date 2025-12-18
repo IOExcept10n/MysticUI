@@ -5,12 +5,12 @@ using CommunityToolkit.Diagnostics;
 namespace Icy.Data.Markup
 {
     /// <summary>
-    /// Represents a class that provides a functionality for dispatching all asynchronous calls synchronously.
+    /// Represents a class that provides a functionality for completing calls from multiple threads synchronously.
     /// </summary>
     public class Dispatcher
     {
         private static readonly Dictionary<Thread, Dispatcher> Dispatchers = [];
-
+        private readonly object lockObj = new();
         private readonly PriorityQueue<Action, DispatcherPriority> dispatchedActions = new();
 
         /// <summary>
@@ -25,7 +25,7 @@ namespace Icy.Data.Markup
         /// <summary>
         /// Gets or sets the amount of actions that can be performed per one update call.
         /// </summary>
-        public int DispatchedAmount { get; set; } = 10;
+        public int DispatchedAmount { get; set; } = 32;
 
         /// <summary>
         /// Gets the thread on which the dispatcher was made.
@@ -67,14 +67,17 @@ namespace Icy.Data.Markup
         /// <param name="priority">The priority for an action to complete.</param>
         public void Invoke(Action action, DispatcherPriority priority = DispatcherPriority.Normal)
         {
-            if (priority == DispatcherPriority.Send && CheckAccess())
+            lock (lockObj)
             {
-                action();
-                return;
-            }
-            else
-            {
-                dispatchedActions.Enqueue(action, priority);
+                if (priority == DispatcherPriority.Send && CheckAccess())
+                {
+                    action();
+                    return;
+                }
+                else
+                {
+                    dispatchedActions.Enqueue(action, priority);
+                }
             }
         }
 
@@ -102,17 +105,24 @@ namespace Icy.Data.Markup
         /// <summary>
         /// Updated the dispatcher, calls the first actions in the queue with priorities more or equal to given.
         /// </summary>
-        /// <param name="priority">The priority to execute operations with.</param>
+        /// <param name="priority">The maximal priority to execute operations with.</param>
         public void Update(DispatcherPriority priority)
         {
-            for (int i = 0; i < DispatchedAmount; i++)
+            lock (lockObj)
             {
-                if (dispatchedActions.TryPeek(out var action, out var currentPriority))
+                for (int i = 0; i < DispatchedAmount; i++)
                 {
-                    if (currentPriority > priority)
-                        return;
-                    dispatchedActions.Dequeue();
-                    action();
+                    if (dispatchedActions.TryPeek(out var action, out var currentPriority))
+                    {
+                        if (currentPriority > priority)
+                            return;
+                        dispatchedActions.Dequeue();
+                        action();
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
             }
         }

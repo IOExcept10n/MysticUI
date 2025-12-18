@@ -41,7 +41,7 @@ namespace Icy.Input.Diagnostics
         /// <summary>
         /// Occurs when any of <see cref="IInputEventSystem"/> events is captured.
         /// </summary>
-        public event EventHandler<LoggerEventInfo>? OnEvent;
+        public event EventHandler<EventInfo>? OnEvent;
 
         /// <summary>
         /// Defines the type of the input event.
@@ -227,7 +227,7 @@ namespace Icy.Input.Diagnostics
         private void RaiseEvent(InputEventType type, object? sender, EventArgs args)
         {
             if (sender is IInputEventProvider device)
-                OnEvent?.Invoke(this, new LoggerEventInfo(device, type, args));
+                OnEvent?.Invoke(this, new EventInfo(device, type, args));
         }
 
         private void Scroll_Scroll(object? sender, Data.GenericEventArgs<Events.ScrollInfo> e)
@@ -276,11 +276,11 @@ namespace Icy.Input.Diagnostics
         }
 
         /// <summary>
-        /// Provides arguments for the logger events.
+        /// Provides arguments for the logged events.
         /// </summary>
         /// <param name="InputEventListener">Gets an instance of the event listener that raised the event.</param>
         /// <param name="EventType">Gets the aggregated event type.</param>
         /// <param name="Args">Gets the arguments provided with an event.</param>
-        public readonly record struct LoggerEventInfo(IInputEventProvider InputEventListener, InputEventType EventType, EventArgs Args);
+        public readonly record struct EventInfo(IInputEventProvider InputEventListener, InputEventType EventType, EventArgs Args);
     }
 }

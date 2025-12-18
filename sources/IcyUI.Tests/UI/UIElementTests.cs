@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Numerics;
+using Icy.Data;
 using Icy.UI;
 using Xunit;
 
@@ -10,7 +11,19 @@ namespace Icy.Tests.UI
     {
         private class TestElement : UIElement
         {
-            public Size ContentSize { get; set; }
+            private Size contentSize;
+
+            public Size ContentSize
+            {
+                get => contentSize;
+                set
+                {
+                    if (SetProperty(ref contentSize, value))
+                    {
+                        InvalidateMeasure();
+                    }
+                }
+            }
 
             protected override Size MeasureContent()
             {
@@ -90,7 +103,7 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
-        public void Arrange_WithStretchAlignment_FillsAvailableSpace()
+        public void Arrange_WithStretchAlignment_ReturnsZeroBoundsOnEmptySpace()
         {
             // Arrange
             var element = new TestElement 
@@ -104,10 +117,7 @@ namespace Icy.Tests.UI
             element.Arrange();
 
             // Assert
-            Assert.Equal(0, element.ActualBounds.X);
-            Assert.Equal(0, element.ActualBounds.Y);
-            Assert.Equal(100, element.ActualBounds.Width);
-            Assert.Equal(50, element.ActualBounds.Height);
+            Assert.Equal(Rectangle.Empty, element.ActualBounds); // If the space is empty, zero bounds should be returned
         }
 
         [Fact]
@@ -125,8 +135,8 @@ namespace Icy.Tests.UI
             element.Arrange();
 
             // Assert
-            Assert.Equal(0, element.ActualBounds.X); // Center of 0-width container
-            Assert.Equal(0, element.ActualBounds.Y); // Center of 0-height container
+            Assert.Equal(0, element.ActualBounds.Center().X); // Center of 0-width container
+            Assert.Equal(0, element.ActualBounds.Center().Y); // Center of 0-height container
         }
 
         [Fact]

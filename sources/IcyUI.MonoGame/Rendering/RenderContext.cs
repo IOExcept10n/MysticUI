@@ -27,17 +27,25 @@ namespace Icy.MonoGame.Rendering
         {
             this.device = device;
             spriteBatch = new(device);
+            device.DeviceReset += (s, e) => ViewportResize?.Invoke(s, e);
             WhiteTexture = CreateTexture(2, 2, [Color.White, Color.White, Color.White, Color.White]);
+            Options = new RenderOptions(this);
         }
 
         /// <inheritdoc/>
-        public IRenderOptions Options => throw new NotImplementedException();
+        public event EventHandler? ViewportResize;
+
+        /// <inheritdoc/>
+        public IRenderOptions Options { get; }
 
         /// <inheritdoc/>
         public ITexture WhiteTexture { get; }
 
         /// <inheritdoc/>
         public Transform2D Transform { get; set; }
+
+        /// <inheritdoc/>
+        public System.Drawing.Size ViewportSize => new(device.PresentationParameters.BackBufferWidth, device.PresentationParameters.BackBufferHeight);
 
         /// <inheritdoc/>
         public void ApplyEffect(IEffect effect)
@@ -120,7 +128,7 @@ namespace Icy.MonoGame.Rendering
                 options.Source?.AsEngineRectangle(),
                 options.Color.AsEngineColor() * Options.Opacity,
                 options.Rotation + Transform.Rotation,
-                options.Origin + Transform.Origin,
+                options.Origin,
                 scale * Transform.Scale,
                 SpriteEffects.None,
                 options.Depth);
@@ -163,6 +171,15 @@ namespace Icy.MonoGame.Rendering
 
                 disposedValue = true;
             }
+        }
+
+        private class RenderOptions(RenderContext context) : IRenderOptions
+        {
+            public float Opacity { get; set; } = 1f;
+
+            public System.Drawing.Rectangle Scissor { get => context.device.ScissorRectangle.AsSystemRectangle(); set => context.device.ScissorRectangle = value.AsEngineRectangle(); }
+
+            public bool EnableEffects { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         }
     }
 }

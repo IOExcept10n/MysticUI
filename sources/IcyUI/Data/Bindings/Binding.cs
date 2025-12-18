@@ -4,8 +4,8 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Diagnostics;
-using Icy.UI;
 using Icy.Data.Markup;
+using Icy.UI;
 
 namespace Icy.Data.Bindings
 {
@@ -23,7 +23,7 @@ namespace Icy.Data.Bindings
         private bool isEnabled;
         private object? source;
         private IBindingTarget target;
-        private IDependencyProperty targetProperty;
+        private IPropertyReference targetProperty;
         private UpdateSourceTrigger trigger;
 
         /// <summary>
@@ -32,7 +32,7 @@ namespace Icy.Data.Bindings
         /// <param name="target">Target object to bind.</param>
         /// <param name="targetProperty">Property of the target object to bind to.</param>
         /// <param name="sourceProperty">Property path of the source object to access.</param>
-        public Binding(IDependencyObject target, IDependencyProperty targetProperty, IPropertyPath sourceProperty)
+        public Binding(IBindingTarget target, IPropertyReference targetProperty, IPropertyPath sourceProperty)
         {
             Guard.IsNotNull(target);
             Guard.IsNotNull(targetProperty);
@@ -143,9 +143,9 @@ namespace Icy.Data.Bindings
         /// Gets the target object to set values to.
         /// </summary>
         [MemberNotNull(nameof(target))]
-        public IDependencyObject Target
+        public IBindingTarget Target
         {
-            get => target ?? ThrowHelper.ThrowArgumentNullException<IDependencyObject>(nameof(target));
+            get => target ?? ThrowHelper.ThrowArgumentNullException<IBindingTarget>(nameof(target));
             internal set
             {
                 Guard.IsNotNull(value);
@@ -163,7 +163,7 @@ namespace Icy.Data.Bindings
         /// <summary>
         /// Gets or sets the property of the target object to access.
         /// </summary>
-        public IDependencyProperty TargetProperty
+        public IPropertyReference TargetProperty
         {
             get => targetProperty;
             [MemberNotNull(nameof(targetProperty))]
@@ -171,7 +171,7 @@ namespace Icy.Data.Bindings
             {
                 UnsubscribeTarget();
                 targetProperty = value;
-                if (value.Metadata is DependencyPropertyMetadata metadata)
+                if (value.Metadata is UIPropertyMetadata metadata)
                 {
                     if (!metadata.IsBindable)
                         ThrowHelper.ThrowArgumentException(nameof(value), "Cannot bind to non-bindable properties.");
@@ -257,7 +257,7 @@ namespace Icy.Data.Bindings
             {
                 if (FallbackValue != null)
                 {
-                    Target.SetValue(TargetProperty, FallbackValue);
+                    TargetProperty.SetRawValue(Target, FallbackValue);
                 }
                 else
                 {
@@ -278,7 +278,7 @@ namespace Icy.Data.Bindings
         /// <inheritdoc/>
         void IBinding.SetTarget(IBindingTarget target)
         {
-            Target = (IDependencyObject)target;
+            Target = target;
         }
 
         private object? ConvertValueToSource(object? value)
@@ -330,7 +330,7 @@ namespace Icy.Data.Bindings
             if (Source == null)
                 throw new BindingException("Source is null.");
             IsEnabled = false;
-            var value = Target.GetValue(TargetProperty);
+            var value = TargetProperty.GetRawValue(Target);
             object? result = ConvertValueToSource(value);
 
             Path.SetValue(Source, result);
@@ -345,11 +345,11 @@ namespace Icy.Data.Bindings
             var validation = TargetProperty.ValidationCallback?.Invoke(result!);
             if (validation == ValidationResult.Success)
             {
-                Target.SetValue(TargetProperty, result);
+                TargetProperty.SetRawValue(target, result);
             }
             else if (FallbackValue != null)
             {
-                Target.SetValue(TargetProperty, FallbackValue);
+                TargetProperty.SetRawValue(Target, FallbackValue);
             }
             else
             {

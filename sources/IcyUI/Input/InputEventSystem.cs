@@ -102,7 +102,7 @@ namespace Icy.Input
 
         private class KeyboardListener
         {
-            private readonly Dictionary<KeyGesture, (ICommand Command, object? Parameter)> commands = [];
+            private readonly Dictionary<KeyGesture, List<(ICommand Command, object? Parameter)>> commands = [];
             private readonly IInputSystem input;
 
             private IKeyboardInput? keyboard;
@@ -120,7 +120,12 @@ namespace Icy.Input
 
             public void AddCommand(ICommand command, KeyGesture gesture, object? argument)
             {
-                commands.Add(gesture, (command, argument));
+                if (!commands.TryGetValue(gesture, out var list))
+                {
+                    commands[gesture] = list = [];
+                }
+
+                list.Add((command, argument));
             }
 
             public void RemoveGesture(KeyGesture gesture)
@@ -142,9 +147,15 @@ namespace Icy.Input
                     return;
 
                 var gesture = new KeyGesture(e.Data, keyboard.ModifierKeys);
-                if (commands.TryGetValue(gesture, out var args) && args.Command.CanExecute(args.Parameter))
+                if (commands.TryGetValue(gesture, out var list))
                 {
-                    args.Command.Execute(args.Parameter);
+                    foreach (var (command, parameter) in list)
+                    {
+                        if (command.CanExecute(parameter))
+                        {
+                            command.Execute(parameter);
+                        }
+                    }
                 }
             }
 

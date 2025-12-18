@@ -2,9 +2,9 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
-using Icy.UI;
 using Icy.Data;
 using Icy.Input.Devices;
+using Icy.UI;
 
 namespace Icy.Input.Events
 {

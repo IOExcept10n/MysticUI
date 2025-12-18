@@ -29,12 +29,16 @@ namespace Icy.Input.Devices
                 key = ParseKey(s[(lastPlus + 1)..]);
             }
 
-            s = s[..lastPlus];
-
             ModifierKeys modifiers = ModifierKeys.None;
-            foreach (var token in s.Tokenize('+'))
+
+            if (lastPlus != -1)
             {
-                modifiers |= ParseModifier(token);
+                s = s[..lastPlus];
+
+                foreach (var token in s.Tokenize('+'))
+                {
+                    modifiers |= ParseModifier(token);
+                }
             }
 
             return new(key, modifiers);

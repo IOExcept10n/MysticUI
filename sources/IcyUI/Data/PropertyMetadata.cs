@@ -5,7 +5,7 @@ using System.ComponentModel;
 namespace Icy.Data
 {
     /// <summary>
-    /// Provides the default metadata for any kind of properties.
+    /// Provides the annotated metadata for properties.
     /// </summary>
     public class PropertyMetadata
     {
@@ -20,15 +20,13 @@ namespace Icy.Data
         /// Initializes a new instance of the <see cref="PropertyMetadata"/> class.
         /// </summary>
         /// <param name="defaultValue">Default property value.</param>
-        /// <param name="propertyChangedCallback">The callback on the property value update.</param>
-        public PropertyMetadata(object? defaultValue, PropertyChangedEventHandler? propertyChangedCallback)
+        public PropertyMetadata(object? defaultValue)
         {
             DefaultValue = defaultValue;
-            PropertyChangedCallback = propertyChangedCallback;
         }
 
         /// <summary>
-        /// Gets the dedault metadata for any property.
+        /// Gets the default metadata for any property.
         /// </summary>
         public static PropertyMetadata Default { get; } = new();
 
@@ -36,10 +34,5 @@ namespace Icy.Data
         /// Gets the default value for this property, if specified.
         /// </summary>
         public object? DefaultValue { get; }
-
-        /// <summary>
-        /// Gets the event callback on property change.
-        /// </summary>
-        public PropertyChangedEventHandler? PropertyChangedCallback { get; }
     }
 }
