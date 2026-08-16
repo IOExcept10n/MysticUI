@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>Icy.StrideSample</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Stride.Core" Version="4.2.0.2122" />
+    <PackageReference Include="Stride.Engine" Version="4.2.0.2122" />
+    <PackageReference Include="Stride.Graphics" Version="4.2.0.2122" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IcyUI.Stride\IcyUI.Stride.csproj" />
+    <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
+  </ItemGroup>
+</Project>
