@@ -37,9 +37,6 @@ namespace Icy.UI
     public class UIElement : DependencyObject// , INotifyFocusChanged
     {
         private Rectangle actualBounds;
-        private IBrush background = new SolidColorBrush(Color.Transparent);
-        private IBrush? border;
-        private Thickness borderThickness;
         private Canvas? canvas;
         private bool clipToBounds = true;
         private Size desiredSize;
@@ -168,53 +165,6 @@ namespace Icy.UI
                 }
 
                 SetProperty(ref actualBounds, value);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the background brush of the <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <value>
-        /// The brush used to paint the background of the element. The default is
-        /// a transparent solid color brush.
-        /// </value>
-        /// <remarks>
-        /// The background is drawn before any content or children of the element.
-        /// </remarks>
-        [Category("Appearance")]
-        [DefaultValue(typeof(SolidColorBrush), "Transparent")]
-        [RegisterReference]
-        public IBrush Background { get => background; set => SetProperty(ref background, value); }
-
-        /// <summary>
-        /// Gets or sets the border brush of the <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <value>
-        /// The brush used to paint the border of the element. The default is <see langword="null"/>.
-        /// </value>
-        [Category("Appearance")]
-        [DefaultValue(null)]
-        [RegisterReference]
-        public IBrush? Border { get => border; set => SetProperty(ref border, value); }
-
-        /// <summary>
-        /// Gets or sets the thickness of the border around <see cref="UIElement"/> instance.
-        /// </summary>
-        [Category("Layout")]
-        [DefaultValue(typeof(Thickness), "0,0,0,0")]
-        [RegisterReference]
-        [AffectsArrange]
-        [AffectsMeasure]
-        public Thickness BorderThickness
-        {
-            get => borderThickness;
-            set
-            {
-                if (SetProperty(ref borderThickness, value))
-                {
-                    InvalidateMeasure();
-                    InvalidateArrange();
-                }
             }
         }
 
@@ -997,29 +947,6 @@ namespace Icy.UI
                 context.Options.Scissor = context.Options.Scissor.Cut(ActualBounds);
             }
 
-            TextureRenderingOptions renderOptions = new(
-                Destination: new(Point.Empty, ActualBounds.Size),
-                Source: null,
-                Color: Color.White,
-                Rotation: 0,
-                Origin: Vector2.Zero,
-                Depth: ZIndex);
-
-            // Draw background
-            Background?.Draw(context, renderOptions);
-
-            // Draw border
-            if (Border != null && BorderThickness != Thickness.Zero)
-            {
-                var drawArea = renderOptions.Destination + BorderThickness;
-
-                // Draw the border as its parts
-                Border.Draw(context, renderOptions with { Destination = drawArea with { Height = BorderThickness.Top } });
-                Border.Draw(context, renderOptions with { Destination = drawArea with { Width = BorderThickness.Left } });
-                Border.Draw(context, renderOptions with { Destination = drawArea with { Height = BorderThickness.Bottom, Y = drawArea.Bottom - BorderThickness.Bottom } });
-                Border.Draw(context, renderOptions with { Destination = drawArea with { Width = BorderThickness.Right, X = drawArea.Right - BorderThickness.Right } });
-            }
-
             // Draw content
             OnRender(context);
 
@@ -1237,7 +1164,8 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Recalculated default rendering options used for background drawing in the <see cref="UIElement"/> instance.
+        /// Recalculates the render transform based on the current <see cref="RenderOffset"/>, <see cref="RenderRotation"/>,
+        /// <see cref="RenderTransformOrigin"/>, and <see cref="RenderScale"/> properties.
         /// </summary>
         protected void UpdateVisual()
         {
@@ -1247,6 +1175,19 @@ namespace Icy.UI
                 RenderTransformOrigin * new Vector2(ActualBounds.Width, ActualBounds.Height),
                 RenderScale);
         }
+
+        /// <summary>
+        /// Computes the default local-space <see cref="TextureRenderingOptions"/> for this <see cref="UIElement"/>
+        /// instance, covering its full <see cref="ActualBounds"/> at full opacity/white tint, ready to hand to an <see cref="IBrush"/>.
+        /// </summary>
+        /// <returns>The default rendering options for this element's content area.</returns>
+        protected TextureRenderingOptions GetDefaultRenderOptions() => new(
+            Destination: new(Point.Empty, ActualBounds.Size),
+            Source: null,
+            Color: Color.White,
+            Rotation: 0,
+            Origin: Vector2.Zero,
+            Depth: ZIndex);
 
         /// <summary>
         /// Calculates transform matrix and inverse matrix based on the current transform properties.

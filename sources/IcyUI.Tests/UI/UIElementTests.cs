@@ -157,22 +157,5 @@ namespace Icy.Tests.UI
             Assert.Equal(20, element.ActualBounds.Y);
         }
 
-        [Fact]
-        public void Arrange_WithBorder_IncludesBorderInPosition()
-        {
-            // Arrange
-            var element = new TestElement 
-            { 
-                ContentSize = new Size(100, 50),
-                BorderThickness = new Thickness(5, 10, 15, 20)
-            };
-
-            // Act
-            element.Arrange();
-
-            // Assert
-            Assert.Equal(5, element.ActualBounds.X);
-            Assert.Equal(10, element.ActualBounds.Y);
-        }
     }
 } 

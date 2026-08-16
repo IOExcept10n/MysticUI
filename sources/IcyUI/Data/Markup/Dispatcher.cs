@@ -1,5 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Collections.Concurrent;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Bindings;
 
@@ -10,7 +11,7 @@ namespace Icy.Data.Markup
     /// </summary>
     public class Dispatcher
     {
-        private static readonly Dictionary<Thread, Dispatcher> Dispatchers = [];
+        private static readonly ConcurrentDictionary<Thread, Dispatcher> Dispatchers = new();
         private readonly object lockObj = new();
         private readonly PriorityQueue<Action, DispatcherPriority> dispatchedActions = new();
         private readonly HashSet<IBinding> frameBindings = [];
@@ -40,12 +41,7 @@ namespace Icy.Data.Markup
         /// <returns>The dispatcher for the current thread.</returns>
         public static Dispatcher GetCurrentThreadDispatcher()
         {
-            if (!Dispatchers.TryGetValue(Thread.CurrentThread, out var result))
-            {
-                result = Dispatchers[Thread.CurrentThread] = new Dispatcher(Thread.CurrentThread);
-            }
-
-            return result;
+            return Dispatchers.GetOrAdd(Thread.CurrentThread, static thread => new Dispatcher(thread));
         }
 
         /// <summary>

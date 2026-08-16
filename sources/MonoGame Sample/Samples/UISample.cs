@@ -24,7 +24,7 @@ namespace Icy.MonoGameSample.Samples
             Canvas.Add(new TestElement()
             {
                 Background = new SolidColorBrush(Color.Aqua.AsSystemColor()),
-                Border = new SolidColorBrush(Color.Black.AsSystemColor()),
+                BorderBrush = new SolidColorBrush(Color.Black.AsSystemColor()),
                 BorderThickness = new(2),
                 Width = 80,
                 Height = 40,
@@ -36,7 +36,7 @@ namespace Icy.MonoGameSample.Samples
             test = new TestElement()
             {
                 Background = new SolidColorBrush(Color.Lime.AsSystemColor()),
-                Border = new SolidColorBrush(Color.Black.AsSystemColor()),
+                BorderBrush = new SolidColorBrush(Color.Black.AsSystemColor()),
                 BorderThickness = new(2),
                 Width = 80,
                 Height = 40,
@@ -51,7 +51,7 @@ namespace Icy.MonoGameSample.Samples
             Canvas.Add(new TestElement()
             {
                 Background = new SolidColorBrush(Color.PeachPuff.AsSystemColor()),
-                Border = new SolidColorBrush(Color.Black.AsSystemColor()),
+                BorderBrush = new SolidColorBrush(Color.Black.AsSystemColor()),
                 BorderThickness = new(2),
                 Width = 80,
                 Height = 40,
@@ -75,7 +75,7 @@ namespace Icy.MonoGameSample.Samples
             base.LoadContent();
         }
 
-        private class TestElement : UIElement
+        private class TestElement : Border
         {
         }
     }
