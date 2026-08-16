@@ -1,37 +1,65 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using Icy.Data.Markup;
 
 namespace Icy.UI.Styles
 {
-    public class Style
+    /// <summary>
+    /// Represents a set of property values (and, optionally, <see cref="VisualStateGroup"/>s) applied to every
+    /// <see cref="UIElement"/> whose <see cref="UIElement.Style"/> is set to this instance.
+    /// </summary>
+    /// <param name="targetType">The type of element this style is meant to be applied to.</param>
+    public class Style(Type targetType)
     {
-        public Type TargetType { get; }
-        public Dictionary<string, object> Setters { get; }
-        public List<VisualStateGroup> StateGroups { get; }
+        /// <summary>
+        /// Gets the type of element this style is meant to be applied to.
+        /// </summary>
+        public Type TargetType { get; } = targetType;
+
+        /// <summary>
+        /// Gets the property values this style sets, keyed by property name.
+        /// </summary>
+        /// <remarks>
+        /// Resolved against <see cref="PropertyRegistry"/> when applied (see <see cref="Apply(UIElement)"/>), so
+        /// only properties registered via <see cref="Icy.Data.Markup.Attributes.RegisterReferenceAttribute"/> (or
+        /// an attached property) can be targeted by name here.
+        /// </remarks>
+        public Dictionary<string, object?> Setters { get; } = [];
+
+        /// <summary>
+        /// Gets the visual-state groups this style registers on every element it's applied to.
+        /// </summary>
+        public List<VisualStateGroup> StateGroups { get; } = [];
+
+        /// <summary>
+        /// Gets or sets a style this style inherits setters and state groups from.
+        /// </summary>
+        /// <remarks>
+        /// Applied first, so this style's own setters/state groups take precedence when both set the same property.
+        /// </remarks>
         public Style? BasedOn { get; set; }
 
+        /// <summary>
+        /// Applies this style's setters and state groups to <paramref name="control"/>.
+        /// </summary>
+        /// <param name="control">The element to apply this style to.</param>
         public void Apply(UIElement control)
         {
-            // Apply base setters
-            foreach (var setter in Setters)
+            BasedOn?.Apply(control);
+
+            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(control.GetType());
+            foreach (KeyValuePair<string, object?> setter in Setters)
             {
-                var property = control.GetType().GetProperty(setter.Key);
-                if (property != null)
+                if (store.TryGetProperty(setter.Key, out IPropertyReference? property))
                 {
-                    property.SetValue(control, setter.Value);
+                    property.SetTierValue(control, PropertyValuePrecedence.Style, setter.Value);
                 }
             }
 
-            // Apply state groups
-            //foreach (var group in StateGroups)
-            //{
-            //    control.RegisterStateGroup(group);
-            //}
-
-            BasedOn?.Apply(control);
+            foreach (VisualStateGroup group in StateGroups)
+            {
+                control.RegisterStateGroup(group);
+            }
         }
     }
 }

@@ -50,10 +50,13 @@ namespace Icy.Data.Markup
         /// <inheritdoc/>
         public void NotifyLocalValueChanged(object target)
         {
-            // No tier has ever touched this target/property, so there is nothing to fall back to yet:
-            // skip creating bookkeeping for the common case of a never-styled, never-animated property.
-            if (!precedenceEntries.TryGetValue(target, out PrecedenceEntry? entry) || entry.IsApplyingTier)
+            PrecedenceEntry entry = precedenceEntries.GetValue(target, t => new PrecedenceEntry(GetRawValue(t)));
+
+            // Reentrant call from ApplyWinningValue itself (a tier's SetRawValue triggers the same PropertyChanged
+            // hook this method is called from) - not a genuine local assignment, ignore it.
+            if (entry.IsApplyingTier)
                 return;
+
             entry.BaseValue = GetRawValue(target);
             entry.HasLocalValue = true;
         }

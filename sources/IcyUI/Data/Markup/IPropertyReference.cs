@@ -100,11 +100,12 @@ namespace Icy.Data.Markup
         /// </summary>
         /// <param name="target">The object whose property value changed.</param>
         /// <remarks>
-        /// If <paramref name="target"/> currently has one or more active precedence tiers registered via
-        /// <see cref="SetTierValue(object, PropertyValuePrecedence, object?)"/>, the newly-observed value becomes
-        /// the value tiers fall back to once they are all cleared — matching local assignment's top-of-precedence
-        /// behavior. Targets that have never had a tier applied are ignored at effectively no cost, since there is
-        /// nothing to fall back to yet.
+        /// Marks the newly-observed value as the current local value, which always outranks every precedence tier
+        /// (see <see cref="SetTierValue(object, PropertyValuePrecedence, object?)"/>) — including ones applied
+        /// later — until <see cref="ClearLocalValue(object)"/> is called. This is also the value tiers fall back
+        /// to once they're all cleared. Call sites that always fire on every property change (e.g. a
+        /// <c>PropertyChanged</c> hook) can call this unconditionally: a target that's never had a tier or a local
+        /// assignment applied has no bookkeeping to create here beyond a single lazily-allocated entry.
         /// </remarks>
         void NotifyLocalValueChanged(object target);
 

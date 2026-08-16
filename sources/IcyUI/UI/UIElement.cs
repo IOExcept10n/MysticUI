@@ -36,9 +36,12 @@ namespace Icy.UI
     /// </remarks>
     public class UIElement : DependencyObject// , INotifyFocusChanged
     {
+        private readonly Dictionary<VisualStateGroup, VisualState?> activeStates = [];
+        private readonly List<VisualStateGroup> stateGroups = [];
         private Rectangle actualBounds;
         private Canvas? canvas;
         private bool clipToBounds = true;
+        private ControlState controlState;
         private Size desiredSize;
         private Color foreground = Color.Black;
         private float height = float.NaN;
@@ -567,7 +570,9 @@ namespace Icy.UI
             get => opacity;
             set
             {
-                Guard.IsInRange(value, 0, 1);
+                // Guard.IsInRange uses an exclusive upper bound ([min, max)); Opacity's valid range - and its own
+                // [DefaultValue(1.0f)] - is inclusive at both ends ([0, 1]), so IsBetweenOrEqualTo is the correct guard.
+                Guard.IsBetweenOrEqualTo(value, 0, 1);
 
                 if (SetProperty(ref opacity, value))
                 {
@@ -732,7 +737,48 @@ namespace Icy.UI
         [Category("Appearance")]
         [DefaultValue(null)]
         [RegisterReference]
-        public Style? Style { get => style; set => SetProperty(ref style, value); }
+        public Style? Style
+        {
+            get => style;
+            set
+            {
+                Style? oldStyle = style;
+                if (!SetProperty(ref style, value))
+                    return;
+
+                if (oldStyle != null)
+                {
+                    RevertStyle(oldStyle);
+                }
+
+                value?.Apply(this);
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the combination of <see cref="ControlState"/> flags currently active on this element.
+        /// </summary>
+        /// <remarks>
+        /// Setting this re-evaluates every group registered via <see cref="RegisterStateGroup(VisualStateGroup)"/>,
+        /// switching each group's active <see cref="VisualState"/> (if any) to whichever state's flags form the
+        /// largest subset of the new value.
+        /// </remarks>
+        [Category("Appearance")]
+        [DefaultValue(ControlState.Normal)]
+        [RegisterReference]
+        public ControlState ControlState
+        {
+            get => controlState;
+            set
+            {
+                if (!SetProperty(ref controlState, value))
+                    return;
+                foreach (VisualStateGroup group in stateGroups)
+                {
+                    ApplyBestMatchingState(group);
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the vertical alignment of the <see cref="UIElement"/> instance.
@@ -989,6 +1035,33 @@ namespace Icy.UI
         public void InvalidateVisual()
         {
             IsVisualInvalid = true;
+        }
+
+        /// <summary>
+        /// Registers a visual-state group on this element, immediately applying whichever of its states best
+        /// matches the current <see cref="ControlState"/>.
+        /// </summary>
+        /// <param name="group">The group to register.</param>
+        public void RegisterStateGroup(VisualStateGroup group)
+        {
+            if (!stateGroups.Contains(group))
+            {
+                stateGroups.Add(group);
+                ApplyBestMatchingState(group);
+            }
+        }
+
+        /// <summary>
+        /// Unregisters a visual-state group previously added via <see cref="RegisterStateGroup(VisualStateGroup)"/>,
+        /// clearing whichever of its states is currently active.
+        /// </summary>
+        /// <param name="group">The group to unregister.</param>
+        public void UnregisterStateGroup(VisualStateGroup group)
+        {
+            if (stateGroups.Remove(group) && activeStates.Remove(group, out VisualState? active))
+            {
+                ClearStateSetters(active);
+            }
         }
 
         /// <summary>
@@ -1278,6 +1351,77 @@ namespace Icy.UI
                         Top = (int)(margin.Top * marginRatio),
                         Bottom = (int)(margin.Bottom * marginRatio),
                     };
+                }
+            }
+        }
+
+        private void RevertStyle(Style oldStyle)
+        {
+            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(GetType());
+            foreach (string propertyName in oldStyle.Setters.Keys)
+            {
+                if (store.TryGetProperty(propertyName, out IPropertyReference? property))
+                {
+                    property.ClearTierValue(this, PropertyValuePrecedence.Style);
+                }
+            }
+
+            foreach (VisualStateGroup group in oldStyle.StateGroups)
+            {
+                UnregisterStateGroup(group);
+            }
+        }
+
+        private void ApplyBestMatchingState(VisualStateGroup group)
+        {
+            VisualState? best = null;
+            int bestBitCount = -1;
+            foreach (VisualState candidate in group.States)
+            {
+                if ((ControlState & candidate.State) == candidate.State)
+                {
+                    int bitCount = System.Numerics.BitOperations.PopCount((uint)candidate.State);
+                    if (bitCount > bestBitCount)
+                    {
+                        best = candidate;
+                        bestBitCount = bitCount;
+                    }
+                }
+            }
+
+            activeStates.TryGetValue(group, out VisualState? previous);
+            if (previous == best)
+                return;
+
+            ClearStateSetters(previous);
+            activeStates[group] = best;
+            ApplyStateSetters(best);
+        }
+
+        private void ApplyStateSetters(VisualState? state)
+        {
+            if (state == null)
+                return;
+            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(GetType());
+            foreach (KeyValuePair<string, object?> setter in state.Setters)
+            {
+                if (store.TryGetProperty(setter.Key, out IPropertyReference? property))
+                {
+                    property.SetTierValue(this, PropertyValuePrecedence.VisualState, setter.Value);
+                }
+            }
+        }
+
+        private void ClearStateSetters(VisualState? state)
+        {
+            if (state == null)
+                return;
+            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(GetType());
+            foreach (string propertyName in state.Setters.Keys)
+            {
+                if (store.TryGetProperty(propertyName, out IPropertyReference? property))
+                {
+                    property.ClearTierValue(this, PropertyValuePrecedence.VisualState);
                 }
             }
         }
