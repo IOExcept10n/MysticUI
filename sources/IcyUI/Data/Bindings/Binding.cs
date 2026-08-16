@@ -25,6 +25,7 @@ namespace Icy.Data.Bindings
         private IBindingTarget target;
         private IPropertyReference targetProperty;
         private UpdateSourceTrigger trigger;
+        private UpdateTargetTrigger targetTrigger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Binding"/> class.
@@ -204,6 +205,23 @@ namespace Icy.Data.Bindings
         }
 
         /// <inheritdoc/>
+        public UpdateTargetTrigger UpdateTargetTrigger
+        {
+            get => targetTrigger;
+            set
+            {
+                if (targetTrigger == value)
+                    return;
+                targetTrigger = value;
+                Dispatcher dispatcher = Dispatcher.GetCurrentThreadDispatcher();
+                if (value == UpdateTargetTrigger.EveryFrame)
+                    dispatcher.RegisterFrameBinding(this);
+                else
+                    dispatcher.UnregisterFrameBinding(this);
+            }
+        }
+
+        /// <inheritdoc/>
         public void DestroyBinding()
         {
             if (disposedValue) return;
@@ -314,6 +332,8 @@ namespace Icy.Data.Bindings
 
                 UnsubscribeSource();
                 UnsubscribeTarget();
+                if (targetTrigger == UpdateTargetTrigger.EveryFrame)
+                    Dispatcher.GetCurrentThreadDispatcher().UnregisterFrameBinding(this);
                 Source = null!;
                 disposedValue = true;
             }
@@ -397,8 +417,12 @@ namespace Icy.Data.Bindings
 
         private void UnsubscribeTarget()
         {
-            Target.PropertyChanged -= Target_PropertyChanged;
-            if (Target is INotifyFocusChanged focus)
+            // Use the backing field directly, not the Target property - it throws when there's no target yet,
+            // which is exactly the case the first time this runs (from the Target/constructor setter).
+            if (target == null)
+                return;
+            target.PropertyChanged -= Target_PropertyChanged;
+            if (target is INotifyFocusChanged focus)
                 focus.FocusChanged -= Target_FocusChanged;
         }
     }

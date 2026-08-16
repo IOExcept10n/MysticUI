@@ -92,6 +92,49 @@ namespace Icy.Data.Markup
         /// </para>
         /// </remarks>
         void RawClearValue(object target) => SetRawValue(target, Metadata.DefaultValue);
+
+        /// <summary>
+        /// Notifies the property reference that its value on <paramref name="target"/> was just changed
+        /// through a means other than <see cref="SetTierValue(object, PropertyValuePrecedence, object?)"/>
+        /// (i.e. a direct, local assignment).
+        /// </summary>
+        /// <param name="target">The object whose property value changed.</param>
+        /// <remarks>
+        /// If <paramref name="target"/> currently has one or more active precedence tiers registered via
+        /// <see cref="SetTierValue(object, PropertyValuePrecedence, object?)"/>, the newly-observed value becomes
+        /// the value tiers fall back to once they are all cleared — matching local assignment's top-of-precedence
+        /// behavior. Targets that have never had a tier applied are ignored at effectively no cost, since there is
+        /// nothing to fall back to yet.
+        /// </remarks>
+        void NotifyLocalValueChanged(object target);
+
+        /// <summary>
+        /// Sets the value contributed by a non-local precedence <paramref name="tier"/> for <paramref name="target"/>,
+        /// and re-applies whichever tier currently wins.
+        /// </summary>
+        /// <param name="target">The object to set the tiered value on.</param>
+        /// <param name="tier">The precedence tier contributing <paramref name="value"/>.</param>
+        /// <param name="value">The value contributed by <paramref name="tier"/>.</param>
+        /// <remarks>
+        /// A directly-assigned (local) value always outranks every tier here; setting a tier's value never
+        /// overrides a local value already in effect for <paramref name="target"/>.
+        /// </remarks>
+        void SetTierValue(object target, PropertyValuePrecedence tier, object? value);
+
+        /// <summary>
+        /// Clears the value previously contributed by a non-local precedence <paramref name="tier"/> for
+        /// <paramref name="target"/>, and re-applies whichever tier now wins.
+        /// </summary>
+        /// <param name="target">The object to clear the tiered value on.</param>
+        /// <param name="tier">The precedence tier whose contribution should be removed.</param>
+        void ClearTierValue(object target, PropertyValuePrecedence tier);
+
+        /// <summary>
+        /// Clears a directly-assigned (local) value on <paramref name="target"/>, if one is currently in effect,
+        /// letting the highest active precedence tier (or the pre-tier fallback value) take over again.
+        /// </summary>
+        /// <param name="target">The object to clear the local value on.</param>
+        void ClearLocalValue(object target);
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 namespace Icy.Data.Markup
 {
@@ -7,7 +7,7 @@ namespace Icy.Data.Markup
     /// </summary>
     /// <typeparam name="TTarget">Target type that defined the property.</typeparam>
     /// <typeparam name="TValue">Property type to access values with.</typeparam>
-    internal class AttachedPropertyReference<TTarget, TValue> : IPropertyReference<TValue>
+    internal class AttachedPropertyReference<TTarget, TValue> : PropertyReferenceBase<TTarget, TValue>
     {
         private readonly Func<TTarget, TValue> getter;
         private readonly Action<TTarget, TValue> setter;
@@ -33,33 +33,33 @@ namespace Icy.Data.Markup
         }
 
         /// <inheritdoc/>
-        public string Category { get; }
+        public override string Category { get; }
 
         /// <inheritdoc/>
-        public PropertyMetadata Metadata { get; }
+        public override PropertyMetadata Metadata { get; }
 
         /// <inheritdoc/>
-        public string Name { get; }
+        public override string Name { get; }
 
         /// <inheritdoc/>
-        public Type OwnerType => typeof(TTarget);
+        public override Type OwnerType => typeof(TTarget);
 
         /// <inheritdoc/>
-        public Type PropertyType => typeof(TValue);
+        public override Type PropertyType => typeof(TValue);
 
         /// <inheritdoc/>
-        public ValidateValueCallback? ValidationCallback { get; }
+        public override ValidateValueCallback? ValidationCallback { get; }
 
         /// <inheritdoc/>
-        public object? GetRawValue(object target) => getter((TTarget)target);
+        public override object? GetRawValue(object target) => getter((TTarget)target);
 
         /// <inheritdoc/>
-        public TValue GetValue(object target) => getter((TTarget)target);
+        public override TValue GetValue(object target) => getter((TTarget)target);
 
         /// <inheritdoc/>
-        public void SetRawValue(object target, object? value) => setter((TTarget)target, (TValue)(value ?? default(TValue))!);
+        public override void SetRawValue(object target, object? value) => setter((TTarget)target, (TValue)(value ?? default(TValue))!);
 
         /// <inheritdoc/>
-        public void SetValue(object target, TValue value) => setter((TTarget)target, value);
+        public override void SetValue(object target, TValue value) => setter((TTarget)target, value);
     }
 }

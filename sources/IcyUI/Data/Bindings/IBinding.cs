@@ -12,6 +12,11 @@ namespace Icy.Data.Bindings
     public interface IBinding : IDisposable
     {
         /// <summary>
+        /// Gets or sets a value indicating when the binding refreshes its target from its source.
+        /// </summary>
+        UpdateTargetTrigger UpdateTargetTrigger { get; set; }
+
+        /// <summary>
         /// Sets the target for the binding.
         /// </summary>
         /// <param name="target">A target to set.</param>

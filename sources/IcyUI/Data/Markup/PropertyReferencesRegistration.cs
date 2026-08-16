@@ -98,23 +98,43 @@ namespace Icy.Data.Markup
                     ])!);
             }
 
-            // TODO: implement attached properties
-            //foreach (var attachedDefinition in targetType.GetCustomAttributes<AttachedPropertyAttribute>())
-            //{
-            //    var getterMethod = targetType.GetMethod(attachedDefinition.GetterName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            //    var setterMethod = targetType.GetMethod(attachedDefinition.SetterName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            //    if (getterMethod == null || setterMethod == null) continue;
-            //    var getParams = getterMethod.GetParameters();
-            //    var setParams = setterMethod.GetParameters();
+            foreach (var attachedDefinition in targetType.GetCustomAttributes<AttachedPropertyAttribute>())
+            {
+                var getterMethod = targetType.GetMethod(attachedDefinition.GetterName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                var setterMethod = targetType.GetMethod(attachedDefinition.SetterName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                if (getterMethod == null || setterMethod == null)
+                    continue;
+                var getParams = getterMethod.GetParameters();
+                var setParams = setterMethod.GetParameters();
 
-            //    // Check if the accessors are valid to simulate the property
-            //    if (getParams.Length != 1 ||
-            //        setParams.Length != 2 ||
-            //        getParams[0].ParameterType != setParams[0].ParameterType ||
-            //        getterMethod.ReturnType != setParams[1].ParameterType)
-            //        continue;
+                // Check if the accessors are valid to simulate the property: Get(TTarget) : TValue, Set(TTarget, TValue) : void.
+                if (getParams.Length != 1 ||
+                    setParams.Length != 2 ||
+                    getParams[0].ParameterType != setParams[0].ParameterType ||
+                    getterMethod.ReturnType != setParams[1].ParameterType)
+                    continue;
 
-            //}
+                Type attachedTargetType = getParams[0].ParameterType;
+                Type valueType = getterMethod.ReturnType;
+                string propertyName = attachedDefinition.PropertyName ?? DeriveAttachedName(attachedDefinition.GetterName);
+                MethodInfo? attachedValidation = SearchMethod(targetType, attachedDefinition.ValidationCallback);
+                var attachedMetadata = new UIPropertyMetadata(null, isAttached: true);
+
+                Type referenceType = typeof(AttachedPropertyReference<,>).MakeGenericType(attachedTargetType, valueType);
+                Type getterDelegateType = typeof(Func<,>).MakeGenericType(attachedTargetType, valueType);
+                Type setterDelegateType = typeof(Action<,>).MakeGenericType(attachedTargetType, valueType);
+
+                result.Add((IPropertyReference)Activator.CreateInstance(
+                    referenceType,
+                    [
+                        getterMethod.CreateDelegate(getterDelegateType),
+                        setterMethod.CreateDelegate(setterDelegateType),
+                        propertyName,
+                        null!,
+                        attachedMetadata,
+                        attachedValidation?.CreateDelegate<ValidateValueCallback>()
+                    ])!);
+            }
 
             return result;
         }
@@ -127,6 +147,23 @@ namespace Icy.Data.Markup
             }
 
             return null;
+        }
+
+        private static MethodInfo? SearchMethod(Type declaringType, string? callbackName)
+        {
+            if (callbackName != null)
+            {
+                return declaringType.GetMethod(callbackName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            }
+
+            return null;
+        }
+
+        private static string DeriveAttachedName(string getterName)
+        {
+            return getterName.StartsWith("Get", StringComparison.Ordinal) && getterName.Length > 3
+                ? getterName[3..]
+                : getterName;
         }
     }
 }

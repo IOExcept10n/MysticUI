@@ -11,6 +11,8 @@ namespace Icy.Data.Markup
     {
         private static readonly Lazy<PropertyRegistry> InstanceValue = new(() => []);
 
+        private readonly object gate = new();
+
         // Private constructor to prevent instantiation
         private PropertyRegistry()
         {
@@ -32,13 +34,27 @@ namespace Icy.Data.Markup
         }
 
         /// <summary>
-        /// Retrieves the property store for a specific type.
+        /// Retrieves the property store for a specific type, creating and registering the default reflection-based
+        /// store for it on first request if none has been registered yet.
         /// </summary>
         /// <param name="type">The type for which to retrieve the property store.</param>
-        /// <returns>The property store associated with the specified type, or <see langword="null"/> if not found.</returns>
-        public IPropertyStore? GetPropertyStore(Type type)
+        /// <returns>The property store associated with the specified type.</returns>
+        /// <remarks>
+        /// Call <see cref="RegisterPropertyStore(IPropertyStore)"/> ahead of time for a type if it needs a custom
+        /// <see cref="IPropertyStore"/> implementation instead of the default reflection-based one.
+        /// </remarks>
+        public IPropertyStore GetPropertyStore(Type type)
         {
-            return Contains(type) ? this[type] : null;
+            lock (gate)
+            {
+                if (!Contains(type))
+                {
+                    var store = (IPropertyStore)Activator.CreateInstance(typeof(PropertyStore<>).MakeGenericType(type))!;
+                    Add(store);
+                }
+
+                return this[type];
+            }
         }
 
         /// <inheritdoc/>

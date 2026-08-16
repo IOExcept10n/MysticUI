@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
+using Icy.Data.Bindings;
 
 namespace Icy.Data.Markup
 {
@@ -12,6 +13,7 @@ namespace Icy.Data.Markup
         private static readonly Dictionary<Thread, Dispatcher> Dispatchers = [];
         private readonly object lockObj = new();
         private readonly PriorityQueue<Action, DispatcherPriority> dispatchedActions = new();
+        private readonly HashSet<IBinding> frameBindings = [];
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Dispatcher"/> class.
@@ -134,6 +136,59 @@ namespace Icy.Data.Markup
         {
             if (!CheckAccess())
                 ThrowHelper.ThrowInvalidOperationException("Current thread cannot access this dispatcher instance.");
+        }
+
+        /// <summary>
+        /// Registers a binding to have <see cref="IBinding.UpdateTarget()"/> called once per frame by
+        /// <see cref="UpdateFrameBindings"/>, regardless of whether its source raises change notifications.
+        /// </summary>
+        /// <param name="binding">The binding to poll every frame.</param>
+        /// <remarks>
+        /// Intended for <see cref="UpdateTargetTrigger.EveryFrame"/> bindings — call
+        /// <see cref="UnregisterFrameBinding(IBinding)"/> once the binding is disposed or switches away from that trigger.
+        /// </remarks>
+        public void RegisterFrameBinding(IBinding binding)
+        {
+            lock (lockObj)
+            {
+                frameBindings.Add(binding);
+            }
+        }
+
+        /// <summary>
+        /// Stops calling <see cref="IBinding.UpdateTarget()"/> once per frame for a binding previously passed to
+        /// <see cref="RegisterFrameBinding(IBinding)"/>.
+        /// </summary>
+        /// <param name="binding">The binding to stop polling.</param>
+        public void UnregisterFrameBinding(IBinding binding)
+        {
+            lock (lockObj)
+            {
+                frameBindings.Remove(binding);
+            }
+        }
+
+        /// <summary>
+        /// Calls <see cref="IBinding.UpdateTarget()"/> once for every binding registered through
+        /// <see cref="RegisterFrameBinding(IBinding)"/>.
+        /// </summary>
+        /// <remarks>
+        /// Called once per frame from <see cref="UI.Canvas.Render"/>, alongside <see cref="Update(DispatcherPriority)"/>
+        /// for <see cref="DispatcherPriority.DataBind"/>, so <see cref="UpdateTargetTrigger.EveryFrame"/> bindings
+        /// refresh at the same point in the frame as reactive ones.
+        /// </remarks>
+        public void UpdateFrameBindings()
+        {
+            IBinding[] bindings;
+            lock (lockObj)
+            {
+                if (frameBindings.Count == 0)
+                    return;
+                bindings = [.. frameBindings];
+            }
+
+            foreach (IBinding binding in bindings)
+                binding.UpdateTarget();
         }
     }
 }

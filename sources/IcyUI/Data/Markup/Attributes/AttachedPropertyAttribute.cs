@@ -13,7 +13,7 @@ namespace Icy.Data.Markup.Attributes
     /// requires the names of the getter and setter methods, which will be used
     /// during the property registration process.
     /// </remarks>
-    [AttributeUsage(AttributeTargets.Class)]
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
     public class AttachedPropertyAttribute : Attribute
     {
         /// <summary>

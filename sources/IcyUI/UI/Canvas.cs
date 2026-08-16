@@ -207,6 +207,7 @@ namespace Icy.UI
                 UpdateTransform();
 
             Dispatcher.Update(DispatcherPriority.DataBind);
+            Dispatcher.UpdateFrameBindings();
 
             // Skip input and rendering for invisible control,
             // but keep animations and bindings work.

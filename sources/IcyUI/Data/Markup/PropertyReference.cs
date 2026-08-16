@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using CommunityToolkit.Diagnostics;
 
 namespace Icy.Data.Markup
@@ -8,7 +8,7 @@ namespace Icy.Data.Markup
     /// </summary>
     /// <typeparam name="TTarget">Target type that contains the property.</typeparam>
     /// <typeparam name="TValue">Property type to access values with.</typeparam>
-    internal class PropertyReference<TTarget, TValue> : IPropertyReference<TValue>
+    internal class PropertyReference<TTarget, TValue> : PropertyReferenceBase<TTarget, TValue>
     {
         private readonly PropertyInfo property;
         private readonly Func<TTarget, TValue> getter;
@@ -25,43 +25,45 @@ namespace Icy.Data.Markup
         public PropertyReference(PropertyInfo property, string category, PropertyMetadata metadata, ValidateValueCallback? validationCallback)
         {
             this.property = property;
-            Guard.IsAssignableToType(OwnerType, typeof(TTarget));
-            Guard.IsAssignableToType(PropertyType, typeof(TValue));
+            if (!OwnerType.IsAssignableTo(typeof(TTarget)))
+                ThrowHelper.ThrowArgumentException(nameof(property), $"Property owner type '{OwnerType}' must be assignable to '{typeof(TTarget)}'.");
+            if (!PropertyType.IsAssignableTo(typeof(TValue)))
+                ThrowHelper.ThrowArgumentException(nameof(property), $"Property type '{PropertyType}' must be assignable to '{typeof(TValue)}'.");
             Category = category;
             Metadata = metadata;
             ValidationCallback = validationCallback;
-            getter = property.GetGetMethod()?.CreateDelegate<Func<TTarget, TValue>>() ?? ThrowHelper.ThrowArgumentException<Func<TTarget, TValue>>("Cannot make a public reference to non-public property.");
-            setter = property.GetSetMethod()?.CreateDelegate<Action<TTarget, TValue>>() ?? ThrowHelper.ThrowArgumentException<Action<TTarget, TValue>>("Cannot make a reference with public setter to a property that doesn't have it.");
+            getter = property.GetGetMethod(true)?.CreateDelegate<Func<TTarget, TValue>>() ?? ThrowHelper.ThrowArgumentException<Func<TTarget, TValue>>("Cannot make a reference to a property that doesn't have a getter.");
+            setter = property.GetSetMethod(true)?.CreateDelegate<Action<TTarget, TValue>>() ?? ThrowHelper.ThrowArgumentException<Action<TTarget, TValue>>("Cannot make a reference to a property that doesn't have a setter.");
         }
 
         /// <inheritdoc/>
-        public string Category { get; }
+        public override string Category { get; }
 
         /// <inheritdoc/>
-        public PropertyMetadata Metadata { get; }
+        public override PropertyMetadata Metadata { get; }
 
         /// <inheritdoc/>
-        public string Name => property.Name;
+        public override string Name => property.Name;
 
         /// <inheritdoc/>
-        public Type OwnerType => property.DeclaringType!;
+        public override Type OwnerType => property.DeclaringType!;
 
         /// <inheritdoc/>
-        public Type PropertyType => property.PropertyType;
+        public override Type PropertyType => property.PropertyType;
 
         /// <inheritdoc/>
-        public ValidateValueCallback? ValidationCallback { get; }
+        public override ValidateValueCallback? ValidationCallback { get; }
 
         /// <inheritdoc/>
-        public object? GetRawValue(object target) => property.GetValue(target);
+        public override object? GetRawValue(object target) => property.GetValue(target);
 
         /// <inheritdoc/>
-        public TValue GetValue(object target) => getter((TTarget)target);
+        public override TValue GetValue(object target) => getter((TTarget)target);
 
         /// <inheritdoc/>
-        public void SetRawValue(object target, object? value) => property.SetValue(target, value);
+        public override void SetRawValue(object target, object? value) => property.SetValue(target, value);
 
         /// <inheritdoc/>
-        public void SetValue(object target, TValue value) => setter((TTarget)target, value);
+        public override void SetValue(object target, TValue value) => setter((TTarget)target, value);
     }
 }

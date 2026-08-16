@@ -782,7 +782,7 @@ namespace Icy.UI
         [Category("Appearance")]
         [DefaultValue(null)]
         [RegisterReference]
-        public Style? Style { get => style; set => SetProperty(ref style, style); }
+        public Style? Style { get => style; set => SetProperty(ref style, value); }
 
         /// <summary>
         /// Gets or sets the vertical alignment of the <see cref="UIElement"/> instance.

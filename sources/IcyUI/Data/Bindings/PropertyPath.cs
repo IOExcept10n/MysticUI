@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using CommunityToolkit.Diagnostics;
+using Icy.Data.Markup;
 
 namespace Icy.Data.Bindings
 {
@@ -136,6 +137,17 @@ namespace Icy.Data.Bindings
             public readonly PropertyInfo? Property;
 
             /// <summary>
+            /// Gets the registered property reference to get the value from, when the target type has one.
+            /// </summary>
+            /// <remarks>
+            /// Set for properties registered through <see cref="PropertyRegistry"/> (see <see cref="Attributes.RegisterReferenceAttribute"/>),
+            /// so that binding through a path segment participates in the same value-precedence system as
+            /// styles, visual states, and animations. Falls back to <see cref="Property"/> for everything else,
+            /// including plain BCL types that were never registered.
+            /// </remarks>
+            public readonly IPropertyReference? Reference;
+
+            /// <summary>
             /// Gets the type of the calculation result.
             /// </summary>
             public readonly Type ResultType;
@@ -145,6 +157,12 @@ namespace Icy.Data.Bindings
                 Property = property;
                 ResultType = property.PropertyType;
                 Params = parameters;
+            }
+
+            private PathSegment(IPropertyReference reference)
+            {
+                Reference = reference;
+                ResultType = reference.PropertyType;
             }
 
             private PathSegment(object[] arrayIndices, Type targetType)
@@ -158,7 +176,6 @@ namespace Icy.Data.Bindings
             /// Gets a value indicating whether the target type is an array.
             /// </summary>
             [MemberNotNullWhen(true, nameof(Params))]
-            [MemberNotNullWhen(false, nameof(Property))]
             public readonly bool IsArray { get; init; }
 
             /// <summary>
@@ -194,6 +211,13 @@ namespace Icy.Data.Bindings
             /// <returns>An instance of the <see cref="PathSegment"/> struct for the property access.</returns>
             public static PathSegment FromProperty(Type target, string propertyName)
             {
+                // Prefer a property registered through PropertyRegistry (see RegisterReferenceAttribute), so that
+                // binding through this segment participates in the same value-precedence system (Local > Animation
+                // > VisualState > Style > Default) as styles, visual states, and animations. Every registered
+                // property is guaranteed to have a setter (ResolveProperties skips read-only ones), so it's never read-only.
+                if (PropertyRegistry.Instance.GetPropertyStore(target).TryGetProperty(propertyName, searchInherited: true, out IPropertyReference? reference))
+                    return new PathSegment(reference);
+
                 var property = target.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
                 if (property == null)
                     return ThrowHelper.ThrowArgumentException<PathSegment>(nameof(propertyName), $"Can't find property {propertyName} on a {target} type.");
@@ -212,6 +236,8 @@ namespace Icy.Data.Bindings
             {
                 if (IsArray)
                     return ((Array)obj).GetValue(Array.ConvertAll(Params!, x => (int)x!));
+                if (Reference != null)
+                    return Reference.GetRawValue(obj);
                 return Property!.GetValue(obj, Params);
             }
 
@@ -226,7 +252,17 @@ namespace Icy.Data.Bindings
                     ThrowHelper.ThrowInvalidOperationException("Can't assign value to the readonly path segment.");
 
                 if (IsArray)
+                {
                     ((Array)target).SetValue(value, Array.ConvertAll(Params!, x => (int)x!));
+                    return;
+                }
+
+                if (Reference != null)
+                {
+                    Reference.SetRawValue(target, value);
+                    return;
+                }
+
                 Property!.SetValue(target, value, Params);
             }
         }
