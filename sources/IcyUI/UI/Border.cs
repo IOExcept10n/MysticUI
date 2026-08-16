@@ -137,5 +137,12 @@ namespace Icy.UI
             if (Child?.IsVisible == true)
                 Child.Draw(context);
         }
+
+        /// <inheritdoc/>
+        protected override IEnumerable<UIElement> GetVisualChildren()
+        {
+            if (Child != null)
+                yield return Child;
+        }
     }
 }

@@ -34,7 +34,7 @@ namespace Icy.UI
     /// event system for handling user input and state changes.
     /// </para>
     /// </remarks>
-    public class UIElement : DependencyObject// , INotifyFocusChanged
+    public class UIElement : DependencyObject, INotifyFocusChanged
     {
         private readonly Dictionary<VisualStateGroup, VisualState?> activeStates = [];
         private readonly List<VisualStateGroup> stateGroups = [];
@@ -42,6 +42,9 @@ namespace Icy.UI
         private Canvas? canvas;
         private bool clipToBounds = true;
         private ControlState controlState;
+        private bool isFocusable;
+        private bool isFocused;
+        private bool isFocusScope;
         private Size desiredSize;
         private Color foreground = Color.Black;
         private float height = float.NaN;
@@ -112,6 +115,9 @@ namespace Icy.UI
         /// Occurs when the <see cref="UIElement"/> is detached from the <see cref="UI.Canvas"/> instance.
         /// </summary>
         public event EventHandler? Detached;
+
+        /// <inheritdoc/>
+        public event EventHandler? FocusChanged;
 
         /// <summary>
         /// Defines a flag set for the <see cref="UIElement"/> instance layout invalidation state.
@@ -308,6 +314,48 @@ namespace Icy.UI
                     OnVisibilityChanged();
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this element can receive focus.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <see langword="false"/> — most elements (decorative ones like <see cref="Border"/> or
+        /// <see cref="TextBlock"/>-like content) aren't focus targets. Interactive controls set this to
+        /// <see langword="true"/>.
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(false)]
+        [RegisterReference]
+        public bool IsFocusable
+        {
+            get => isFocusable;
+            set => SetProperty(ref isFocusable, value);
+        }
+
+        /// <inheritdoc/>
+        [Category("Behavior")]
+        [Browsable(false)]
+        [XmlIgnore]
+        [JsonIgnore]
+        public bool IsFocused => isFocused;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this element is a focus scope — a boundary that keyboard/gamepad
+        /// focus traversal (<c>Tab</c>, <c>FocusNext</c>/<c>FocusPrevious</c>) won't cross, and whose last-focused
+        /// descendant is restored when focus returns to the scope from outside it.
+        /// </summary>
+        /// <remarks>
+        /// Useful for modal dialogs (<c>Window</c>), dropdowns, and context menus — anything that should trap
+        /// focus while it's open.
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(false)]
+        [RegisterReference]
+        public bool IsFocusScope
+        {
+            get => isFocusScope;
+            set => SetProperty(ref isFocusScope, value);
         }
 
         /// <summary>
@@ -1003,6 +1051,74 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Determines which element — this one, one of its descendants, or none — contains the specified point.
+        /// </summary>
+        /// <param name="pointInParentLocalSpace">
+        /// A point expressed in this element's parent's own local (post-<see cref="Draw(IRenderContext)"/>-transform)
+        /// space — the same space a child's <see cref="Draw(IRenderContext)"/> call receives via <c>context.Transform</c>
+        /// once the parent's own layout/render transform has been applied.
+        /// </param>
+        /// <returns>The topmost hit-testable element containing the point, or <see langword="null"/> if none does.</returns>
+        /// <remarks>
+        /// Tests <see cref="GetVisualChildren"/> in reverse order (topmost/last-painted first — see
+        /// <see cref="ZIndex"/>), so a child that visually overlaps and paints on top of a sibling is hit before
+        /// that sibling. Only accounts for <see cref="LayoutOffset"/>/<see cref="LayoutRotation"/>/
+        /// <see cref="LayoutScale"/> (the same transform that determines <see cref="ActualBounds"/>) —
+        /// <see cref="RenderOffset"/>/<see cref="RenderRotation"/>/<see cref="RenderScale"/> are treated as purely
+        /// cosmetic for v1 and don't affect where clicks land.
+        /// </remarks>
+        public UIElement? HitTest(Vector2 pointInParentLocalSpace)
+        {
+            if (!IsVisible || Opacity <= 0)
+                return null;
+
+            if (IsTransformInvalid)
+                UpdateTransformMatrix();
+            Vector2 localPoint = inverseLayoutTransform.Apply(pointInParentLocalSpace);
+
+            bool withinBounds = localPoint.X >= 0 && localPoint.Y >= 0 &&
+                localPoint.X <= ActualBounds.Width && localPoint.Y <= ActualBounds.Height;
+            if (ClipToBounds && !withinBounds)
+                return null;
+
+            foreach (UIElement child in GetVisualChildren().Reverse())
+            {
+                UIElement? hit = child.HitTest(localPoint);
+                if (hit != null)
+                    return hit;
+            }
+
+            return withinBounds ? this : null;
+        }
+
+        /// <summary>
+        /// Enumerates this element and its entire visual subtree (self first, then children depth-first, via
+        /// <see cref="GetVisualChildren"/>), in paint order.
+        /// </summary>
+        /// <returns>This element followed by every descendant in the visual tree.</returns>
+        public IEnumerable<UIElement> EnumerateVisualSubtree()
+        {
+            yield return this;
+            foreach (UIElement child in GetVisualChildren())
+            {
+                foreach (UIElement descendant in child.EnumerateVisualSubtree())
+                    yield return descendant;
+            }
+        }
+
+        /// <summary>
+        /// Enumerates this element's immediate visual children, in paint order (back-to-front), for hit-testing
+        /// and tree traversal.
+        /// </summary>
+        /// <returns>The element's immediate children. The base implementation yields none (a leaf element).</returns>
+        /// <remarks>
+        /// Container elements (e.g. <see cref="Panel"/>, <see cref="Border"/>) override this to expose their
+        /// children, in the exact order they're drawn in — <see cref="HitTest(Vector2)"/> depends on this matching
+        /// actual paint order, or clicks will target the wrong, visually-obscured element.
+        /// </remarks>
+        protected virtual IEnumerable<UIElement> GetVisualChildren() => [];
+
+        /// <summary>
         /// Invalidates <see cref="UIElement"/> arrange to recalculate on next draw call.
         /// </summary>
         public void InvalidateArrange()
@@ -1291,6 +1407,24 @@ namespace Icy.UI
                 OnTransformUpdated();
                 IsTransformInvalid = false;
             }
+        }
+
+        /// <summary>
+        /// Sets whether this element currently has focus, raising <see cref="FocusChanged"/> and updating
+        /// <see cref="ControlState"/> if the value actually changes.
+        /// </summary>
+        /// <param name="value">Whether this element has focus.</param>
+        /// <remarks>
+        /// Only <see cref="Canvas"/>'s focus-management logic should call this — it's the single source of truth
+        /// for which element is focused, so <see cref="IsFocused"/> stays consistent with it.
+        /// </remarks>
+        internal void SetFocused(bool value)
+        {
+            if (isFocused == value)
+                return;
+            isFocused = value;
+            ControlState = value ? ControlState | ControlState.Focused : ControlState & ~ControlState.Focused;
+            FocusChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private Point CalculateLocation(Rectangle containerBounds, Size effectiveSize, Thickness effectiveMargin)

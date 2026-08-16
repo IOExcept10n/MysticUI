@@ -217,10 +217,14 @@ namespace Icy.UI
         protected override void OnRender(IRenderContext context)
         {
             base.OnRender(context);
-            foreach (var child in Children)
+            foreach (var child in GetVisualChildren())
             {
                 child.Draw(context);
             }
         }
+
+        /// <inheritdoc/>
+        protected override IEnumerable<UIElement> GetVisualChildren() =>
+            Children.OrderBy(child => child.ZIndex);
     }
 }
