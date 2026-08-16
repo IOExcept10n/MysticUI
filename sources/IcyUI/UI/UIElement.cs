@@ -1270,8 +1270,19 @@ namespace Icy.UI
             if (IsTransformInvalid)
             {
                 Arrange();
+
+                // ActualBounds.Location is computed cumulatively (Arrange() positions this element within
+                // LogicalParent.ContentBounds, which itself already carries the parent's own absolute position) -
+                // but the render transform chain (Draw() composes each ancestor's layoutTransform/renderTransform
+                // together) *also* accumulates translation hierarchically. Using the raw absolute ActualBounds.Location
+                // here would double (or further multiply, for deeper nesting) every ancestor's contribution once per
+                // level. Subtracting the parent's own content origin leaves only this element's own relative offset,
+                // which is what the hierarchical transform chain expects to accumulate.
+                Point parentContentOrigin = LogicalParent?.ContentBounds.Location ?? Point.Empty;
+                Vector2 relativeLocation = new(ActualBounds.X - parentContentOrigin.X, ActualBounds.Y - parentContentOrigin.Y);
+
                 layoutTransform = Transform2D.Create(
-                    LayoutOffset + ActualBounds.Location.ToVector(),
+                    LayoutOffset + relativeLocation,
                     float.DegreesToRadians(LayoutRotation),
                     LayoutTransformOrigin * ActualBounds.Size.AsVector(),
                     LayoutScale);
