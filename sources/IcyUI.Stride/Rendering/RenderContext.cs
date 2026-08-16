@@ -165,7 +165,14 @@ namespace Icy.Stride.Rendering
         /// <inheritdoc/>
         public void Flush()
         {
-            if (began) End();
+            // A no-op when not mid-render is required, not just a nicety: Canvas.RenderVisual() restores the
+            // previous Options.Scissor *after* it has already called End() for the frame, and the Scissor setter
+            // below calls Flush() on every assignment. Unconditionally re-Begin()-ing here (as MonoGame's Flush
+            // does - safe there only because its Scissor setter never calls Flush) would silently reopen a batch
+            // with no matching End(), leaking `began = true` into the next frame and making its first Begin() throw.
+            if (!began)
+                return;
+            End();
             Begin();
         }
 

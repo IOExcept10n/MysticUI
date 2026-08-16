@@ -149,7 +149,13 @@ namespace Icy.MonoGame.Rendering
         /// <inheritdoc/>
         public void Flush()
         {
-            if (began) End();
+            // Must be a no-op when not mid-render: unconditionally re-Begin()-ing here would silently reopen a
+            // batch with no matching End() for any caller that invokes Flush() outside an active Begin/End pair
+            // (e.g. IRenderOptions.Scissor implementations that call Flush() on every assignment, as
+            // Icy.Stride.Rendering.RenderContext's does), leaking `began = true` into the next frame's Begin() call.
+            if (!began)
+                return;
+            End();
             Begin();
         }
 
