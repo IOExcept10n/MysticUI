@@ -1353,16 +1353,39 @@ namespace Icy.UI
         /// <summary>
         /// Raises the <see cref="Attached"/> event.
         /// </summary>
+        /// <remarks>
+        /// Propagates <see cref="Canvas"/> to every element in <see cref="GetVisualChildren"/> - this is what makes
+        /// attaching a whole pre-built subtree (the common pattern: build children, then attach the root once via
+        /// <see cref="UI.Canvas.Add(UIElement)"/>) reach every descendant, not just the immediate root. Each child's
+        /// own <see cref="Canvas"/> setter recurses into <em>its</em> children the same way, so this walks the full
+        /// subtree regardless of depth. Container-specific child-add paths (e.g. <see cref="Panel.OnChildAdded"/>)
+        /// still assign <see cref="Canvas"/> directly for children added after the parent is already attached -
+        /// this cascade is what covers everything built beforehand.
+        /// </remarks>
         protected virtual void OnAttached()
         {
+            foreach (UIElement child in GetVisualChildren())
+            {
+                child.Canvas = Canvas;
+            }
+
             Attached?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
         /// Raises the <see cref="Detached"/> event.
         /// </summary>
+        /// <remarks>
+        /// Propagates <see langword="null"/> to every element in <see cref="GetVisualChildren"/>, mirroring
+        /// <see cref="OnAttached"/> - see its remarks.
+        /// </remarks>
         protected virtual void OnDetached()
         {
+            foreach (UIElement child in GetVisualChildren())
+            {
+                child.Canvas = null;
+            }
+
             Detached?.Invoke(this, EventArgs.Empty);
         }
 
