@@ -76,7 +76,13 @@ namespace Icy.MonoGame.Rendering
                     $"Please call {nameof(Flush)} instead of {nameof(Begin)}.");
             }
 
-            spriteBatch.Begin(effect: appliedEffect);
+            // The engine's textures are all straight (non-premultiplied) alpha - the dynamic font atlas writes
+            // (255,255,255,coverage) per glyph pixel (see DynamicFontAtlas.Page.CopyGlyphToAtlas), and images are
+            // loaded via Texture2D.FromStream, which does not premultiply. SpriteBatch's default blend state
+            // (BlendState.AlphaBlend) assumes premultiplied input; using it here made any partially-covered pixel
+            // (i.e. every anti-aliased glyph edge) render at close to full brightness regardless of actual
+            // coverage, blooming small text into solid blocks instead of legible letterforms.
+            spriteBatch.Begin(blendState: BlendState.NonPremultiplied, effect: appliedEffect);
             began = true;
         }
 
