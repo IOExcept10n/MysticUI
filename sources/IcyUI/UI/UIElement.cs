@@ -981,12 +981,26 @@ namespace Icy.UI
         protected IcyConfiguration? Configuration => Canvas?.Configuration;
 
         /// <summary>
-        /// Arranges the <see cref="UIElement"/> instance in specified container bounds.
+        /// Arranges the <see cref="UIElement"/> instance within its <see cref="LogicalParent"/>'s
+        /// <see cref="IContainerLayout.ContentBounds"/>, per its own <see cref="Margin"/>/alignment.
         /// </summary>
-        public void Arrange()
+        public void Arrange() => Arrange(LogicalParent?.ContentBounds ?? default);
+
+        /// <summary>
+        /// Arranges the <see cref="UIElement"/> instance within <paramref name="containerBounds"/>, per its own
+        /// <see cref="Margin"/>/alignment.
+        /// </summary>
+        /// <param name="containerBounds">
+        /// The bounds to arrange within. Callers that need to hand a child a specific target rect - e.g. a Grid
+        /// placing a child into a particular cell - pass that rect directly instead of the default overload's
+        /// <see cref="LogicalParent"/>-wide <see cref="IContainerLayout.ContentBounds"/>. <see cref="Margin"/> and
+        /// <see cref="HorizontalAlignment"/>/<see cref="VerticalAlignment"/> still apply exactly as usual, just
+        /// relative to this rect instead of the whole parent - e.g. a child can still center itself within its
+        /// assigned cell, or stretch to fill it.
+        /// </param>
+        public void Arrange(Rectangle containerBounds)
         {
             if (!IsArrangeInvalid) return;
-            Rectangle containerBounds = LogicalParent?.ContentBounds ?? default;
 
             // Get current desired size and actual margin to calculate effective size and margin.
             var effectiveSize = Measure();
