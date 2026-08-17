@@ -187,8 +187,14 @@ namespace Icy.UI.Controls
                 case Keys.Back:
                     if (caretIndex > 0)
                     {
+                        // Compute the target caret position from the pre-deletion index, then assign it (not
+                        // decrement) after the Text setter runs - Text's setter already clamps caretIndex against
+                        // the new, shorter length as a side effect (see its Math.Clamp call), so decrementing
+                        // again here on top of that double-moved the caret whenever it sat at the end of the text
+                        // (the common case), eventually driving it to -1 on the last character and crashing.
+                        int newCaretIndex = caretIndex - 1;
                         Text = Text[..(caretIndex - 1)] + Text[caretIndex..];
-                        caretIndex--;
+                        caretIndex = newCaretIndex;
                     }
 
                     break;

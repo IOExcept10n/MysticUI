@@ -90,6 +90,48 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Backspace_Twice_RemovesTwoCharactersNotOne()
+        {
+            // Regression: Text's setter clamps caretIndex to the new (shorter) length as a side effect, and
+            // Keys.Back used to decrement caretIndex again on top of that - a no-op bug at the end of the text
+            // (the common case) drove the caret two positions left per backspace instead of one, so a second
+            // backspace would silently miss a character instead of removing the next one.
+            var (_, input, textBox) = CreateFocusedTextBox();
+            input.Events.Text.RaiseTextInput("abc");
+
+            input.Keyboard.RaiseKeyDown(Keys.Back);
+            input.Keyboard.RaiseKeyDown(Keys.Back);
+
+            Assert.Equal("a", textBox.Text);
+        }
+
+        [Fact]
+        public void Backspace_RepeatedlyToEmpty_DoesNotThrow()
+        {
+            // Regression: backspacing the last character used to drive caretIndex to -1 (crashed on Stride).
+            var (_, input, textBox) = CreateFocusedTextBox();
+            input.Events.Text.RaiseTextInput("ab");
+
+            input.Keyboard.RaiseKeyDown(Keys.Back);
+            input.Keyboard.RaiseKeyDown(Keys.Back);
+            input.Keyboard.RaiseKeyDown(Keys.Back);
+
+            Assert.Equal(string.Empty, textBox.Text);
+        }
+
+        [Fact]
+        public void Backspace_ThenInsert_InsertsAtEndNotOneShort()
+        {
+            var (_, input, textBox) = CreateFocusedTextBox();
+            input.Events.Text.RaiseTextInput("abc");
+
+            input.Keyboard.RaiseKeyDown(Keys.Back);
+            input.Events.Text.RaiseTextInput("z");
+
+            Assert.Equal("abz", textBox.Text);
+        }
+
+        [Fact]
         public void Delete_RemovesCharacterAfterCaret()
         {
             var (_, input, textBox) = CreateFocusedTextBox();
