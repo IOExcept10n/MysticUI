@@ -93,7 +93,10 @@ namespace Icy.Stride.Rendering
                     $"Please call {nameof(Flush)} instead of {nameof(Begin)}.");
             }
 
-            spriteBatch.Begin(GraphicsContext, SpriteSortMode.Deferred, BlendStates.AlphaBlend, device.SamplerStates.LinearClamp, null, UIRasterizerState);
+            // The engine's textures are all straight (non-premultiplied) alpha - see the matching comment in
+            // Icy.MonoGame.Rendering.RenderContext.Begin for why BlendStates.AlphaBlend (premultiplied) is wrong
+            // here and blooms anti-aliased glyph edges into solid blocks.
+            spriteBatch.Begin(GraphicsContext, SpriteSortMode.Deferred, BlendStates.NonPremultiplied, device.SamplerStates.LinearClamp, null, UIRasterizerState);
             began = true;
         }
 
@@ -109,7 +112,10 @@ namespace Icy.Stride.Rendering
         public ITexture CreateTexture<TColor>(int width, int height, TColor[] data)
             where TColor : unmanaged
         {
-            Texture texture = Texture.New2D(device, width, height, PixelFormat.R8G8B8A8_UNorm, data);
+            // Texture.New2D defaults to GraphicsResourceUsage.Immutable when given initial data - fine for
+            // one-shot content (imported images), but ITexture.SetTextureData (used by e.g. the dynamic font
+            // atlas to add glyphs after creation) needs a texture whose data can actually be updated afterwards.
+            Texture texture = Texture.New2D(device, width, height, PixelFormat.R8G8B8A8_UNorm, data, TextureFlags.ShaderResource, GraphicsResourceUsage.Default);
             return texture.Wrap(this);
         }
 
