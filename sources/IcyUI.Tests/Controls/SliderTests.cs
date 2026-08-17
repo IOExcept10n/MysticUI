@@ -44,6 +44,20 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Measure_WithoutExplicitHeight_IsNotZero()
+        {
+            // Regression: the thumb has an explicit Width but relies on VerticalAlignment.Stretch for height,
+            // which only applies during Arrange (see UIElement.Measure) - an empty thumb Border used to measure
+            // to zero height, collapsing the whole slider to nothing whenever a caller (e.g. the demo) sets only
+            // Width, matching how ProgressBar already needs its own explicit MeasureContent override.
+            var slider = new Slider { Width = 200, Minimum = 0, Maximum = 100, Value = 50 };
+
+            Size measured = slider.Measure();
+
+            Assert.True(measured.Height > 0, $"Expected a nonzero measured height, got {measured.Height}.");
+        }
+
+        [Fact]
         public void ArrangeContent_PositionsThumbProportionally()
         {
             var slider = new Slider { Width = 200, Height = 20, Minimum = 0, Maximum = 100, Value = 50 };

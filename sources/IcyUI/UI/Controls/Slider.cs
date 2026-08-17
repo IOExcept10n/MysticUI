@@ -149,6 +149,16 @@ namespace Icy.UI.Controls
             base.ArrangeContent();
         }
 
+        /// <inheritdoc/>
+        protected override Size MeasureContent()
+        {
+            // Like ProgressBar, the track's natural size isn't derived from content: the thumb has an explicit
+            // Width but relies on VerticalAlignment.Stretch for its height, which (see UIElement.Measure) only
+            // applies during Arrange, not Measure - an empty thumb Border would otherwise measure to zero height,
+            // collapsing the whole slider to nothing whenever a caller doesn't set an explicit Height.
+            return new(120, ThumbSize);
+        }
+
         private void ClampValueToRange()
         {
             float clamped = float.Clamp(sliderValue, Minimum, Maximum);
