@@ -38,7 +38,7 @@ namespace Icy.Stride.Rendering
         {
             this.device = device;
             spriteBatch = new SpriteBatch(device);
-            WhiteTexture = device.GetSharedWhiteTexture().Wrap();
+            WhiteTexture = device.GetSharedWhiteTexture().Wrap(this);
             Options = new RenderOptions(this);
         }
 
@@ -110,7 +110,7 @@ namespace Icy.Stride.Rendering
             where TColor : unmanaged
         {
             Texture texture = Texture.New2D(device, width, height, PixelFormat.R8G8B8A8_UNorm, data);
-            return texture.Wrap();
+            return texture.Wrap(this);
         }
 
         /// <inheritdoc/>

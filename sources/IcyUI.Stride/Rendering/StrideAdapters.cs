@@ -16,8 +16,14 @@ namespace Icy.Stride.Rendering
         /// Wraps an instance of the <see cref="Texture"/> into <see cref="ITexture"/> interface for library usage.
         /// </summary>
         /// <param name="texture">An instance of the <see cref="Texture"/> to wrap.</param>
+        /// <param name="renderContext">
+        /// The owning <see cref="RenderContext"/>, if any, whose frame-scoped <see cref="Stride.Graphics.GraphicsContext"/>
+        /// the wrapped texture reuses for reading/writing its data (see <see cref="TextureAdapter"/>'s remarks).
+        /// Pass this whenever <paramref name="texture"/> may have its data read or written later (e.g. a dynamic
+        /// font atlas page); omit it for textures that are only ever drawn.
+        /// </param>
         /// <returns>An instance of the <see cref="ITexture"/> ready for work with the library.</returns>
-        public static ITexture Wrap(this Texture texture) => new TextureAdapter(texture);
+        public static ITexture Wrap(this Texture texture, RenderContext? renderContext = null) => new TextureAdapter(texture, renderContext);
 
         /// <summary>
         /// Tries to unwrap an instance of the texture that has been wrapped using <see cref="Wrap(Texture)"/>.
