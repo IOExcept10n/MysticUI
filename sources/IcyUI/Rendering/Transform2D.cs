@@ -116,32 +116,6 @@ namespace Icy.Rendering
         }
 
         /// <summary>
-        /// Creates a transform based on specified components including origin position.
-        /// </summary>
-        /// <param name="position">Position to apply transform to.</param>
-        /// <param name="origin">Origin location to translate from.</param>
-        /// <param name="scale">Scale to apply.</param>
-        /// <param name="rotation">Rotation in radians to apply.</param>
-        /// <returns>New instance of the <see cref="Transform2D"/> struct with specified parameters.</returns>
-        public static Transform2D Create(Vector2 position, Vector2 origin, Vector2 scale, float rotation)
-        {
-            // To transform an item, we should translate it towards origin,
-            // then scale and rotate and finally translate (with restoring origin offset)
-            Matrix3x2 result = Matrix3x2.CreateTranslation(position + origin) *
-                               Matrix3x2.CreateRotation(rotation) *
-                               Matrix3x2.CreateScale(scale) *
-                               Matrix3x2.CreateTranslation(-origin);
-
-            // Return the new Transform2D object with the calculated matrix
-            var transform = new Transform2D()
-            {
-                matrix = result,
-            };
-            transform.DecomposeMatrix();
-            return transform;
-        }
-
-        /// <summary>
         /// Adds another <see cref="Transform2D"/> to the current instance.
         /// </summary>
         /// <param name="other">Other transform to add.</param>

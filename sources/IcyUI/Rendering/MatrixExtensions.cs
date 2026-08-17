@@ -17,18 +17,27 @@ namespace Icy.Rendering
         /// <param name="translation">Translation matrix component.</param>
         /// <param name="rotation">Rotation matrix component.</param>
         /// <param name="scale">Scale matrix component.</param>
+        /// <remarks>
+        /// Inverts the specific composition <see cref="Transform2D"/>'s <c>BuildMatrix</c> produces - linear part
+        /// <c>Rotate(rotation) * Scale(scale)</c>, translation applied before both (see <c>Transform2D.Create</c>) -
+        /// not a generic scale-then-rotate-then-translate decomposition. Scale is recovered from column norms
+        /// (not row norms, which would assume the opposite <c>Scale * Rotate</c> linear-part order), and the raw
+        /// matrix translation is then un-scaled/un-rotated to recover the original pre-transform position, since
+        /// <c>BuildMatrix</c> applies translation before rotation/scale, not after.
+        /// </remarks>
         public static void Decompose(this in Matrix3x2 matrix, out Vector2 translation, out float rotation, out Vector2 scale)
         {
-            // Extract translation
-            translation = new Vector2(matrix.M31, matrix.M32);
-
-            // Extract scale
             scale = new Vector2(
-                MathF.Sqrt((matrix.M11 * matrix.M11) + (matrix.M12 * matrix.M12)),
-                MathF.Sqrt((matrix.M21 * matrix.M21) + (matrix.M22 * matrix.M22)));
+                MathF.Sqrt((matrix.M11 * matrix.M11) + (matrix.M21 * matrix.M21)),
+                MathF.Sqrt((matrix.M12 * matrix.M12) + (matrix.M22 * matrix.M22)));
 
-            // Extract rotation
-            rotation = MathF.Atan2(-matrix.M21 / scale.Y, matrix.M11 / scale.X);
+            rotation = MathF.Atan2(-matrix.M21, matrix.M11);
+
+            Vector2 rawTranslation = new(matrix.M31, matrix.M32);
+            Vector2 unscaled = scale.X != 0 && scale.Y != 0
+                ? new Vector2(rawTranslation.X / scale.X, rawTranslation.Y / scale.Y)
+                : Vector2.Zero;
+            translation = Vector2.Transform(unscaled, Matrix3x2.CreateRotation(-rotation));
         }
 
         /// <summary>

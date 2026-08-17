@@ -33,9 +33,13 @@ namespace Icy.Tests.Rendering.Fonts
                 [new('A', 'B')] = -1, // Kerning pair for "AB"
             };
 
+            // Glyph dictionary keys must use the same FontInfo.Size/Style as the font itself - SupportsCharacter
+            // looks glyphs up via GetStyledGlyph(codepoint), which builds a StyledGlyphDefinition from Info.Size/
+            // Info.Style, so a mismatched size here means every character silently reports as unsupported.
+            var info = new FontInfo("TestFont", 12, FontStyle.Regular);
             font = new MockSpriteFont(
-                new FontInfo("TestFont", 12, FontStyle.Regular),
-                glyphs.ToDictionary(p => new StyledGlyphDefinition(p.Key, 0, 0), p => p.Value),
+                info,
+                glyphs.ToDictionary(p => new StyledGlyphDefinition(p.Key, info.Size, info.Style), p => p.Value),
                 kernings);
 
             defaultOptions = new FontRenderingOptions(
@@ -182,10 +186,7 @@ namespace Icy.Tests.Rendering.Fonts
                 Metrics = new FontMetrics(maxAscent, minDescent, 2, lowercaseHeight, capitalHeight);
             }
 
-            public override bool SupportsCharacter(int codepoint)
-            {
-                throw new NotImplementedException();
-            }
+            public override bool SupportsCharacter(int codepoint) => glyphs.ContainsKey(GetStyledGlyph(codepoint));
 
             protected override float GetKerning(FontGlyph current, FontGlyph previous)
             {

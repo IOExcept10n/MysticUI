@@ -27,10 +27,12 @@ namespace Icy.Tests.Rendering
             return new()
             {
                 { Transform2D.Identity, new(1, 1), new(1, 1) }, // Identity
-                { Transform2D.Create(new(10, 5), 0f, new(1, 1), new(0, 0)), new(2, 2), new(12, 7) }, // Translation only
-                { Transform2D.Create(new(0, 0), MathF.PI / 2, new(1, 1), new(0, 0)), new(1, 0), new(0, 1) }, // Rotation 90 degrees
-                { Transform2D.Create(new(0, 0), 0f, new(2, 2), new(0, 0)), new(1, 1), new(2, 2) }, // Scaling only
-                { Transform2D.Create(new(10, 5), MathF.PI / 4, new(2, 2), new(10, 5)), new(1, 1), new(10, 5 + 2 * MathF.Sqrt(2)) } // Combined
+                { Transform2D.Create(new(10, 5), 0f, new(0, 0), new(1, 1)), new(2, 2), new(12, 7) }, // Translation only
+                { Transform2D.Create(new(0, 0), MathF.PI / 2, new(0, 0), new(1, 1)), new(1, 0), new(0, 1) }, // Rotation 90 degrees
+                { Transform2D.Create(new(0, 0), 0f, new(0, 0), new(2, 2)), new(1, 1), new(2, 2) }, // Scaling only
+                // Combined: BuildMatrix composes Translate(position) * Rotate(rotation, origin) * Scale(scale) -
+                // translation is applied before rotation/scale, so it's affected by both, not just the rotated delta.
+                { Transform2D.Create(new(10, 5), MathF.PI / 4, new(10, 5), new(2, 2)), new(1, 1), new(20, 10 + 2 * MathF.Sqrt(2)) }
             };
         }
 
@@ -39,28 +41,28 @@ namespace Icy.Tests.Rendering
             return new()
             {
                 {
-                    Transform2D.Create(new(1, 1), 0f, new(1, 1), new(0, 0)),
-                    Transform2D.Create(new(2, 2), 0f, new(1, 1), new(0, 0)),
+                    Transform2D.Create(new(1, 1), 0f, new(0, 0), new(1, 1)),
+                    Transform2D.Create(new(2, 2), 0f, new(0, 0), new(1, 1)),
                     new(1, 1)
                 },
                 {
-                    Transform2D.Create(new(0, 0), MathF.PI / 4, new(1, 1), new(0, 0)),
-                    Transform2D.Create(new(0, 0), MathF.PI / 4, new(1, 1), new(0, 0)),
+                    Transform2D.Create(new(0, 0), MathF.PI / 4, new(0, 0), new(1, 1)),
+                    Transform2D.Create(new(0, 0), MathF.PI / 4, new(0, 0), new(1, 1)),
                     new(1, 0)
                 },
                 {
-                    Transform2D.Create(new(1, 1), 0f, new(2, 2), new(0, 0)),
-                    Transform2D.Create(new(1, 1), 0f, new(2, 2), new(0, 0)),
+                    Transform2D.Create(new(1, 1), 0f, new(0, 0), new(2, 2)),
+                    Transform2D.Create(new(1, 1), 0f, new(0, 0), new(2, 2)),
                     new(1, 1)
                 },
                 {
-                    Transform2D.Create(new(1, 1), 0f, new(1, 1), new(0, 0)),
-                    Transform2D.Create(new(1, 1), 0f, new(1, 1), new(0, 0)),
+                    Transform2D.Create(new(1, 1), 0f, new(0, 0), new(1, 1)),
+                    Transform2D.Create(new(1, 1), 0f, new(0, 0), new(1, 1)),
                     new(1, 1)
                 },
                 {
-                    Transform2D.Create(new(0, 0), MathF.PI / 2, new(2, 2), new(0, 0)),
-                    Transform2D.Create(new(0, 0), MathF.PI / 2, new(2, 2), new(0, 0)),
+                    Transform2D.Create(new(0, 0), MathF.PI / 2, new(0, 0), new(2, 2)),
+                    Transform2D.Create(new(0, 0), MathF.PI / 2, new(0, 0), new(2, 2)),
                     new(1, 1)
                 }
             };
@@ -71,7 +73,7 @@ namespace Icy.Tests.Rendering
         public void TestMatrixDecomposition(Vector2 position, float rotation, Vector2 scale, Vector2 origin)
         {
             // Arrange
-            var transform = Transform2D.Create(position, rotation, scale, origin);
+            var transform = Transform2D.Create(position, rotation, origin, scale);
 
             // Act
             transform.Matrix.Decompose(out var newPosition, out var newRotation, out var newScale);

@@ -1535,13 +1535,13 @@ namespace Icy.UI
 
             int x = containerBounds.X + HorizontalAlignment switch
             {
-                HorizontalAlignment.Center | HorizontalAlignment.Stretch => (availableWidth / 2) + effectiveMargin.Left,
+                HorizontalAlignment.Center or HorizontalAlignment.Stretch => (availableWidth / 2) + effectiveMargin.Left,
                 HorizontalAlignment.Right => availableWidth - effectiveMargin.Right,
                 _ => effectiveMargin.Left,
             };
             int y = containerBounds.Y + VerticalAlignment switch
             {
-                VerticalAlignment.Center | VerticalAlignment.Stretch => (availableHeight / 2) + effectiveMargin.Top,
+                VerticalAlignment.Center or VerticalAlignment.Stretch => (availableHeight / 2) + effectiveMargin.Top,
                 VerticalAlignment.Bottom => availableHeight - effectiveMargin.Bottom,
                 _ => effectiveMargin.Top,
             };
@@ -1557,7 +1557,10 @@ namespace Icy.UI
             // Handle horizontal size and overflow
             if (HorizontalAlignment == HorizontalAlignment.Stretch && float.IsNaN(Width))
             {
-                effectiveSize.Width = (int)float.Clamp(availableWidth, MinWidth, MaxWidth);
+                // A container smaller than this element's margins yields a negative availableWidth - floor at 0
+                // (MinWidth defaults to NaN, which float.Clamp passes through unchanged rather than enforcing a
+                // floor) so stretching never produces a negative size, while still honoring an explicit MinWidth.
+                effectiveSize.Width = (int)float.Clamp(Math.Max(availableWidth, 0), MinWidth, MaxWidth);
             }
             else if (totalWidth > containerBounds.Width)
             {
@@ -1580,7 +1583,8 @@ namespace Icy.UI
             // Handle vertical size and overflow
             if (VerticalAlignment == VerticalAlignment.Stretch && float.IsNaN(Height))
             {
-                effectiveSize.Height = (int)float.Clamp(availableHeight, MinHeight, MaxHeight);
+                // See the matching floor in the horizontal branch above for why Math.Max(..., 0) is needed here.
+                effectiveSize.Height = (int)float.Clamp(Math.Max(availableHeight, 0), MinHeight, MaxHeight);
             }
             else if (totalHeight > containerBounds.Height)
             {
