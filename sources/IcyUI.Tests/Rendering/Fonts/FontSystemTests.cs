@@ -1,3 +1,5 @@
+using System.Drawing;
+using System.Numerics;
 using Icy.Configuration;
 using Icy.Rendering.Fonts;
 using Icy.Tests.Input;
@@ -53,6 +55,28 @@ namespace Icy.Tests.Rendering.Fonts
             Assert.NotNull(large);
             Assert.Equal(12, small!.Info.Size);
             Assert.Equal(32, large!.Info.Size);
+        }
+
+        [Fact]
+        public void MeasureString_SpaceCharacter_ContributesItsOwnAdvanceWidth()
+        {
+            IcyConfiguration config = CreateConfiguration();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            IFont? font = config.Fonts.GetOrLoad(new FontInfo("Airfool", 16, FontStyle.Regular));
+            Assert.NotNull(font);
+
+            var options = new FontRenderingOptions(Vector2.Zero, null, 0, Vector2.Zero, 0, 0, Color.Black, 0, null);
+
+            // A space glyph has no bitmap (StbTrueTypeRasterizer.RasterizeGlyph correctly returns null for it) but
+            // must still contribute its own horizontal advance - if it's mistakenly treated as a missing glyph
+            // (FontGlyph.None) instead of a spacing-only one, ProcessText skips it entirely and "A B" collapses
+            // to the same width as "AB".
+            float withSpace = font!.MeasureString("A B", options).X;
+            float withoutSpace = font.MeasureString("AB", options).X;
+
+            Assert.True(
+                withSpace > withoutSpace,
+                $"Expected \"A B\" ({withSpace}px) to measure wider than \"AB\" ({withoutSpace}px) - the space must contribute its own advance width.");
         }
 
         [Fact]

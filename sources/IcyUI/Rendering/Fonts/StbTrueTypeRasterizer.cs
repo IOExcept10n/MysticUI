@@ -97,8 +97,16 @@ namespace Icy.Rendering.Fonts
                 advanceWidth = (int)(advanceWidth * scaled);
                 leftSideBearing = (int)(leftSideBearing * scaled);
 
-                // Add padding for hinting at small sizes
-                int padding = size <= 16 ? 1 : 0;
+                // Add padding for hinting at small sizes - but only for glyphs that actually have ink. A glyph
+                // with no bitmap box (e.g. space) must stay reported as zero-sized here, matching the unpadded
+                // box RasterizeGlyph computes: DynamicSpriteFont.GetGlyph relies on FontGlyph.IsEmpty to decide
+                // between "spacing-only glyph, just use Advance" and "has a bitmap, rasterize it" - inflating an
+                // inkless glyph's size with padding made it look non-empty, so GetGlyph tried to rasterize it,
+                // RasterizeGlyph correctly found nothing to draw and returned null, and GetGlyph gave up and
+                // returned FontGlyph.None instead - silently dropping the glyph's Advance entirely. For space,
+                // that meant every space character contributed zero width and disappeared from the layout.
+                bool hasInk = x1 > x0 && y1 > y0;
+                int padding = hasInk && size <= 16 ? 1 : 0;
                 int width = x1 - x0 + (padding * 2),
                     height = y1 - y0 + (padding * 2);
                 return new FontGlyph(
