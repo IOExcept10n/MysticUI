@@ -21,6 +21,7 @@ namespace Icy.MonoGameSample
                 if (value != selection)
                 {
                     int count = game.Components.OfType<SampleBase>().Count();
+                    selection = value;
                     if (value >= count)
                     {
                         selection = 0;

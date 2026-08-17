@@ -35,6 +35,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Resources\Airfool.otf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\comic10.fnt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

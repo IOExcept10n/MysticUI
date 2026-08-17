@@ -111,7 +111,7 @@ namespace Icy.Rendering.Fonts
             }
 
             // If can create dynamic based on already loaded font, make it.
-            if (rasterizationData.TryGetValue(info, out var pair))
+            if (TryGetRasterizationData(info, out var pair))
             {
                 return ReuseFont(info, pair);
             }
@@ -170,11 +170,32 @@ namespace Icy.Rendering.Fonts
                 ImportFont(SystemFontsAssetContext, systemPath);
 
                 // After importing this shared data should be available.
-                var data = rasterizationData[info];
+                if (!TryGetRasterizationData(info, out var data))
+                    return ThrowHelper.ThrowInvalidOperationException<IFont>("Font was imported but its rasterization data couldn't be found.");
                 return ReuseFont(info, data);
             }
 
             return ThrowHelper.ThrowArgumentException<IFont>("Couldn't find system font with the specified font info.");
+        }
+
+        /// <summary>
+        /// Looks up shared rasterization data (a rasterizer + atlas) for <paramref name="info"/>.
+        /// </summary>
+        /// <remarks>
+        /// Vector (dynamic) fonts are registered under a wildcard <see cref="FontInfo"/> with <see cref="FontInfo.Size"/>
+        /// set to <c>0</c> (see <see cref="Assets.Importers.DynamicFonts.DynamicFontImporter"/>/
+        /// <see cref="DynamicFontsHelper"/>) - a font file has no inherent pixel size, it can rasterize at any size
+        /// requested. A caller asking for a specific size should still find that template rather than missing
+        /// entirely just because the exact (family, size, style) triple was never registered.
+        /// </remarks>
+        /// <param name="info">The requested font info (typically with a real, non-zero size).</param>
+        /// <param name="data">The found rasterization data, if any.</param>
+        /// <returns><see langword="true"/> if matching rasterization data was found; otherwise <see langword="false"/>.</returns>
+        private bool TryGetRasterizationData(FontInfo info, out SharedDynamicFontData data)
+        {
+            if (rasterizationData.TryGetValue(info, out data))
+                return true;
+            return !info.IsDynamic && rasterizationData.TryGetValue(info with { Size = 0 }, out data);
         }
 
         /// <summary>

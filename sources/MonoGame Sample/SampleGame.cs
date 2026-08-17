@@ -57,6 +57,7 @@ namespace Icy.MonoGameSample
                 else ToWindow();
                 graphics.ApplyChanges();
             });
+            uiConfiguration.Input.Events.RegisterCommand(upCommand, new(Input.Devices.Keys.Tab, Input.Devices.ModifierKeys.Shift));
             uiConfiguration.Input.Events.RegisterCommand(upCommand, new(Input.Devices.Keys.PageUp));
             uiConfiguration.Input.Events.RegisterCommand(downCommand, new(Input.Devices.Keys.PageDown));
             uiConfiguration.Input.Events.RegisterCommand(switchFullScreen, new(Input.Devices.Keys.Enter, Input.Devices.ModifierKeys.Alt));
