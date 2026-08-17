@@ -1506,6 +1506,16 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> when the mouse wheel/touch-swipe scrolls (see
+        /// <see cref="Icy.Input.Events.IScrollEvents.Scroll"/>) while this element (or a descendant) is hovered.
+        /// The base implementation does nothing.
+        /// </summary>
+        /// <param name="info">The scroll delta and axis.</param>
+        protected internal virtual void OnScroll(Icy.Input.Events.ScrollInfo info)
+        {
+        }
+
+        /// <summary>
         /// Invoked by <see cref="UI.Canvas"/> when this element (or a descendant) is the target of a completed tap
         /// (see <see cref="Icy.Input.Events.ITouchEvents.Tap"/>). The base implementation does nothing.
         /// </summary>

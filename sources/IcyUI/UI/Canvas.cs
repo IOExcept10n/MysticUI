@@ -254,7 +254,7 @@ namespace Icy.UI
             if (FocusedElement == element)
                 return;
 
-            // Remember what was focused before entering a scope, so OnCloseModal can restore it later -
+            // Remember what was focused before entering a scope, so CloseFocusScope can restore it later -
             // e.g. closing a dialog should return focus to whatever opened it.
             UIElement? enteredScope = FindEnclosingFocusScope(element);
             if (enteredScope != null && FindEnclosingFocusScope(FocusedElement) != enteredScope)
@@ -263,6 +263,26 @@ namespace Icy.UI
             FocusedElement?.SetFocused(false);
             FocusedElement = element;
             FocusedElement?.SetFocused(true);
+        }
+
+        /// <summary>
+        /// Restores whatever was focused before <paramref name="scope"/> was entered (see <see cref="Focus"/>),
+        /// as if the user had pressed cancel/back while focus was inside it.
+        /// </summary>
+        /// <param name="scope">
+        /// The <see cref="UIElement.IsFocusScope"/> element to close, e.g. a <c>Window</c> being dismissed via
+        /// <c>Window.Close()</c>. A no-op if nothing was ever focused before entering this scope.
+        /// </param>
+        /// <remarks>
+        /// This is the same restore logic <see cref="Icy.Input.Events.INavigationEvents.CloseModal"/> triggers
+        /// (e.g. pressing Escape/a cancel button) - exposed so API-driven scope closes (like a <c>Window</c>'s
+        /// <c>Close()</c> method) restore focus consistently too, not just input-driven ones.
+        /// </remarks>
+        public void CloseFocusScope(UIElement scope)
+        {
+            UIElement? returnFocus = scopeReturnFocus.TryGetValue(scope, out UIElement? f) ? f : null;
+            scopeReturnFocus.Remove(scope);
+            Focus(returnFocus);
         }
 
         /// <summary>
@@ -375,6 +395,7 @@ namespace Icy.UI
             events.Drag.DragStarted += OnDragStarted;
             events.Drag.DragPerforming += OnDragPerforming;
             events.Drag.DragEnded += OnDragEnded;
+            events.Scroll.Scroll += OnScroll;
             events.Navigation.FocusNext += (_, _) => MoveFocus(forward: true);
             events.Navigation.FocusPrevious += (_, _) => MoveFocus(forward: false);
             events.Navigation.CloseModal += OnCloseModal;
@@ -431,12 +452,14 @@ namespace Icy.UI
         private void OnCloseModal(object? sender, EventArgs e)
         {
             UIElement? scope = FindEnclosingFocusScope(FocusedElement);
-            if (scope == null)
-                return;
+            if (scope != null)
+                CloseFocusScope(scope);
+        }
 
-            UIElement? returnFocus = scopeReturnFocus.TryGetValue(scope, out UIElement? f) ? f : null;
-            scopeReturnFocus.Remove(scope);
-            Focus(returnFocus);
+        private void OnScroll(object? sender, GenericEventArgs<Icy.Input.Events.ScrollInfo> e)
+        {
+            foreach (UIElement element in SelfAndAncestors(hoveredElement))
+                element.OnScroll(e.Data);
         }
 
         private void RenderVisual()

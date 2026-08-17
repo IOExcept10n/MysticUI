@@ -37,6 +37,11 @@ namespace Icy.UI.Styles
         /// The element is being touched.
         /// </summary>
         Touching = 1 << 4,
+
+        /// <summary>
+        /// The element represents an "on"/checked value (e.g. a checked <see cref="Controls.ToggleButton"/>).
+        /// </summary>
+        Checked = 1 << 5,
     }
 
     /// <summary>

@@ -26,13 +26,16 @@ namespace Icy.Tests.Input
         {
             Events = new FakeInputEventSystem(this);
             Mouse = new FakeMouseInput();
+            Keyboard = new FakeKeyboardInput();
         }
 
         public FakeInputEventSystem Events { get; }
 
         IInputEventSystem IInputSystem.Events => Events;
 
-        public IKeyboardInput? Keyboard => null;
+        public FakeKeyboardInput Keyboard { get; }
+
+        IKeyboardInput? IInputSystem.Keyboard => Keyboard;
 
         public FakeMouseInput Mouse { get; }
 
@@ -150,11 +153,24 @@ namespace Icy.Tests.Input
         public event EventHandler<GenericEventArgs<ScrollInfo>>? Scroll;
 
         public TimeSpan RepeatDelay { get; set; }
+
+        public void RaiseScroll(ScrollInfo info) => Scroll?.Invoke(this, new GenericEventArgs<ScrollInfo>(info));
     }
 
     /// <summary>
-    /// A fake <see cref="ITextEvents"/> - not exercised by Phase 5 tests yet, but needed to satisfy
-    /// <see cref="IInputEventSystem.Text"/> so a full <see cref="FakeInputEventSystem"/> can be constructed.
+    /// A fake <see cref="ITextInputEventInfo"/> for synthesizing <see cref="FakeTextEvents.RaiseTextInput"/> payloads.
+    /// </summary>
+    public sealed class FakeTextInputEventInfo(string text, TextInputEventType type = TextInputEventType.Input) : ITextInputEventInfo
+    {
+        public Range CompositionRange { get; init; }
+
+        public string Text { get; } = text;
+
+        public TextInputEventType Type { get; } = type;
+    }
+
+    /// <summary>
+    /// A fake <see cref="ITextEvents"/> that lets tests synthesize typed-character payloads directly.
     /// </summary>
     public sealed class FakeTextEvents(IInputSystem inputSystem) : FakeInputEventProviderBase(inputSystem), ITextEvents
     {
@@ -170,13 +186,13 @@ namespace Icy.Tests.Input
 
         public TimeSpan RepeatStartDelay { get; set; }
 
-        public void EnableTextInput()
-        {
-        }
+        public bool IsTextInputEnabled { get; private set; }
 
-        public void DisableTextInput()
-        {
-        }
+        public void EnableTextInput() => IsTextInputEnabled = true;
+
+        public void DisableTextInput() => IsTextInputEnabled = false;
+
+        public void RaiseTextInput(string text) => TextInput?.Invoke(this, new GenericEventArgs<ITextInputEventInfo>(new FakeTextInputEventInfo(text)));
     }
 
     /// <summary>
@@ -246,6 +262,34 @@ namespace Icy.Tests.Input
         public bool DisableListening() => true;
 
         public bool EnableListening() => true;
+    }
+
+    /// <summary>
+    /// A fake <see cref="IKeyboardInput"/> that lets tests synthesize key-press payloads directly.
+    /// </summary>
+    public sealed class FakeKeyboardInput : IKeyboardInput
+    {
+        public bool IsListening => true;
+
+        public bool IsInitialized { get; private set; }
+
+        public IEnumerable<Keys> KeysDown => [];
+
+        public ModifierKeys ModifierKeys => ModifierKeys.None;
+
+        public event EventHandler<GenericEventArgs<Keys>>? KeyDown;
+
+        public event EventHandler<GenericEventArgs<Keys>>? KeyUp;
+
+        public void Initialize() => IsInitialized = true;
+
+        public bool DisableListening() => true;
+
+        public bool EnableListening() => true;
+
+        public void RaiseKeyDown(Keys key) => KeyDown?.Invoke(this, new GenericEventArgs<Keys>(key));
+
+        public void RaiseKeyUp(Keys key) => KeyUp?.Invoke(this, new GenericEventArgs<Keys>(key));
     }
 
     /// <summary>
