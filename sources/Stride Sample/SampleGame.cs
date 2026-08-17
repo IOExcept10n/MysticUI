@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using Icy.Rendering.Brushes;
+using Icy.SharedSamples;
 using Icy.Stride.Configuration;
 using Icy.UI;
 using Stride.Engine;
@@ -12,7 +13,8 @@ namespace Icy.StrideSample
 {
     /// <summary>
     /// A minimal Stride game demonstrating IcyUI wired up purely in code (no Game Studio project/asset pipeline) -
-    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>.
+    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/>, the
+    /// same Tier-1 controls demo <c>MonoGame Sample</c>'s <c>ControlsSample</c> runs.
     /// </summary>
     /// <remarks>
     /// This is the newest, least-verified part of the IcyUI.Stride port: it was written and compiled against the
@@ -43,23 +45,16 @@ namespace Icy.StrideSample
             SceneSystem.SceneInstance = new SceneInstance(Services, new Scene());
 
             IcyUISceneRenderer overlay = this.UseIcyUI();
-            canvas = new Canvas(this.GetIcyConfiguration())
+            var configuration = this.GetIcyConfiguration();
+            canvas = new Canvas(configuration)
             {
                 Background = new SolidColorBrush(Color.FromArgb(255, 25, 25, 30)),
+                IsInputEnabled = true,
             };
             overlay.Canvases.Add(canvas);
 
-            canvas.Add(new Border
-            {
-                Background = new SolidColorBrush(Color.Aqua),
-                BorderBrush = new SolidColorBrush(Color.Black),
-                BorderThickness = new Thickness(2),
-                Width = 160,
-                Height = 80,
-                Margin = new Thickness(20),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-            });
+            configuration.Fonts.ImportFont(configuration.Assets.DefaultAssetContext, @"Resources\Fonts\Airfool.otf");
+            canvas.Add(ControlsDemo.Build(configuration, "Airfool"));
         }
     }
 }

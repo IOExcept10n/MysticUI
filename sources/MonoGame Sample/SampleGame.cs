@@ -2,16 +2,12 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Mvvm.Input;
 using Icy.Configuration;
-using Icy.Data;
-using Icy.MonoGame;
 using Icy.MonoGame.Configuration;
 using Icy.MonoGameSample.Samples;
-using Icy.Rendering.Brushes;
 using Icy.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using SharpDX.Direct3D9;
 using System;
 using System.Text;
 
@@ -49,8 +45,8 @@ namespace Icy.MonoGameSample
             samplesRunner.Prepare([
                 new InputLoggingSample(this, uiConfiguration, canvas),
                 new FontsSample(this, uiConfiguration, canvas),
-                //new UISample(this, uiConfiguration, canvas)
-                // TODO: add samples here.
+                new UISample(this, uiConfiguration, canvas),
+                new ControlsSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);

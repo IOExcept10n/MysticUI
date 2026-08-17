@@ -15,4 +15,12 @@
     <ProjectReference Include="..\IcyUI.Stride\IcyUI.Stride.csproj" />
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared Samples\ControlsDemo.cs" Link="ControlsDemo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Resources\Fonts\Airfool.otf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

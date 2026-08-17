@@ -21,6 +21,9 @@
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Shared Samples\ControlsDemo.cs" Link="Samples\ControlsDemo.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
