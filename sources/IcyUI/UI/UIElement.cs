@@ -1258,7 +1258,7 @@ namespace Icy.UI
         ///     <item>Position child elements within the available space;</item>
         ///     <item>Respect the element's padding when positioning content;</item>
         ///     <item>Handle any content-specific layout requirements;</item>
-        ///     <item>Call <see cref="Arrange"/> on child elements if needed.</item>
+        ///     <item>Call <see cref="Arrange()"/> on child elements if needed.</item>
         /// </list>
         /// </para>
         /// </remarks>
@@ -1424,6 +1424,42 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Converts a point in screen/window space (the same space pointer/touch/drag positions arrive in) into
+        /// this element's own local space (relative to its <see cref="ActualBounds"/> origin), composing every
+        /// ancestor's transform from the <see cref="UI.Canvas"/> down.
+        /// </summary>
+        /// <param name="screenPoint">A point in screen/window space.</param>
+        /// <returns>
+        /// The equivalent point in this element's own local space, or <see cref="Vector2.Zero"/> if this element
+        /// isn't currently attached to a <see cref="UI.Canvas"/>.
+        /// </returns>
+        /// <remarks>
+        /// This is the same math <see cref="HitTest(Vector2)"/> uses internally during its recursive descent,
+        /// exposed for controls (e.g. a <c>Slider</c> thumb) that need to react to raw drag points rather than a
+        /// routed hit-test result.
+        /// </remarks>
+        public Vector2 PointToLocal(Point screenPoint)
+        {
+            if (Canvas == null)
+                return Vector2.Zero;
+
+            Vector2 point = Canvas.ScreenToCanvasSpace(screenPoint);
+
+            Stack<UIElement> chain = new();
+            for (UIElement? element = this; element != null; element = element.Parent)
+                chain.Push(element);
+
+            foreach (UIElement ancestorOrSelf in chain)
+            {
+                if (ancestorOrSelf.IsTransformInvalid)
+                    ancestorOrSelf.UpdateTransformMatrix();
+                point = ancestorOrSelf.inverseLayoutTransform.Apply(point);
+            }
+
+            return point;
+        }
+
+        /// <summary>
         /// Sets whether this element currently has focus, raising <see cref="FocusChanged"/> and updating
         /// <see cref="ControlState"/> if the value actually changes.
         /// </summary>
@@ -1439,6 +1475,47 @@ namespace Icy.UI
             isFocused = value;
             ControlState = value ? ControlState | ControlState.Focused : ControlState & ~ControlState.Focused;
             FocusChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> when a drag sequence that started on this element (or a descendant)
+        /// has ended (see <see cref="Icy.Input.Events.IDragEvents.DragEnded"/>). The base implementation does nothing.
+        /// </summary>
+        /// <param name="screenPoint">The drag's ending position, in screen/window space.</param>
+        protected internal virtual void OnDragEnded(Point screenPoint)
+        {
+        }
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> every frame while a drag sequence that started on this element (or a
+        /// descendant) is performing (see <see cref="Icy.Input.Events.IDragEvents.DragPerforming"/>). The base
+        /// implementation does nothing.
+        /// </summary>
+        /// <param name="screenPoint">The drag's current position, in screen/window space.</param>
+        protected internal virtual void OnDragPerforming(Point screenPoint)
+        {
+        }
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> when a drag sequence starts on this element or a descendant (see
+        /// <see cref="Icy.Input.Events.IDragEvents.DragStarted"/>). The base implementation does nothing.
+        /// </summary>
+        /// <param name="screenPoint">The drag's starting position, in screen/window space.</param>
+        protected internal virtual void OnDragStarted(Point screenPoint)
+        {
+        }
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> when this element (or a descendant) is the target of a completed tap
+        /// (see <see cref="Icy.Input.Events.ITouchEvents.Tap"/>). The base implementation does nothing.
+        /// </summary>
+        /// <remarks>
+        /// Called on the hit-tested element and every one of its ancestors (bubbling, with no "handled" flag in
+        /// v1) - so e.g. a <c>Button</c> reacts to a tap on its label <c>TextBlock</c> just as it would to a tap on
+        /// its own background.
+        /// </remarks>
+        protected internal virtual void OnTap()
+        {
         }
 
         private Point CalculateLocation(Rectangle containerBounds, Size effectiveSize, Thickness effectiveMargin)

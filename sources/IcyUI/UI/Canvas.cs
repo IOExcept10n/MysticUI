@@ -37,6 +37,7 @@ namespace Icy.UI
         private bool isVisible = true;
         private Vector2 offset;
         private float opacity = 1f;
+        private UIElement? draggedElement;
         private UIElement? pressedElement;
         private float rotation;
         private Vector2 scale = Vector2.One;
@@ -210,14 +211,30 @@ namespace Icy.UI
         /// <returns>The topmost hit-testable element under the point, or <see langword="null"/> if none is.</returns>
         public UIElement? HitTest(Point screenPoint)
         {
-            if (isTransformInvalid)
-                UpdateTransform();
-            Vector2 canvasLocalPoint = inverseTransform.Apply(new Vector2(screenPoint.X, screenPoint.Y));
+            Vector2 canvasLocalPoint = ScreenToCanvasSpace(screenPoint);
             foreach (UIElement element in rootElements.OrderByDescending(e => e.ZIndex))
             {
                 UIElement? hit = element.HitTest(canvasLocalPoint);
                 if (hit != null)
                     return hit;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds the nearest enclosing <see cref="UIElement.IsFocusScope"/> ancestor of the specified element
+        /// (walking up through <see cref="UIElement.Parent"/>), or <see langword="null"/> if none of its ancestors
+        /// (or itself) are a focus scope.
+        /// </summary>
+        /// <param name="element">The element to find the enclosing focus scope of.</param>
+        /// <returns>The nearest enclosing focus scope, or <see langword="null"/> if there isn't one.</returns>
+        public static UIElement? FindEnclosingFocusScope(UIElement? element)
+        {
+            for (UIElement? current = element; current != null; current = current.Parent)
+            {
+                if (current.IsFocusScope)
+                    return current;
             }
 
             return null;
@@ -246,24 +263,6 @@ namespace Icy.UI
             FocusedElement?.SetFocused(false);
             FocusedElement = element;
             FocusedElement?.SetFocused(true);
-        }
-
-        /// <summary>
-        /// Finds the nearest enclosing <see cref="UIElement.IsFocusScope"/> ancestor of the specified element
-        /// (walking up through <see cref="UIElement.Parent"/>), or <see langword="null"/> if none of its ancestors
-        /// (or itself) are a focus scope.
-        /// </summary>
-        /// <param name="element">The element to find the enclosing focus scope of.</param>
-        /// <returns>The nearest enclosing focus scope, or <see langword="null"/> if there isn't one.</returns>
-        public static UIElement? FindEnclosingFocusScope(UIElement? element)
-        {
-            for (UIElement? current = element; current != null; current = current.Parent)
-            {
-                if (current.IsFocusScope)
-                    return current;
-            }
-
-            return null;
         }
 
         /// <summary>
@@ -319,11 +318,39 @@ namespace Icy.UI
             frameTime.Restart();
         }
 
+        /// <summary>
+        /// Converts a point in screen/window space (the same space pointer/touch/drag positions arrive in) into
+        /// this canvas's own local content space.
+        /// </summary>
+        /// <param name="screenPoint">A point in screen/window space.</param>
+        /// <returns>The equivalent point in canvas-local content space.</returns>
+        internal Vector2 ScreenToCanvasSpace(Point screenPoint)
+        {
+            if (isTransformInvalid)
+                UpdateTransform();
+            return inverseTransform.Apply(new Vector2(screenPoint.X, screenPoint.Y));
+        }
+
         /// <inheritdoc/>
         protected override void OnPropertyChanging(PropertyChangingEventArgs e)
         {
             VerifyAccess();
             base.OnPropertyChanging(e);
+        }
+
+        /// <summary>
+        /// Enumerates <paramref name="element"/> followed by every ancestor up to the root, via <see cref="UIElement.Parent"/>.
+        /// </summary>
+        /// <remarks>
+        /// Used to bubble routed pointer effects (<see cref="ControlState.Hovered"/>/<see cref="ControlState.Pressed"/>,
+        /// <see cref="UIElement.OnTap"/>, the drag hooks) from the exact hit-tested leaf up through every ancestor
+        /// that might care - e.g. hovering a <c>Button</c>'s label <c>TextBlock</c> should still mark the
+        /// <c>Button</c> itself as hovered, the same way CSS's <c>:hover</c> cascades to ancestors.
+        /// </remarks>
+        private static IEnumerable<UIElement> SelfAndAncestors(UIElement? element)
+        {
+            for (UIElement? current = element; current != null; current = current.Parent)
+                yield return current;
         }
 
         private IEnumerable<UIElement> EnumerateAllElements()
@@ -345,32 +372,60 @@ namespace Icy.UI
             events.Touch.TouchDown += OnTouchDown;
             events.Touch.TouchUp += OnTouchUp;
             events.Touch.Tap += OnTap;
+            events.Drag.DragStarted += OnDragStarted;
+            events.Drag.DragPerforming += OnDragPerforming;
+            events.Drag.DragEnded += OnDragEnded;
             events.Navigation.FocusNext += (_, _) => MoveFocus(forward: true);
             events.Navigation.FocusPrevious += (_, _) => MoveFocus(forward: false);
             events.Navigation.CloseModal += OnCloseModal;
         }
 
+        private void OnDragEnded(object? sender, GenericEventArgs<Point> e)
+        {
+            foreach (UIElement element in SelfAndAncestors(draggedElement))
+                element.OnDragEnded(e.Data);
+            draggedElement = null;
+        }
+
+        private void OnDragPerforming(object? sender, GenericEventArgs<Point> e)
+        {
+            foreach (UIElement element in SelfAndAncestors(draggedElement))
+                element.OnDragPerforming(e.Data);
+        }
+
+        private void OnDragStarted(object? sender, AcceptableEventArgs<Point> e)
+        {
+            draggedElement = HitTest(e.Data);
+            foreach (UIElement element in SelfAndAncestors(draggedElement))
+                element.OnDragStarted(e.Data);
+        }
+
         private void OnTouchDown(object? sender, GenericEventArgs<Point> e)
         {
             pressedElement = HitTest(e.Data);
-            if (pressedElement != null)
-                pressedElement.ControlState |= ControlState.Pressed;
+            foreach (UIElement element in SelfAndAncestors(pressedElement))
+                element.ControlState |= ControlState.Pressed;
         }
 
         private void OnTouchUp(object? sender, GenericEventArgs<Point> e)
         {
-            if (pressedElement != null)
-            {
-                pressedElement.ControlState &= ~ControlState.Pressed;
-                pressedElement = null;
-            }
+            foreach (UIElement element in SelfAndAncestors(pressedElement))
+                element.ControlState &= ~ControlState.Pressed;
+            pressedElement = null;
         }
 
         private void OnTap(object? sender, GenericEventArgs<Icy.Input.Events.TouchInfo> e)
         {
             UIElement? hit = HitTest(e.Data.LastTouch);
-            if (hit != null && hit.IsFocusable)
-                Focus(hit);
+            if (hit == null)
+                return;
+
+            UIElement? focusable = SelfAndAncestors(hit).FirstOrDefault(element => element.IsFocusable);
+            if (focusable != null)
+                Focus(focusable);
+
+            foreach (UIElement element in SelfAndAncestors(hit))
+                element.OnTap();
         }
 
         private void OnCloseModal(object? sender, EventArgs e)
@@ -412,11 +467,25 @@ namespace Icy.UI
             if (hit == hoveredElement)
                 return;
 
-            if (hoveredElement != null)
-                hoveredElement.ControlState &= ~ControlState.Hovered;
+            // Diff the old/new ancestor chains rather than blindly clearing-then-resetting Hovered on both, so an
+            // ancestor that's hovered before and after (e.g. the mouse moved between two leaves within the same
+            // Button) doesn't flicker its VisualState off and back on for no visible reason.
+            HashSet<UIElement> oldChain = [.. SelfAndAncestors(hoveredElement)];
+            HashSet<UIElement> newChain = [.. SelfAndAncestors(hit)];
+
+            foreach (UIElement element in oldChain)
+            {
+                if (!newChain.Contains(element))
+                    element.ControlState &= ~ControlState.Hovered;
+            }
+
+            foreach (UIElement element in newChain)
+            {
+                if (!oldChain.Contains(element))
+                    element.ControlState |= ControlState.Hovered;
+            }
+
             hoveredElement = hit;
-            if (hoveredElement != null)
-                hoveredElement.ControlState |= ControlState.Hovered;
         }
 
         private void UpdateInput()

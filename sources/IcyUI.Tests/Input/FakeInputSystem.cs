@@ -120,8 +120,7 @@ namespace Icy.Tests.Input
     }
 
     /// <summary>
-    /// A fake <see cref="IDragEvents"/> - not exercised by Phase 5 tests yet, but needed to satisfy
-    /// <see cref="IInputEventSystem.Drag"/> so a full <see cref="FakeInputEventSystem"/> can be constructed.
+    /// A fake <see cref="IDragEvents"/> that lets tests synthesize drag-sequence payloads directly.
     /// </summary>
     public sealed class FakeDragEvents(IInputSystem inputSystem) : FakeInputEventProviderBase(inputSystem), IDragEvents
     {
@@ -134,6 +133,12 @@ namespace Icy.Tests.Input
         public void OnMouseMove(Point lastCursorPosition)
         {
         }
+
+        public void RaiseDragEnded(Point point) => DragEnded?.Invoke(this, new GenericEventArgs<Point>(point));
+
+        public void RaiseDragPerforming(Point point) => DragPerforming?.Invoke(this, new GenericEventArgs<Point>(point));
+
+        public void RaiseDragStarted(Point point) => DragStarted?.Invoke(this, new AcceptableEventArgs<Point> { Data = point });
     }
 
     /// <summary>
