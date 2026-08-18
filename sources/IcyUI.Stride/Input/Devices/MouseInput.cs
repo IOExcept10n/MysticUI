@@ -14,6 +14,13 @@ namespace Icy.Stride.Input.Devices
     /// </summary>
     internal class MouseInput(TInputManager input) : IMouseInput, IUpdateableInput
     {
+        // MouseInfo.Wheel/ScrollInfo.Delta is used as a raw scroll-pixels amount with no other normalization
+        // anywhere in the shared Icy.Input.Events.ScrollEvents synthesizer - MonoGame's MouseInput reports the
+        // platform's raw Win32 WHEEL_DELTA units directly (120 per notch), which is what "scrolling feels right"
+        // was tuned against. Stride's InputManager.MouseWheelDelta reports a smaller per-notch magnitude, making
+        // scroll speed feel slower by comparison - scaled here to bring it in line with MonoGame's convention.
+        private const float WheelDeltaScale = 120f;
+
         private MouseButtons lastButtons;
 
         /// <inheritdoc/>
@@ -74,7 +81,7 @@ namespace Icy.Stride.Input.Devices
             }
 
             TVector2 position = input.AbsoluteMousePosition;
-            MouseInfo = new(new System.Drawing.Point((int)position.X, (int)position.Y), buttons, input.MouseWheelDelta);
+            MouseInfo = new(new System.Drawing.Point((int)position.X, (int)position.Y), buttons, input.MouseWheelDelta * WheelDeltaScale);
             lastButtons = buttons;
         }
     }
