@@ -62,6 +62,35 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void MeasureContent_Vertical_IncludesChildMargins()
+        {
+            // Regression: MeasureContent used to ignore Margin entirely while ArrangeContent already accounted
+            // for it when positioning children - under-reporting the panel's true height by the sum of every
+            // child's margin. Most consequential for ScrollViewer.ExtentHeight (reads this measured size as the
+            // content's real extent), which under-clamped VerticalOffset's scrollable range, leaving the last few
+            // items of a long list permanently unreachable by scrolling.
+            var stack = new StackPanel { Orientation = Orientation.Vertical };
+            stack.Children.Add(new UIElement { Width = 40, Height = 10, Margin = new Thickness(0, 0, 0, 6) });
+            stack.Children.Add(new UIElement { Width = 60, Height = 20, Margin = new Thickness(0, 0, 0, 6) });
+
+            Size measured = stack.Measure();
+
+            Assert.Equal(new Size(60, 42), measured);
+        }
+
+        [Fact]
+        public void MeasureContent_Horizontal_IncludesChildMargins()
+        {
+            var stack = new StackPanel { Orientation = Orientation.Horizontal };
+            stack.Children.Add(new UIElement { Width = 10, Height = 40, Margin = new Thickness(0, 0, 4, 0) });
+            stack.Children.Add(new UIElement { Width = 20, Height = 60, Margin = new Thickness(0, 0, 4, 0) });
+
+            Size measured = stack.Measure();
+
+            Assert.Equal(new Size(38, 60), measured);
+        }
+
+        [Fact]
         public void ArrangeContent_SkipsInvisibleChildren()
         {
             var a = new UIElement { Width = 40, Height = 10, IsVisible = false };

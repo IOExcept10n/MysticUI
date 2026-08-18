@@ -66,6 +66,12 @@ namespace Icy.UI.Controls
         /// <inheritdoc/>
         protected override Size MeasureContent()
         {
+            // Must match ArrangeContent's own per-slot size exactly (desired size + Margin on the main axis) -
+            // this used to omit Margin entirely, under-reporting the panel's true natural size by every child's
+            // margin. Harmless for a panel sized by its own explicit Width/Height, but silently wrong for anything
+            // that reads this measured size as ground truth - most notably ScrollViewer.ExtentWidth/ExtentHeight,
+            // which under-clamped HorizontalOffset/VerticalOffset's scrollable range by the sum of all children's
+            // margins, making the last few items in a long list permanently unreachable by scrolling.
             int totalMain = 0;
             int maxCross = 0;
             foreach (UIElement child in Children)
@@ -76,13 +82,13 @@ namespace Icy.UI.Controls
                 Size desired = child.Measure();
                 if (Orientation == Orientation.Vertical)
                 {
-                    totalMain += desired.Height;
-                    maxCross = Math.Max(maxCross, desired.Width);
+                    totalMain += desired.Height + child.Margin.Height;
+                    maxCross = Math.Max(maxCross, desired.Width + child.Margin.Width);
                 }
                 else
                 {
-                    totalMain += desired.Width;
-                    maxCross = Math.Max(maxCross, desired.Height);
+                    totalMain += desired.Width + child.Margin.Width;
+                    maxCross = Math.Max(maxCross, desired.Height + child.Margin.Height);
                 }
             }
 
