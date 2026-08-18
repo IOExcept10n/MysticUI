@@ -1,6 +1,8 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using CommunityToolkit.Mvvm.Input;
+using Icy.Input.Devices;
 using Icy.Rendering.Brushes;
 using Icy.SharedSamples;
 using Icy.Stride.Configuration;
@@ -13,8 +15,10 @@ namespace Icy.StrideSample
 {
     /// <summary>
     /// A minimal Stride game demonstrating IcyUI wired up purely in code (no Game Studio project/asset pipeline) -
-    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/>, the
-    /// same Tier-1 controls demo <c>MonoGame Sample</c>'s <c>ControlsSample</c> runs.
+    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/> and
+    /// <see cref="StylesDemo"/>, the same demos <c>MonoGame Sample</c>'s <c>ControlsSample</c>/<c>StylesSample</c>
+    /// run - PageUp/PageDown switches between them (Stride has no multi-sample runner like MonoGame's
+    /// <c>SamplesRunner</c>, so this just toggles which of the two demo roots is visible).
     /// </summary>
     /// <remarks>
     /// This is the newest, least-verified part of the IcyUI.Stride port: it was written and compiled against the
@@ -26,6 +30,9 @@ namespace Icy.StrideSample
     internal sealed class SampleGame : Game
     {
         private Canvas? canvas;
+        private UIElement? controlsRoot;
+        private UIElement? stylesRoot;
+        private int selectedDemo;
 
         protected override void BeginRun()
         {
@@ -54,7 +61,26 @@ namespace Icy.StrideSample
             overlay.Canvases.Add(canvas);
 
             configuration.Fonts.ImportFont(configuration.Assets.DefaultAssetContext, @"Resources\Fonts\Airfool.otf");
-            canvas.Add(ControlsDemo.Build(configuration, "Airfool"));
+
+            controlsRoot = ControlsDemo.Build(configuration, "Airfool");
+            stylesRoot = StylesDemo.Build(configuration, "Airfool");
+            canvas.Add(controlsRoot);
+            canvas.Add(stylesRoot);
+            UpdateSelectedDemo();
+
+            var switchDemo = new RelayCommand(() =>
+            {
+                selectedDemo = (selectedDemo + 1) % 2;
+                UpdateSelectedDemo();
+            });
+            configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
+            configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageUp));
+        }
+
+        private void UpdateSelectedDemo()
+        {
+            controlsRoot!.IsVisible = selectedDemo == 0;
+            stylesRoot!.IsVisible = selectedDemo == 1;
         }
     }
 }

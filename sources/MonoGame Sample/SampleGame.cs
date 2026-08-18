@@ -46,7 +46,8 @@ namespace Icy.MonoGameSample
                 new InputLoggingSample(this, uiConfiguration, canvas),
                 new FontsSample(this, uiConfiguration, canvas),
                 new UISample(this, uiConfiguration, canvas),
-                new ControlsSample(this, uiConfiguration, canvas)
+                new ControlsSample(this, uiConfiguration, canvas),
+                new StylesSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);
@@ -107,7 +108,7 @@ namespace Icy.MonoGameSample
                            .Append("Heap size:").Append(GC.GetGCMemoryInfo().HeapSizeBytes).Append('B').AppendLine()
                            .Append("Memory excluding fragmentation: ").Append(GC.GetTotalMemory(false)).Append('B').AppendLine()
                            .Append("Unsafe allocations: ").Append(unsafeMemoryStats.GetProperty("Allocations").GetValue(null)).Append('.').AppendLine();
-            diagSb.DrawString(diagFont, diagnosticsInfo.ToString(), Vector2.One, Color.DarkGreen);
+            diagSb.DrawString(diagFont, diagnosticsInfo.ToString(), new(600, 1), Color.DarkGreen);
             diagSb.End();
             base.Draw(gameTime);
         }
