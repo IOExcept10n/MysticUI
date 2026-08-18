@@ -13,6 +13,8 @@ namespace Icy.Stride.Input.Devices
     /// </summary>
     internal class KeyboardInput(TInputManager input) : IKeyboardInput, IUpdateableInput
     {
+        private readonly HashSet<TKeys> downKeys = [];
+
         /// <inheritdoc/>
         public event EventHandler<GenericEventArgs<Keys>>? KeyDown;
 
@@ -57,10 +59,30 @@ namespace Icy.Stride.Input.Devices
             if (!IsListening)
                 return;
 
-            foreach (TKeys key in input.PressedKeys)
-                KeyDown?.Invoke(this, key.RemapKeys());
-            foreach (TKeys key in input.ReleasedKeys)
+            // input.PressedKeys/ReleasedKeys are "since last Stride frame" edge lists - a stable snapshot for the
+            // whole frame, not cleared between calls. Input gets pumped twice per frame by design (once from the
+            // engine's own per-frame Update phase via IcyUIGameSystem, once more from Canvas.UpdateInput during
+            // Draw - MonoGame has the identical structure and is unaffected, since its KeyDown comes from a raw
+            // window event hook, not from re-reading state here), so re-dispatching straight from those edge
+            // lists fired KeyDown/KeyUp twice per real key press. input.DownKeys is a live/current-state query
+            // instead - diffing it against our own tracked snapshot (mirroring MouseInput's DownButtons-diffing
+            // in this same folder) makes this idempotent no matter how many times Update() runs before the key's
+            // actual state changes.
+            HashSet<TKeys> currentlyDown = [.. input.DownKeys];
+
+            foreach (TKeys key in currentlyDown)
+            {
+                if (downKeys.Add(key))
+                    KeyDown?.Invoke(this, key.RemapKeys());
+            }
+
+            downKeys.RemoveWhere(key =>
+            {
+                if (currentlyDown.Contains(key))
+                    return false;
                 KeyUp?.Invoke(this, key.RemapKeys());
+                return true;
+            });
 
             UpdateModifiers();
         }
