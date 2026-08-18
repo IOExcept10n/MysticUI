@@ -99,13 +99,21 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
-        protected internal override void OnScroll(ScrollInfo info)
+        protected internal override bool OnScroll(ScrollInfo info)
         {
             base.OnScroll(info);
             if (info.ScrollOrientation == Orientation.Vertical)
+            {
+                float before = verticalOffset;
                 VerticalOffset -= info.Delta;
+                return verticalOffset != before;
+            }
             else
+            {
+                float before = horizontalOffset;
                 HorizontalOffset -= info.Delta;
+                return horizontalOffset != before;
+            }
         }
 
         /// <inheritdoc/>

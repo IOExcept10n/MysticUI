@@ -458,8 +458,14 @@ namespace Icy.UI
 
         private void OnScroll(object? sender, GenericEventArgs<Icy.Input.Events.ScrollInfo> e)
         {
+            // Stop at the first element that actually consumes the scroll (see UIElement.OnScroll's remarks) -
+            // otherwise a scrollable region nested inside another scrollable region also scrolled every ancestor
+            // around it, since every one of them received the same wheel/swipe event.
             foreach (UIElement element in SelfAndAncestors(hoveredElement))
-                element.OnScroll(e.Data);
+            {
+                if (element.OnScroll(e.Data))
+                    break;
+            }
         }
 
         private void RenderVisual()

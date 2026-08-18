@@ -1545,12 +1545,18 @@ namespace Icy.UI
         /// <summary>
         /// Invoked by <see cref="UI.Canvas"/> when the mouse wheel/touch-swipe scrolls (see
         /// <see cref="Icy.Input.Events.IScrollEvents.Scroll"/>) while this element (or a descendant) is hovered.
-        /// The base implementation does nothing.
+        /// The base implementation does nothing and returns <see langword="false"/>.
         /// </summary>
         /// <param name="info">The scroll delta and axis.</param>
-        protected internal virtual void OnScroll(Icy.Input.Events.ScrollInfo info)
-        {
-        }
+        /// <returns>
+        /// <see langword="true"/> if this element actually consumed the scroll (e.g. a <c>ScrollViewer</c> that had
+        /// room left to scroll further in <paramref name="info"/>'s direction) - <see cref="UI.Canvas"/> stops
+        /// dispatching to further ancestors once an element returns <see langword="true"/>, so one nested
+        /// scrollable region doesn't also scroll every scrollable ancestor around it. Returning
+        /// <see langword="false"/> (e.g. already scrolled to the limit in that direction) lets the event bubble up
+        /// to an outer scrollable ancestor, which is what makes "overscroll" naturally hand off to it.
+        /// </returns>
+        protected internal virtual bool OnScroll(Icy.Input.Events.ScrollInfo info) => false;
 
         /// <summary>
         /// Invoked by <see cref="UI.Canvas"/> when this element (or a descendant) is the target of a completed tap
