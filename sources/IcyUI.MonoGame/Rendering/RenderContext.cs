@@ -12,6 +12,15 @@ namespace Icy.MonoGame.Rendering
     /// </summary>
     public sealed class RenderContext : IRenderContext
     {
+        // Matches SpriteBatch's own default rasterizer state (RasterizerState.CullCounterClockwise) but with
+        // scissor testing enabled - without this, GraphicsDevice.ScissorRectangle (see the Scissor property below)
+        // is set correctly but never actually tested against, silently making every ClipToBounds a no-op.
+        private static readonly RasterizerState UIRasterizerState = new()
+        {
+            CullMode = CullMode.CullCounterClockwiseFace,
+            ScissorTestEnable = true,
+        };
+
         private readonly GraphicsDevice device;
         private readonly SpriteBatch spriteBatch;
 
@@ -82,7 +91,7 @@ namespace Icy.MonoGame.Rendering
             // (BlendState.AlphaBlend) assumes premultiplied input; using it here made any partially-covered pixel
             // (i.e. every anti-aliased glyph edge) render at close to full brightness regardless of actual
             // coverage, blooming small text into solid blocks instead of legible letterforms.
-            spriteBatch.Begin(blendState: BlendState.NonPremultiplied, effect: appliedEffect);
+            spriteBatch.Begin(blendState: BlendState.NonPremultiplied, rasterizerState: UIRasterizerState, effect: appliedEffect);
             began = true;
         }
 
