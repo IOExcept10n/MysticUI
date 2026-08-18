@@ -116,6 +116,15 @@ namespace Icy.MonoGame.Input.Events
         private void Window_TextInput(object? sender, TextInputEventArgs e)
         {
             if (!listening) return;
+
+            // MonoGame's Window.TextInput (backed by the platform's WM_CHAR-equivalent) fires for control
+            // characters too, not just printable ones - Backspace produces '\b', Enter '\r', Tab '\t', etc.
+            // Consumers like TextBox already handle those via the raw KeyDown event (Keys.Back/.../Keys.Tab);
+            // forwarding them here too as "typed text" double-processes a single key press (e.g. Backspace both
+            // deletes the character before the caret via KeyDown *and* inserts a literal '\b' via this event).
+            if (char.IsControl(e.Character))
+                return;
+
             TextInput?.Invoke(this, new TextInputInfo(Range.All, e.Character.ToString(), TextInputEventType.Input));
         }
     }

@@ -90,6 +90,21 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void TextInput_ControlCharacter_IsIgnored()
+        {
+            // Regression: Windows' WM_CHAR (which MonoGame's Window.TextInput is backed by) fires for control
+            // characters too, not just printable ones - Backspace produces '\b', Enter '\r', Tab '\t'. Those
+            // already have dedicated handling via the raw KeyDown event; letting them through here as "typed
+            // text" would splice a literal control character into the text and double-process a single key press.
+            var (_, input, textBox) = CreateFocusedTextBox();
+            input.Events.Text.RaiseTextInput("ab");
+
+            input.Events.Text.RaiseTextInput("\b");
+
+            Assert.Equal("ab", textBox.Text);
+        }
+
+        [Fact]
         public void Backspace_Twice_RemovesTwoCharactersNotOne()
         {
             // Regression: Text's setter clamps caretIndex to the new (shorter) length as a side effect, and

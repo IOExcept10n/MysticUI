@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using Icy.Data;
 using Icy.Data.Markup.Attributes;
@@ -164,6 +165,19 @@ namespace Icy.UI.Controls
         private void InsertText(string inserted)
         {
             if (string.IsNullOrEmpty(inserted))
+                return;
+
+            // Defends against a platform's text-input event leaking control characters as "typed text" - e.g.
+            // Windows' WM_CHAR (which MonoGame.Window.TextInput is backed by) fires for Backspace ('\b'), Enter
+            // ('\r'), Tab ('\t'), etc., not just printable characters. Those already have their own dedicated
+            // handling via the raw KeyDown event (see OnKeyDown); inserting them here too as literal characters
+            // would double-process a single key press (e.g. Backspace both deleting via KeyDown *and* splicing a
+            // literal '\b' into the text here). Filtered here (not just at the MonoGame source) so any other
+            // engine backend that leaks the same class of event is covered too.
+            if (inserted.Any(char.IsControl))
+                inserted = new string(inserted.Where(c => !char.IsControl(c)).ToArray());
+
+            if (inserted.Length == 0)
                 return;
 
             string current = Text;
