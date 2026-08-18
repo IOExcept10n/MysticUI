@@ -147,16 +147,40 @@ namespace Icy.Rendering
         }
 
         /// <summary>
-        /// Applies the transform to the specified rectangle.
+        /// Applies the transform to the specified rectangle, returning the axis-aligned bounding box of its
+        /// transformed area.
         /// </summary>
         /// <param name="source">Source rectangle to apply transform to.</param>
-        /// <returns>New rectangle with transformed area.</returns>
+        /// <returns>
+        /// The axis-aligned bounding box containing all four of <paramref name="source"/>'s corners after being
+        /// transformed. For a rotation-free, uniform-position-only transform this is exactly the same rectangle,
+        /// just translated; for a rotated and/or scaled transform, this is the true bounding box of the resulting
+        /// (generally non-axis-aligned) shape - not that shape itself, which a <see cref="Rectangle"/> can't
+        /// represent.
+        /// </returns>
+        /// <remarks>
+        /// This used to transform only <paramref name="source"/>'s top-left corner and scale the width/height by
+        /// <c>(matrix.M11, matrix.M22)</c> directly - correct only when the matrix has no rotation, since those
+        /// components mix rotation and scale together for any rotated matrix (e.g. <c>M11 = scale.X * cos(θ)</c>).
+        /// A 45° rotation multiplied both dimensions by <c>cos(45°) ≈ 0.707</c> instead of computing the actual
+        /// (larger) rotated bounding box, collapsing the result down to a small sliver overlapping just the
+        /// transformed top-left corner - visible as a rotated element getting clipped down to almost nothing by
+        /// <see cref="UI.UIElement.ClipToBounds"/> scissoring, or a rotated/scaled glyph's measured bounds being
+        /// wrong.
+        /// </remarks>
         public readonly Rectangle Apply(Rectangle source)
         {
-            var position = Apply(new Vector2(source.X, source.Y));
-            Vector2 transformScale = new(matrix.M11, matrix.M22);
-            Vector2 size = new(source.Width * transformScale.X, source.Height * transformScale.Y);
-            return new Rectangle((int)position.X, (int)position.Y, (int)size.X, (int)size.Y);
+            Vector2 topLeft = Apply(new Vector2(source.Left, source.Top));
+            Vector2 topRight = Apply(new Vector2(source.Right, source.Top));
+            Vector2 bottomLeft = Apply(new Vector2(source.Left, source.Bottom));
+            Vector2 bottomRight = Apply(new Vector2(source.Right, source.Bottom));
+
+            float minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+            float maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+            float minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+            float maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+
+            return Rectangle.FromLTRB((int)MathF.Floor(minX), (int)MathF.Floor(minY), (int)MathF.Ceiling(maxX), (int)MathF.Ceiling(maxY));
         }
 
         /// <inheritdoc/>

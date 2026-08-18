@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Rendering;
+using System.Drawing;
 using System.Numerics;
 using Xunit;
 
@@ -94,6 +95,32 @@ namespace Icy.Tests.Rendering
 
             // Assert
             Assert.True(Vector2Equals(actual, expected));
+        }
+
+        [Fact]
+        public void Apply_Rectangle_PureTranslation_PreservesSize()
+        {
+            var transform = Transform2D.Create(new Vector2(10, 5), 0f, Vector2.Zero, Vector2.One);
+
+            var result = transform.Apply(new Rectangle(0, 0, 80, 40));
+
+            Assert.Equal(new Rectangle(10, 5, 80, 40), result);
+        }
+
+        [Fact]
+        public void Apply_Rectangle_Rotated90Degrees_ReturnsTrueBoundingBoxNotShrunkSliver()
+        {
+            // Regression: this used to scale width/height by (matrix.M11, matrix.M22) directly, which mixes
+            // rotation and scale for any rotated matrix. A 90-degree rotation multiplies both dimensions by
+            // cos(90deg)=0, collapsing the computed "size" to (0,0) entirely (an even more extreme case than the
+            // 45-degree sliver a rotated UI element got clipped down to). The true bounding box of an 80x40 rect
+            // rotated 90 degrees around its own center is a 40x80 box (dimensions swapped), not a zero-size one.
+            var transform = Transform2D.Create(Vector2.Zero, MathF.PI / 2, new Vector2(40, 20), Vector2.One);
+
+            var result = transform.Apply(new Rectangle(0, 0, 80, 40));
+
+            Assert.Equal(40, result.Width);
+            Assert.Equal(80, result.Height);
         }
 
         [Theory]
