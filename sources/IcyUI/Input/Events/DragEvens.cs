@@ -11,7 +11,6 @@ namespace Icy.Input.Events
     /// </summary>
     internal class DragEvens : IDragEvents
     {
-        private Point lastMousePosition;
         private DragState state;
 
         /// <summary>
@@ -74,10 +73,13 @@ namespace Icy.Input.Events
         {
             if (state == DragState.MouseDrag)
             {
-                var state = InputSystem.Mouse.MouseInfo;
-                var delta = new Point(state.Position.X - lastMousePosition.X, state.Position.Y - lastMousePosition.Y);
-                lastMousePosition = state.Position;
-                DragPerforming?.Invoke(this, delta);
+                // DragPerforming's documented contract (see UIElement.OnDragPerforming) is "the drag's current
+                // position, in screen/window space" - the same absolute-position contract DragStarted/DragEnded
+                // already follow. This used to pass the incremental delta since the last call instead, which
+                // consumers like Slider.UpdateValueFromPoint (via PointToLocal, which expects a real screen
+                // coordinate) treated as an absolute position - producing a near-random result every frame instead
+                // of tracking the cursor, i.e. dragging would start correctly but then appear to "fail" instantly.
+                DragPerforming?.Invoke(this, InputSystem.Mouse.MouseInfo.Position);
             }
         }
 
@@ -85,15 +87,11 @@ namespace Icy.Input.Events
         {
             var args = new AcceptableEventArgs<Point>() { Data = position };
             DragStarted?.Invoke(this, args);
-            if (args.Cancel)
-                return;
-            lastMousePosition = position;
         }
 
         private void EndDrag(Point position)
         {
             state = DragState.None;
-            lastMousePosition = default;
             DragEnded?.Invoke(this, position);
         }
 
@@ -114,7 +112,9 @@ namespace Icy.Input.Events
             }
             else if (!e.Data.IsPerformed)
             {
-                DragPerforming?.Invoke(this, e.Data.DeltaTranslation.ToPoint());
+                // Same absolute-position contract as the mouse path above - TranslationStart + TotalTranslation
+                // is the gesture's current absolute position (mirrors EndDrag's own computation below).
+                DragPerforming?.Invoke(this, (e.Data.TranslationStart.ToVector() + e.Data.TotalTranslation).ToPoint());
             }
             else
             {
