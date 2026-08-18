@@ -8,6 +8,10 @@
 *.suo
 *.user
 *.userosscache
+
+# Claude Code personal instructions (not shared with the team)
+CLAUDE.local.md
+.claude/settings.local.json
 *.sln.docstates
 
 # User-specific files (MonoDevelop/Xamarin Studio)

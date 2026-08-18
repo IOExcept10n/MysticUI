@@ -72,7 +72,7 @@ namespace Icy.SharedSamples
             var button = new Button
             {
                 Content = CreateLabel("Dictionary Style", fontFamily),
-                Padding = new Thickness(12, 6),
+                Padding = new Thickness(12, 0),
                 Style = style,
             };
 
@@ -91,7 +91,7 @@ namespace Icy.SharedSamples
             var button = new Button
             {
                 Content = CreateLabel("Fluent Style<T>", fontFamily),
-                Padding = new Thickness(12, 6),
+                Padding = new Thickness(12, 0),
                 Style = style,
             };
 
@@ -114,7 +114,7 @@ namespace Icy.SharedSamples
             var themedButton = new Button
             {
                 Content = CreateLabel("Hover / Press / Tab to me", fontFamily),
-                Padding = new Thickness(12, 6),
+                Padding = new Thickness(12, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 100, 200)),
             };
             themedButton.RegisterStateGroup(buttonStates);
@@ -130,7 +130,7 @@ namespace Icy.SharedSamples
             var themedCheckBox = new CheckBox
             {
                 Content = CreateLabel("Themed CheckBox", fontFamily),
-                Padding = new Thickness(12, 6),
+                Padding = new Thickness(12, 0),
                 Margin = new Thickness(10, 0, 0, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 60, 70)),
             };
