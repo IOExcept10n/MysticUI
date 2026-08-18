@@ -198,7 +198,24 @@ namespace Icy.MonoGame.Rendering
         {
             public float Opacity { get; set; } = 1f;
 
-            public System.Drawing.Rectangle Scissor { get => context.device.ScissorRectangle.AsSystemRectangle(); set => context.device.ScissorRectangle = value.AsEngineRectangle(); }
+            public System.Drawing.Rectangle Scissor
+            {
+                get => context.device.ScissorRectangle.AsSystemRectangle();
+                set
+                {
+                    // SpriteBatch's default SpriteSortMode.Deferred batches every Draw() call and only actually
+                    // submits to the GPU at End() (or an internal buffer flush) - using whatever
+                    // GraphicsDevice.ScissorRectangle is active *at that submission moment*, not whatever was set
+                    // when each sprite was originally queued. UIElement.Draw's recursive descent constantly
+                    // changes/restores Scissor as it walks the tree without ever flushing, so every nested clip
+                    // change was invisible: by the time End() ran, the scissor had already unwound back to the
+                    // outermost value, which is what every queued sprite actually rendered with. Flushing here
+                    // (matching Icy.Stride.Rendering.RenderContext's Scissor setter, which already does this)
+                    // forces everything queued so far to submit with the *previous* scissor before changing it.
+                    context.Flush();
+                    context.device.ScissorRectangle = value.AsEngineRectangle();
+                }
+            }
 
             public bool EnableEffects { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         }
