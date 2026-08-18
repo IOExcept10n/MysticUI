@@ -125,7 +125,13 @@ namespace Icy.UI
 
             if (BorderBrush != null && BorderThickness != Thickness.Zero)
             {
-                Rectangle drawArea = renderOptions.Destination + BorderThickness;
+                // BorderThickness insets *into* ActualBounds (see ContentBounds => ActualBounds - BorderThickness,
+                // the standard border-box convention) - the strips below must be computed directly against
+                // renderOptions.Destination (the full (0,0,W,H) local box), not expanded outward by
+                // "+ BorderThickness" (that operator grows a rect *outward*, the opposite of what's needed here).
+                // The old code drew every strip partially or fully outside the element's own local bounds, which
+                // ClipToBounds's scissor (set to exactly those bounds) then silently clipped away.
+                Rectangle drawArea = renderOptions.Destination;
 
                 // Draw the border as its four edges.
                 BorderBrush.Draw(context, renderOptions with { Destination = drawArea with { Height = BorderThickness.Top } });
