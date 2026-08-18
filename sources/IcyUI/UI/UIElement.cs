@@ -1052,7 +1052,21 @@ namespace Icy.UI
 
             if (ClipToBounds)
             {
-                context.Options.Scissor = context.Options.Scissor.Cut(ActualBounds);
+                // Must go through context.Transform (just updated above), not the raw ActualBounds - ActualBounds
+                // is the Arrange-computed position, chained additively through each ancestor's ContentBounds, and
+                // never reflects LayoutOffset (see UpdateTransformMatrix's remarks). A ScrollViewer scrolls its
+                // Content purely via LayoutOffset, so any clipped descendant inside scrolled content has a real
+                // screen position that has drifted away from its own ActualBounds - cutting the scissor against
+                // the stale, unscrolled ActualBounds left the clip window not tracking what was actually drawn.
+                //
+                // Deliberately NOT RectangleExtensions.Cut here (despite the name fitting) - that method treats its
+                // second rectangle as an offset relative to the first (correct for its actual callers, e.g.
+                // NinePatchImageBrush slicing a texture sub-region out of another texture region), not as two
+                // absolute rectangles to intersect. Both this element's transformed bounds and the incoming scissor
+                // are absolute screen-space rectangles, so a real intersection is what's needed here.
+                Rectangle localBounds = new(Point.Empty, ActualBounds.Size);
+                Rectangle screenBounds = context.Transform.Apply(localBounds);
+                context.Options.Scissor = Rectangle.Intersect(context.Options.Scissor, screenBounds);
             }
 
             // Draw content

@@ -15,7 +15,7 @@ namespace Icy.Tests.Rendering
         /// <summary>
         /// Gets the list of textures drawn since the context was created, in draw order.
         /// </summary>
-        public List<(ITexture Texture, TextureRenderingOptions Options, Transform2D TransformAtDrawTime)> DrawCalls { get; } = [];
+        public List<(ITexture Texture, TextureRenderingOptions Options, Transform2D TransformAtDrawTime, Rectangle ScissorAtDrawTime)> DrawCalls { get; } = [];
 
         /// <inheritdoc/>
         public event EventHandler? ViewportResize;
@@ -55,7 +55,7 @@ namespace Icy.Tests.Rendering
         }
 
         /// <inheritdoc/>
-        public void Draw(ITexture texture, in TextureRenderingOptions options) => DrawCalls.Add((texture, options, Transform));
+        public void Draw(ITexture texture, in TextureRenderingOptions options) => DrawCalls.Add((texture, options, Transform, Options.Scissor));
 
         /// <inheritdoc/>
         public void End() => began = false;
