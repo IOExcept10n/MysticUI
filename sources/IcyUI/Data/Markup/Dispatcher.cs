@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Collections.Concurrent;
 using CommunityToolkit.Diagnostics;
+using Icy.Animations;
 using Icy.Data.Bindings;
 
 namespace Icy.Data.Markup
@@ -15,6 +16,7 @@ namespace Icy.Data.Markup
         private readonly object lockObj = new();
         private readonly PriorityQueue<Action, DispatcherPriority> dispatchedActions = new();
         private readonly HashSet<IBinding> frameBindings = [];
+        private readonly HashSet<Animation> runningAnimations = [];
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Dispatcher"/> class.
@@ -185,6 +187,57 @@ namespace Icy.Data.Markup
 
             foreach (IBinding binding in bindings)
                 binding.UpdateTarget();
+        }
+
+        /// <summary>
+        /// Registers an animation to have <see cref="Animation.Update(TimeSpan)"/> called once per frame by
+        /// <see cref="UpdateAnimations(TimeSpan)"/>.
+        /// </summary>
+        /// <param name="animation">The animation to tick every frame.</param>
+        /// <remarks>Called by <see cref="Animation.Start"/> - call <see cref="UnregisterAnimation(Animation)"/> once the animation stops or completes.</remarks>
+        public void RegisterAnimation(Animation animation)
+        {
+            lock (lockObj)
+            {
+                runningAnimations.Add(animation);
+            }
+        }
+
+        /// <summary>
+        /// Stops calling <see cref="Animation.Update(TimeSpan)"/> once per frame for an animation previously passed
+        /// to <see cref="RegisterAnimation(Animation)"/>.
+        /// </summary>
+        /// <param name="animation">The animation to stop ticking.</param>
+        public void UnregisterAnimation(Animation animation)
+        {
+            lock (lockObj)
+            {
+                runningAnimations.Remove(animation);
+            }
+        }
+
+        /// <summary>
+        /// Calls <see cref="Animation.Update(TimeSpan)"/> once for every animation registered through
+        /// <see cref="RegisterAnimation(Animation)"/>, advancing it by <paramref name="delta"/>.
+        /// </summary>
+        /// <param name="delta">The amount of time to advance every running animation by.</param>
+        /// <remarks>
+        /// Called once per frame from <see cref="UI.Canvas.Render"/>, alongside <see cref="Update(DispatcherPriority)"/>
+        /// for <see cref="DispatcherPriority.DataBind"/> and <see cref="UpdateFrameBindings"/>, so animations advance
+        /// at the same point in the frame as reactive and frame-driven bindings.
+        /// </remarks>
+        public void UpdateAnimations(TimeSpan delta)
+        {
+            Animation[] animations;
+            lock (lockObj)
+            {
+                if (runningAnimations.Count == 0)
+                    return;
+                animations = [.. runningAnimations];
+            }
+
+            foreach (Animation animation in animations)
+                animation.Update(delta);
         }
     }
 }

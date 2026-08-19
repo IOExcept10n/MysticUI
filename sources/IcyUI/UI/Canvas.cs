@@ -322,6 +322,7 @@ namespace Icy.UI
 
             Dispatcher.Update(DispatcherPriority.DataBind);
             Dispatcher.UpdateFrameBindings();
+            Dispatcher.UpdateAnimations(frameTime.Elapsed);
 
             // Skip input and rendering for invisible control,
             // but keep animations and bindings work.
