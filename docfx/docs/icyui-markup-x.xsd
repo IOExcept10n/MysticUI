@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IcyUI markup directives (the `x:` namespace) - Phase 9, M0.
+
+  Unlike the control vocabulary, this set is fixed by the language rather than by which types happen
+  to be registered, so it can be specified by hand and is expected to stay stable.
+  See docs/markup-spec.md section 3.
+-->
+<xs:schema
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="https://icyui.dev/markup/x"
+    elementFormDefault="qualified"
+    attributeFormDefault="qualified">
+
+  <!-- Registers the element in the file's name scope; findable via FindControl<T>(name). -->
+  <xs:attribute name="Name" type="xs:string"/>
+
+  <!-- Root element only. Names the backing type to instantiate instead of the tag's type. -->
+  <xs:attribute name="Class" type="xs:string"/>
+
+  <!-- Dictionary key for an element used as a resource entry. -->
+  <xs:attribute name="Key" type="xs:string"/>
+
+  <!-- Expected DataContext type for this subtree. Retained for tooling; unused at runtime. -->
+  <xs:attribute name="DataType" type="xs:string"/>
+
+</xs:schema>
