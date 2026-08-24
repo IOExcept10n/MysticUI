@@ -23,8 +23,13 @@ namespace Icy.Data.Bindings
         /// </summary>
         /// <param name="path">The path to access an object.</param>
         /// <param name="typeContext">The type to get info about properties.</param>
-        public CompiledPropertyPath(string path, Type typeContext)
-            : base(path, typeContext)
+        /// <param name="registry">
+        /// The registry to resolve registered properties through, or <see langword="null"/> to capture
+        /// <see cref="PropertyRegistry.Current"/> at construction time. See the remarks on
+        /// <see cref="PropertyPath(string, Type, PropertyRegistry?)"/>.
+        /// </param>
+        public CompiledPropertyPath(string path, Type typeContext, PropertyRegistry? registry = null)
+            : base(path, typeContext, registry)
         {
             var parameter = Expression.Parameter(typeof(object));
             Expression callChain = typeContext.IsValueType ? Expression.Unbox(parameter, typeContext) : Expression.TypeAs(parameter, typeContext);

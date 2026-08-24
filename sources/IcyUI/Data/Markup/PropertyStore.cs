@@ -14,13 +14,20 @@ namespace Icy.Data.Markup
     internal sealed class PropertyStore<T> : IPropertyStore<T>
     {
         private readonly Dictionary<string, IPropertyReference> properties;
+        private readonly PropertyRegistry registry;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PropertyStore{T}"/> class, resolving <typeparamref name="T"/>'s
         /// own registered and attached properties immediately.
         /// </summary>
-        public PropertyStore()
+        /// <param name="registry">
+        /// The registry that owns this store. Inherited-property lookups resolve base-type stores through it, so the
+        /// whole inheritance chain stays within one registry (see the remarks on <see cref="PropertyRegistry"/>).
+        /// </param>
+        public PropertyStore(PropertyRegistry registry)
         {
+            ArgumentNullException.ThrowIfNull(registry);
+            this.registry = registry;
             properties = PropertyReferencesRegistration.ResolveProperties(typeof(T)).ToDictionary(p => p.Name);
         }
 
@@ -130,10 +137,10 @@ namespace Icy.Data.Markup
 
         private static string MakeStorageKey(string name) => $"{typeof(T).FullName}.{name}";
 
-        private static IPropertyStore? GetBaseStore()
+        private IPropertyStore? GetBaseStore()
         {
             Type? baseType = typeof(T).BaseType;
-            return baseType == null ? null : PropertyRegistry.Instance.GetPropertyStore(baseType);
+            return baseType == null ? null : registry.GetPropertyStore(baseType);
         }
     }
 }

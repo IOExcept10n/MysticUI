@@ -50,7 +50,7 @@ namespace Icy.Animations
             ArgumentNullException.ThrowIfNull(target);
             ArgumentNullException.ThrowIfNull(timeline);
 
-            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(target.GetType());
+            IPropertyStore store = PropertyRegistry.For(target).GetPropertyStore(target.GetType());
             if (!store.TryGetProperty(timeline.TargetProperty, out IPropertyReference? reference))
             {
                 ThrowHelper.ThrowArgumentException(

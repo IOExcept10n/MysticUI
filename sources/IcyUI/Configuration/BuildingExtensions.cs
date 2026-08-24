@@ -4,6 +4,7 @@ using Icy.Assets.Importers.BitmapFonts;
 using Icy.Assets.Importers.DynamicFonts;
 using Icy.Assets.Parsers;
 using Icy.Data;
+using Icy.Data.Markup;
 using Icy.Rendering.Fonts;
 
 namespace Icy.Configuration
@@ -164,6 +165,25 @@ namespace Icy.Configuration
         public static IReflectionConfigurationBuilder WithTypeConverter(this IReflectionConfigurationBuilder builder, ITypeConverter converter)
         {
             builder.Types.TypeConverter = converter;
+            return builder;
+        }
+
+        /// <summary>
+        /// Sets the property registry for the reflection configuration.
+        /// </summary>
+        /// <param name="builder">The reflection configuration builder instance.</param>
+        /// <param name="registry">The property registry instance to be used.</param>
+        /// <returns>The current reflection configuration builder instance for fluent configuration.</returns>
+        /// <remarks>
+        /// Only useful for isolating a configuration from the process-wide
+        /// <see cref="Data.Markup.PropertyRegistry.Default"/> - tests being the usual reason. Elements must be
+        /// constructed against the same registry, so build them inside a
+        /// <see cref="Data.Markup.PropertyRegistry.UseScope"/> for <paramref name="registry"/>; see the remarks on
+        /// <see cref="Data.Markup.PropertyRegistry"/> for why mixing registries breaks value precedence.
+        /// </remarks>
+        public static IReflectionConfigurationBuilder WithPropertyRegistry(this IReflectionConfigurationBuilder builder, PropertyRegistry registry)
+        {
+            builder.Types.PropertyRegistry = registry;
             return builder;
         }
 

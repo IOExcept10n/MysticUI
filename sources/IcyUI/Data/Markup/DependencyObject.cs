@@ -13,19 +13,33 @@ namespace Icy.Data.Markup
     public abstract partial class DependencyObject : BindableObject
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="DependencyObject"/> class.
+        /// Initializes a new instance of the <see cref="DependencyObject"/> class, binding it to the
+        /// <see cref="Markup.PropertyRegistry.Current"/> registry for its lifetime.
         /// </summary>
         protected DependencyObject()
         {
+            PropertyRegistry = Markup.PropertyRegistry.Current;
             PropertyChanged += OnDependencyObjectPropertyChanged;
         }
+
+        /// <summary>
+        /// Gets the <see cref="Markup.PropertyRegistry"/> this instance resolves its properties through, captured
+        /// when it was constructed.
+        /// </summary>
+        /// <remarks>
+        /// Captured once rather than read per access so the object keeps using one registry even if a different one
+        /// later becomes <see cref="Markup.PropertyRegistry.Current"/> - an object whose property references came
+        /// from two registries would have its value-precedence bookkeeping split between them. Use
+        /// <see cref="Markup.PropertyRegistry.For(object)"/> to reach this from code holding an arbitrary target.
+        /// </remarks>
+        public PropertyRegistry PropertyRegistry { get; }
 
         /// <summary>
         /// Gets the <see cref="IPropertyStore"/> registered for this instance's runtime type, resolving and
         /// registering it on first use.
         /// </summary>
         /// <returns>The property store for <see cref="object.GetType()"/>.</returns>
-        public IPropertyStore GetPropertyStore() => PropertyRegistry.Instance.GetPropertyStore(GetType());
+        public IPropertyStore GetPropertyStore() => PropertyRegistry.GetPropertyStore(GetType());
 
         private void OnDependencyObjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {

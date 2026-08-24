@@ -24,7 +24,7 @@ namespace Icy.Tests.Data.Bindings
         {
             var target = new BindingTarget();
             var path = new PropertyPath(nameof(BindingTarget.Score), typeof(BindingTarget));
-            var reference = PropertyRegistry.Instance.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
+            var reference = PropertyRegistry.Default.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
 
             reference.SetTierValue(target, PropertyValuePrecedence.Style, 5);
             Assert.Equal(5, path.GetValue(target));
@@ -42,7 +42,7 @@ namespace Icy.Tests.Data.Bindings
         {
             var target = new BindingTarget();
             var path = new CompiledPropertyPath(nameof(BindingTarget.Score), typeof(BindingTarget));
-            var reference = PropertyRegistry.Instance.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
+            var reference = PropertyRegistry.Default.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
 
             reference.SetTierValue(target, PropertyValuePrecedence.Style, 7);
             Assert.Equal(7, path.GetValue(target));

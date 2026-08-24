@@ -1650,7 +1650,7 @@ namespace Icy.UI
 
         private void RevertStyle(Style oldStyle)
         {
-            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(GetType());
+            IPropertyStore store = GetPropertyStore();
             foreach (string propertyName in oldStyle.Setters.Keys)
             {
                 if (store.TryGetProperty(propertyName, out IPropertyReference? property))
@@ -1695,7 +1695,7 @@ namespace Icy.UI
         {
             if (state == null)
                 return;
-            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(GetType());
+            IPropertyStore store = GetPropertyStore();
             foreach (KeyValuePair<string, object?> setter in state.Setters)
             {
                 if (store.TryGetProperty(setter.Key, out IPropertyReference? property))
@@ -1709,7 +1709,7 @@ namespace Icy.UI
         {
             if (state == null)
                 return;
-            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(GetType());
+            IPropertyStore store = GetPropertyStore();
             foreach (string propertyName in state.Setters.Keys)
             {
                 if (store.TryGetProperty(propertyName, out IPropertyReference? property))

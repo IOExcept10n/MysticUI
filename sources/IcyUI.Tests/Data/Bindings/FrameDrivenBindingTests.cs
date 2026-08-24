@@ -29,7 +29,7 @@ namespace Icy.Tests.Data.Bindings
         {
             var source = new PlainSource { Value = 1 };
             var target = new BindingTarget();
-            var propertyRef = PropertyRegistry.Instance.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
+            var propertyRef = PropertyRegistry.Default.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
             var dispatcher = Dispatcher.GetCurrentThreadDispatcher();
             var binding = new Binding(target, propertyRef, new PropertyPath(nameof(PlainSource.Value), typeof(PlainSource)))
             {
@@ -61,7 +61,7 @@ namespace Icy.Tests.Data.Bindings
         {
             var source = new PlainSource { Value = 1 };
             var target = new BindingTarget();
-            var propertyRef = PropertyRegistry.Instance.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
+            var propertyRef = PropertyRegistry.Default.GetPropertyStore(typeof(BindingTarget)).GetProperty(nameof(BindingTarget.Score));
             var dispatcher = Dispatcher.GetCurrentThreadDispatcher();
             var binding = new Binding(target, propertyRef, new PropertyPath(nameof(PlainSource.Value), typeof(PlainSource)))
             {

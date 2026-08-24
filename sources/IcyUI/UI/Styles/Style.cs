@@ -47,7 +47,7 @@ namespace Icy.UI.Styles
         {
             BasedOn?.Apply(control);
 
-            IPropertyStore store = PropertyRegistry.Instance.GetPropertyStore(control.GetType());
+            IPropertyStore store = control.GetPropertyStore();
             foreach (KeyValuePair<string, object?> setter in Setters)
             {
                 if (store.TryGetProperty(setter.Key, out IPropertyReference? property))

@@ -54,7 +54,7 @@ namespace Icy.Tests.Data.Markup
         [Fact]
         public void GetPropertyStore_ResolvesRegisteredReferenceProperties()
         {
-            var store = PropertyRegistry.Instance.GetPropertyStore(typeof(TestObject));
+            var store = PropertyRegistry.Default.GetPropertyStore(typeof(TestObject));
 
             Assert.True(store.TryGetProperty("Number", out IPropertyReference? number));
             Assert.True(number!.Metadata is UIPropertyMetadata { AffectsMeasure: true });
@@ -64,8 +64,8 @@ namespace Icy.Tests.Data.Markup
         [Fact]
         public void GetPropertyStore_ReturnsSameInstanceOnRepeatedCalls()
         {
-            var first = PropertyRegistry.Instance.GetPropertyStore(typeof(TestObject));
-            var second = PropertyRegistry.Instance.GetPropertyStore(typeof(TestObject));
+            var first = PropertyRegistry.Default.GetPropertyStore(typeof(TestObject));
+            var second = PropertyRegistry.Default.GetPropertyStore(typeof(TestObject));
 
             Assert.Same(first, second);
         }
@@ -73,7 +73,7 @@ namespace Icy.Tests.Data.Markup
         [Fact]
         public void TryGetProperty_SearchesBaseTypeWhenInherited()
         {
-            var derivedStore = PropertyRegistry.Instance.GetPropertyStore(typeof(DerivedTestObject));
+            var derivedStore = PropertyRegistry.Default.GetPropertyStore(typeof(DerivedTestObject));
 
             Assert.True(derivedStore.TryGetProperty("Number", searchInherited: true, out _));
             Assert.False(derivedStore.TryGetProperty("Number", searchInherited: false, out _));
@@ -82,7 +82,7 @@ namespace Icy.Tests.Data.Markup
         [Fact]
         public void AttachedProperty_RoundTripsThroughGetterAndSetter()
         {
-            var store = PropertyRegistry.Instance.GetPropertyStore(typeof(GridLike));
+            var store = PropertyRegistry.Default.GetPropertyStore(typeof(GridLike));
             Assert.True(store.TryGetProperty("Row", out IPropertyReference? row));
 
             var target = new AttachedTarget();
@@ -95,7 +95,7 @@ namespace Icy.Tests.Data.Markup
         [Fact]
         public void SetTierValue_AppliesWinningTierByPrecedence()
         {
-            var store = PropertyRegistry.Instance.GetPropertyStore(typeof(TestObject));
+            var store = PropertyRegistry.Default.GetPropertyStore(typeof(TestObject));
             var property = store.GetProperty("Number");
             var target = new TestObject();
 
@@ -118,7 +118,7 @@ namespace Icy.Tests.Data.Markup
         [Fact]
         public void LocalAssignment_AlwaysOutranksActiveTiers()
         {
-            var store = PropertyRegistry.Instance.GetPropertyStore(typeof(TestObject));
+            var store = PropertyRegistry.Default.GetPropertyStore(typeof(TestObject));
             var property = store.GetProperty("Number");
             var target = new TestObject();
 

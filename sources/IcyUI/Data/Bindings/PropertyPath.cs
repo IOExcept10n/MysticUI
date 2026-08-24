@@ -22,10 +22,21 @@ namespace Icy.Data.Bindings
         /// </summary>
         /// <param name="path">The path to get the value by the property.</param>
         /// <param name="typeContext">Initial type to access the properties for.</param>
-        public PropertyPath(string path, Type typeContext)
+        /// <param name="registry">
+        /// The registry to resolve registered properties through, or <see langword="null"/> to capture
+        /// <see cref="PropertyRegistry.Current"/> at construction time.
+        /// </param>
+        /// <remarks>
+        /// The registry is captured once here and shared by every segment of the path, so a single path never
+        /// straddles two registries. It is <em>not</em> re-resolved per call: a path built under one registry and
+        /// then used against an object belonging to another still reads and writes through the captured registry's
+        /// <see cref="IPropertyReference"/>, which would see a different set of precedence contributions - see the
+        /// remarks on <see cref="PropertyRegistry"/>. Build paths in the same scope as the objects they target.
+        /// </remarks>
+        public PropertyPath(string path, Type typeContext, PropertyRegistry? registry = null)
         {
             displayPath = path;
-            pathSegments = ParsePath(path, typeContext);
+            pathSegments = ParsePath(path, typeContext, registry ?? PropertyRegistry.Current);
         }
 
         /// <inheritdoc/>
@@ -73,10 +84,15 @@ namespace Icy.Data.Bindings
         /// </summary>
         /// <param name="path">The path string to parse.</param>
         /// <param name="typeContext">The type to get property info.</param>
+        /// <param name="registry">
+        /// The registry to resolve registered properties through, or <see langword="null"/> to use
+        /// <see cref="PropertyRegistry.Current"/>.
+        /// </param>
         /// <returns>The list of <see cref="PathSegment"/> with all segments of the specified path.</returns>
         /// <exception cref="FormatException">Occurs if the indexer wasn't defined correctly.</exception>
-        protected static List<PathSegment> ParsePath(string path, Type typeContext)
+        protected static List<PathSegment> ParsePath(string path, Type typeContext, PropertyRegistry? registry = null)
         {
+            registry ??= PropertyRegistry.Current;
             string[] pathParts = path.Split('.');
             var pathSegments = new List<PathSegment>(pathParts.Length);
             for (int i = 0; i < pathParts.Length; i++)
@@ -91,7 +107,7 @@ namespace Icy.Data.Bindings
                         PathSegment segment;
                         if (pathParts[i] != "this")
                         {
-                            segment = PathSegment.FromProperty(typeContext, pathParts[i]);
+                            segment = PathSegment.FromProperty(typeContext, pathParts[i], registry);
                             typeContext = segment.ResultType;
                             pathSegments.Add(segment);
                         }
@@ -107,7 +123,7 @@ namespace Icy.Data.Bindings
                 }
                 else if (pathParts[i] != "this")
                 {
-                    var segment = PathSegment.FromProperty(typeContext, pathParts[i]);
+                    var segment = PathSegment.FromProperty(typeContext, pathParts[i], registry);
                     typeContext = segment.ResultType;
                     pathSegments.Add(segment);
                 }
@@ -208,14 +224,18 @@ namespace Icy.Data.Bindings
             /// </summary>
             /// <param name="target">Target type to get the property for.</param>
             /// <param name="propertyName">A property name to search the property.</param>
+            /// <param name="registry">
+            /// The registry to resolve a registered property through, or <see langword="null"/> to use
+            /// <see cref="PropertyRegistry.Current"/>.
+            /// </param>
             /// <returns>An instance of the <see cref="PathSegment"/> struct for the property access.</returns>
-            public static PathSegment FromProperty(Type target, string propertyName)
+            public static PathSegment FromProperty(Type target, string propertyName, PropertyRegistry? registry = null)
             {
                 // Prefer a property registered through PropertyRegistry (see RegisterReferenceAttribute), so that
                 // binding through this segment participates in the same value-precedence system (Local > Animation
                 // > VisualState > Style > Default) as styles, visual states, and animations. Every registered
                 // property is guaranteed to have a setter (ResolveProperties skips read-only ones), so it's never read-only.
-                if (PropertyRegistry.Instance.GetPropertyStore(target).TryGetProperty(propertyName, searchInherited: true, out IPropertyReference? reference))
+                if ((registry ?? PropertyRegistry.Current).GetPropertyStore(target).TryGetProperty(propertyName, searchInherited: true, out IPropertyReference? reference))
                     return new PathSegment(reference);
 
                 var property = target.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
