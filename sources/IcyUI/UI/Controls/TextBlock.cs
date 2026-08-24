@@ -1,9 +1,10 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using Icy.Data.Markup.Attributes;
+using Icy.Markup;
 using Icy.Rendering;
 using Icy.Rendering.Fonts;
 
@@ -15,9 +16,12 @@ namespace Icy.UI.Controls
     /// </summary>
     /// <remarks>
     /// A thin wrapper over <see cref="Icy.Rendering.Fonts"/> - no wrapping/multi-run styling/text alignment; those
-    /// are left for a future control if actually needed. Renders nothing (and measures as empty) until both
-    /// <see cref="Text"/> and <see cref="FontFamily"/> are set and the font resolves successfully.
+    /// are left for a future control if actually needed. Renders nothing (and measures as empty) until
+    /// <see cref="Text"/> is set and a font resolves; <see cref="FontFamily"/> is optional, since resolution falls
+    /// back to <see cref="Icy.Rendering.Fonts.FontSystem.DefaultFontFamily"/> and then
+    /// <see cref="Icy.Rendering.Fonts.FontSystem.FallbackFont"/>.
     /// </remarks>
+    [ContentProperty(nameof(Text))]
     public class TextBlock : UIElement
     {
         private string fontFamily = string.Empty;
@@ -145,7 +149,25 @@ namespace Icy.UI.Controls
             Depth: ZIndex,
             Effect: null);
 
-        private IFont? ResolveFont() =>
-            FontFamily.Length == 0 ? null : Configuration?.Fonts.GetOrLoad(new FontInfo(FontFamily, FontSize, FontStyle));
+        /// <summary>
+        /// Resolves the font to measure and draw <see cref="Text"/> with.
+        /// </summary>
+        /// <returns>The resolved font, or <see langword="null"/> when nothing at all could be resolved.</returns>
+        /// <remarks>
+        /// Falls back in three steps: this element's own <see cref="FontFamily"/>, then
+        /// <see cref="Icy.Rendering.Fonts.FontSystem.DefaultFontFamily"/>, then
+        /// <see cref="Icy.Rendering.Fonts.FontSystem.FallbackFont"/>. An element that never had a family assigned
+        /// used to short-circuit to <see langword="null"/> here and render nothing even when the configuration had
+        /// a perfectly good fallback - which markup's bare-text sugar (<c>&lt;Button&gt;Click Me&lt;/Button&gt;</c>)
+        /// would have hit on every element it creates.
+        /// </remarks>
+        private IFont? ResolveFont()
+        {
+            if (Configuration?.Fonts is not { } fonts)
+                return null;
+
+            string family = FontFamily.Length > 0 ? FontFamily : fonts.DefaultFontFamily;
+            return family.Length == 0 ? fonts.FallbackFont : fonts.GetOrLoad(new FontInfo(family, FontSize, FontStyle));
+        }
     }
 }

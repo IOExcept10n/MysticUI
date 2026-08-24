@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Data;
 using Icy.Data.Markup;
+using Icy.Markup;
 
 namespace Icy.Configuration
 {
@@ -33,5 +34,18 @@ namespace Icy.Configuration
         /// this afterwards. See the remarks on <see cref="Data.Markup.PropertyRegistry"/>.
         /// </remarks>
         public PropertyRegistry PropertyRegistry { get; set; } = PropertyRegistry.Current;
+
+        /// <summary>
+        /// Gets or sets the markup facet: which types markup may name, how they're constructed, and how bare text
+        /// becomes objects.
+        /// </summary>
+        /// <remarks>
+        /// Markup lives here rather than in a section of its own because it is built entirely out of the other
+        /// three services on this configuration - <see cref="AssemblyResolver"/> resolves its type names,
+        /// <see cref="TypeConverter"/> converts its attribute values, and <see cref="PropertyRegistry"/> resolves
+        /// its properties. Configure it fluently through
+        /// <see cref="BuildingExtensions.ConfigureMarkup(IReflectionConfigurationBuilder, Action{Markup.MarkupConfiguration})"/>.
+        /// </remarks>
+        public MarkupConfiguration Markup { get; set; } = new();
     }
 }

@@ -78,10 +78,20 @@ Every attribute on an element is resolved in this order. The **first** match win
 1. **Namespace declaration** (`xmlns`, `xmlns:*`) — consumed by the parser, never treated as a property.
 2. **Directive** (in the `x:` namespace) — see §3.
 3. **Attached property** — the name contains a `.` (see §5).
-4. **Property** on the target type, via
-   `PropertyRegistry.GetPropertyStore(targetType).TryGetProperty(name)`.
+4. **Property** on the target type, resolved in two steps: a property registered with
+   `PropertyRegistry` (`GetPropertyStore(targetType).TryGetProperty(name)`) first, falling back to a
+   public settable CLR property found by reflection.
 5. **Event** with that name on the target type — the value names a handler method (see §6).
 6. Otherwise → `MarkupException`.
+
+The registered path is preferred because writing through an `IPropertyReference` puts the value into
+the same precedence system styles, visual states, and animations use. The reflection fallback exists
+because the registry cannot cover everything markup must reach: `PropertyRegistry` only holds
+*writable* properties of types that opted in with `[RegisterReference]`, which excludes both
+read-only collections (`Panel.Children`, `Grid.ColumnDefinitions` — populated, not assigned) and
+plain data objects that aren't `DependencyObject`s at all (`ColumnDefinition.Width`, and any POCO an
+author declares in markup). Requiring every such type to opt in would be ceremony for no benefit —
+those properties have no styling or animation story to participate in.
 
 Unknown attributes are an **error**, not silently ignored. (The previous `LayoutSerializer` stashed
 unrecognised attributes into a loose `Attributes` bag, which turned every typo into a silent no-op.)
@@ -105,7 +115,7 @@ continue to lose to markup-set values exactly as they lose to code-set ones.
 
 | Directive | Valid on | Meaning |
 |---|---|---|
-| `x:Name` | any element | Sets `UIElement.Name` and registers the element in the file's **name scope**, making it findable via `UIElementExtensions.FindControl<T>(name)`. Later, the source generator emits a strongly-typed field per name. |
+| `x:Name` | any element | Sets `UIElement.Name` and registers the element in the file's **name scope**, making it findable via `element.FindControl<T>(name)` from anywhere in the tree. Later, the source generator emits a strongly-typed field per name. |
 | `x:Class` | root element only | Names the backing type to instantiate instead of the tag's type (§7). |
 | `x:Key` | element inside a dictionary | The dictionary key for this entry. Used by resource dictionaries (M4). |
 | `x:DataType` | any element | Declares the expected `DataContext` type for this subtree. Parsed and retained; **not used at runtime** — it exists so tooling and the future generator can validate binding paths. |
@@ -293,6 +303,10 @@ designated property.
 In M6 the source generator will emit a partial class for each `x:Class` file, carrying typed fields
 for every `x:Name` and a generated construction method — which is why the loader keeps object
 construction behind a single activation seam.
+
+> Implemented in **M1**, not M3 as originally sequenced: resolving a named type and instantiating it
+> in the tag's place is a dozen lines on top of the activation seam the loader already needed. M3
+> keeps the part that is actually about pages — `Page`, `Frame`, and the navigation service.
 
 ---
 

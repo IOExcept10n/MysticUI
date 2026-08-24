@@ -1,0 +1,550 @@
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Xml;
+using System.Xml.Linq;
+using Icy.Configuration;
+using Icy.Data;
+using Icy.Data.Markup;
+using Icy.UI;
+
+namespace Icy.Markup
+{
+    /// <summary>
+    /// Builds a <see cref="UIElement"/> tree from a markup document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The loader walks the XML once, and for each element resolves its type, constructs an instance through
+    /// <see cref="MarkupConfiguration.Activator"/>, applies its attributes, then applies its children - in that
+    /// order, so that a container's own properties are set before anything is added to it.
+    /// </para>
+    /// <para>
+    /// Every object it creates is constructed inside a
+    /// <see cref="PropertyRegistry.UseScope(PropertyRegistry)"/> for the configuration's own registry, so the tree
+    /// and the loader that resolves its properties always agree on which registry they are using - see the remarks
+    /// on <see cref="PropertyRegistry"/> for why mixing two would compute wrong values.
+    /// </para>
+    /// <para>
+    /// Loading is all-or-nothing: the first error raises a <see cref="MarkupException"/> carrying the file position,
+    /// and no partially-built tree is returned.
+    /// </para>
+    /// </remarks>
+    /// <param name="configuration">The configuration supplying type resolution, conversion, and the property registry.</param>
+    public class MarkupLoader(IcyConfiguration configuration)
+    {
+        private readonly MarkupConfiguration markup = configuration.Types.Markup;
+        private readonly ITypeConverter converter = configuration.Types.TypeConverter;
+        private readonly PropertyRegistry registry = configuration.Types.PropertyRegistry;
+        private readonly MarkupTypeResolver types = new(configuration.Types.Markup, configuration.Types.AssemblyResolver);
+
+        /// <summary>
+        /// Loads a markup document from a string.
+        /// </summary>
+        /// <param name="text">The markup document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root element the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public UIElement Load(string text, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+            using var reader = new StringReader(text);
+            return Load(reader, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document from a stream.
+        /// </summary>
+        /// <param name="stream">The stream to read the document from.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root element the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public UIElement Load(Stream stream, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            using var reader = new StreamReader(stream, leaveOpen: true);
+            return Load(reader, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document and requires its root to be a <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">The type the document's root element is expected to have.</typeparam>
+        /// <param name="text">The markup document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root element the document declares.</returns>
+        /// <exception cref="MarkupException">
+        /// The document is malformed, breaks a rule of the language, or its root is not a <typeparamref name="T"/>.
+        /// </exception>
+        public T Load<T>(string text, string? sourcePath = null)
+            where T : UIElement
+        {
+            UIElement root = Load(text, sourcePath);
+            return root as T
+                ?? throw new MarkupException($"Expected a '{typeof(T).Name}' root, but the document declares a '{root.GetType().Name}'.", sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document from an already-parsed <see cref="TextReader"/>.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root element the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public UIElement Load(TextReader reader, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+
+            XDocument document = ParseDocument(reader, sourcePath);
+            XElement root = document.Root
+                ?? throw new MarkupException("The document is empty.", sourcePath);
+
+            var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
+
+            // Construct the whole tree against the configuration's registry, so every element captures the same one
+            // the loader resolves properties through.
+            using (PropertyRegistry.UseScope(registry))
+            {
+                object instance = CreateObject(root, context);
+                if (instance is not UIElement element)
+                    throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", root, sourcePath);
+
+                MarkupNameScope.SetScope(element, context.Names);
+                return element;
+            }
+        }
+
+        /// <summary>
+        /// Parses the document text into an <see cref="XDocument"/> with position information.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The parsed document.</returns>
+        /// <exception cref="MarkupException">The document is not well-formed XML.</exception>
+        /// <remarks>
+        /// The <c>x</c> prefix is predeclared on the reader, which is what lets a document use <c>x:Name</c> without
+        /// an <c>xmlns:x</c> line of its own. A document that declares the prefix itself is unaffected - its own
+        /// declaration simply shadows this one with the same value.
+        /// </remarks>
+        protected static XDocument ParseDocument(TextReader reader, string? sourcePath)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+
+            var nameTable = new NameTable();
+            var namespaces = new XmlNamespaceManager(nameTable);
+            namespaces.AddNamespace("x", MarkupNamespaces.Directives);
+
+            var settings = new XmlReaderSettings
+            {
+                ConformanceLevel = ConformanceLevel.Fragment,
+                IgnoreComments = true,
+                IgnoreProcessingInstructions = true,
+            };
+
+            try
+            {
+                using XmlReader xml = XmlReader.Create(reader, settings, new XmlParserContext(nameTable, namespaces, null, XmlSpace.None));
+                return XDocument.Load(xml, LoadOptions.SetLineInfo);
+            }
+            catch (XmlException ex)
+            {
+                throw new MarkupException(ex.Message, sourcePath, ex.LineNumber, ex.LinePosition, ex);
+            }
+        }
+
+        /// <summary>
+        /// Reads an element's own text, ignoring the whitespace that indentation puts between child elements.
+        /// </summary>
+        private static string ReadText(XElement element)
+        {
+            string text = string.Concat(element.Nodes().OfType<XText>().Select(x => x.Value));
+            return text.Trim();
+        }
+
+        /// <summary>
+        /// Finds the item type of a collection, so items can be converted before being added to it.
+        /// </summary>
+        private static Type? GetItemType(Type collectionType)
+        {
+            foreach (Type contract in collectionType.GetInterfaces())
+            {
+                if (contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(ICollection<>))
+                    return contract.GetGenericArguments()[0];
+            }
+
+            return null;
+        }
+
+        private object CreateObject(XElement element, MarkupLoadContext context)
+        {
+            Type type = ResolveInstanceType(element, context);
+            object instance = markup.Activator.CreateInstance(type);
+
+            ApplyAttributes(element, instance, context);
+            ApplyChildren(element, instance, context);
+            return instance;
+        }
+
+        /// <summary>
+        /// Resolves the type to actually instantiate for an element: its <c>x:Class</c> when it declares one, and
+        /// its tag's type otherwise.
+        /// </summary>
+        private Type ResolveInstanceType(XElement element, MarkupLoadContext context)
+        {
+            Type tagType = types.Resolve(element.Name, element, context.SourcePath);
+
+            XAttribute? backingClass = element.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Class);
+            if (backingClass == null)
+                return tagType;
+
+            if (element.Parent != null)
+                throw MarkupException.At($"{MarkupDirectives.Qualified(MarkupDirectives.Class)} is only valid on the root element.", backingClass, context.SourcePath);
+
+            Type backingType = types.ResolveTypeName(backingClass.Value, element, backingClass, context.SourcePath);
+            if (!tagType.IsAssignableFrom(backingType))
+            {
+                throw MarkupException.At(
+                    $"{MarkupDirectives.Qualified(MarkupDirectives.Class)} names '{backingType.FullName}', which does not derive from the tag's type '{tagType.FullName}'.",
+                    backingClass,
+                    context.SourcePath);
+            }
+
+            return backingType;
+        }
+
+        private void ApplyAttributes(XElement element, object instance, MarkupLoadContext context)
+        {
+            foreach (XAttribute attribute in element.Attributes())
+            {
+                if (attribute.IsNamespaceDeclaration)
+                    continue;
+
+                if (MarkupNamespaces.IsDirective(attribute.Name.Namespace))
+                {
+                    ApplyDirective(element, instance, attribute, context);
+                    continue;
+                }
+
+                if (attribute.Name.LocalName.Contains('.', StringComparison.Ordinal))
+                {
+                    ApplyAttachedProperty(instance, attribute, context);
+                    continue;
+                }
+
+                ApplyProperty(instance, attribute.Name.LocalName, attribute.Value, attribute, context);
+            }
+        }
+
+        private void ApplyDirective(XElement element, object instance, XAttribute attribute, MarkupLoadContext context)
+        {
+            switch (attribute.Name.LocalName)
+            {
+                case MarkupDirectives.Name:
+                    if (instance is not UIElement named)
+                        throw MarkupException.At($"{MarkupDirectives.Qualified(MarkupDirectives.Name)} is only valid on a '{nameof(UIElement)}'.", attribute, context.SourcePath);
+                    named.Name = attribute.Value;
+                    try
+                    {
+                        context.Names.Register(attribute.Value, named);
+                    }
+                    catch (MarkupException ex)
+                    {
+                        throw MarkupException.At(ex.Description, attribute, context.SourcePath, ex);
+                    }
+
+                    break;
+
+                case MarkupDirectives.Class:
+                    // Already consumed by ResolveInstanceType before the instance existed.
+                    break;
+
+                case MarkupDirectives.Key:
+                    // Read by the dictionary-population path in ApplyPropertyElement; nothing to do on the object.
+                    break;
+
+                case MarkupDirectives.DataType:
+                    // Retained for tooling and the future generator to validate binding paths against. It has no
+                    // runtime effect, but resolving it here means a misspelled type fails at load, not silently.
+                    context.DataTypes[element] = types.ResolveTypeName(attribute.Value, element, attribute, context.SourcePath);
+                    break;
+
+                default:
+                    throw MarkupException.At(
+                        $"Unknown directive '{MarkupDirectives.Qualified(attribute.Name.LocalName)}'.{NameSuggestion.Clause(attribute.Name.LocalName, MarkupDirectives.All)}",
+                        attribute,
+                        context.SourcePath);
+            }
+        }
+
+        private void ApplyAttachedProperty(object instance, XAttribute attribute, MarkupLoadContext context)
+        {
+            string qualified = attribute.Name.LocalName;
+            int separator = qualified.LastIndexOf('.');
+            string ownerName = qualified[..separator];
+            string propertyName = qualified[(separator + 1)..];
+
+            Type ownerType = types.Resolve(attribute.Name.Namespace + ownerName, attribute, context.SourcePath);
+            if (!registry.GetPropertyStore(ownerType).TryGetProperty(propertyName, searchInherited: true, out IPropertyReference? property))
+            {
+                throw MarkupException.At(
+                    $"'{ownerType.Name}' has no attached property '{propertyName}'.{NameSuggestion.Clause(propertyName, registry.GetPropertyStore(ownerType).EnumerateProperties().Select(x => x.Name))}",
+                    attribute,
+                    context.SourcePath);
+            }
+
+            if (property.Metadata is not UIPropertyMetadata { IsAttached: true })
+                throw MarkupException.At($"'{ownerType.Name}.{propertyName}' is an ordinary property, not an attached one, so it can't be set on another element.", attribute, context.SourcePath);
+
+            property.SetRawValue(instance, ConvertValue(attribute.Value, property.PropertyType, attribute, context));
+        }
+
+        private void ApplyProperty(object instance, string name, string value, XAttribute attribute, MarkupLoadContext context)
+        {
+            Type type = instance.GetType();
+            MarkupMember? member = MarkupMember.Resolve(type, name, registry);
+            if (member == null)
+            {
+                if (type.GetEvent(name, BindingFlags.Public | BindingFlags.Instance) != null)
+                    throw MarkupException.At($"'{type.Name}.{name}' is an event. Wiring handlers from markup isn't supported yet.", attribute, context.SourcePath);
+
+                throw MarkupException.At(
+                    $"Unknown property '{name}' on '{type.Name}'.{NameSuggestion.Clause(name, MarkupMember.EnumerateNames(type, registry))}",
+                    attribute,
+                    context.SourcePath);
+            }
+
+            if (!member.CanSet)
+                throw MarkupException.At($"'{type.Name}.{name}' is read-only and can't be assigned from an attribute.", attribute, context.SourcePath);
+
+            member.SetValue(instance, ConvertValue(value, member.PropertyType, attribute, context));
+        }
+
+        private void ApplyChildren(XElement element, object instance, MarkupLoadContext context)
+        {
+            List<XElement> content = [];
+            foreach (XElement child in element.Elements())
+            {
+                if (IsPropertyElement(child, instance.GetType(), context, out string? propertyName))
+                    ApplyPropertyElement(instance, propertyName, child, context);
+                else
+                    content.Add(child);
+            }
+
+            if (content.Count > 0)
+            {
+                ApplyContentChildren(element, instance, content, context);
+                return;
+            }
+
+            string text = ReadText(element);
+            if (text.Length > 0)
+                ApplyContentText(element, instance, text, context);
+        }
+
+        /// <summary>
+        /// Determines whether a child element sets a property of its parent (<c>&lt;Grid.ColumnDefinitions&gt;</c>)
+        /// rather than being content.
+        /// </summary>
+        private bool IsPropertyElement(XElement child, Type parentType, MarkupLoadContext context, [NotNullWhen(true)] out string? propertyName)
+        {
+            propertyName = null;
+            string localName = child.Name.LocalName;
+            int separator = localName.LastIndexOf('.');
+            if (separator < 0)
+                return false;
+
+            string ownerName = localName[..separator];
+            Type ownerType = types.Resolve(child.Name.Namespace + ownerName, child, context.SourcePath);
+            if (!ownerType.IsAssignableFrom(parentType))
+            {
+                throw MarkupException.At(
+                    $"'{localName}' sets a property of '{ownerType.Name}', but its parent is a '{parentType.Name}'. " +
+                    $"Property elements can only set properties of the element they appear inside.",
+                    child,
+                    context.SourcePath);
+            }
+
+            propertyName = localName[(separator + 1)..];
+            return true;
+        }
+
+        private void ApplyPropertyElement(object instance, string propertyName, XElement child, MarkupLoadContext context)
+        {
+            Type type = instance.GetType();
+            MarkupMember member = MarkupMember.Resolve(type, propertyName, registry)
+                ?? throw MarkupException.At(
+                    $"Unknown property '{propertyName}' on '{type.Name}'.{NameSuggestion.Clause(propertyName, MarkupMember.EnumerateNames(type, registry))}",
+                    child,
+                    context.SourcePath);
+
+            object? current = member.GetValue(instance);
+            List<XElement> children = [.. child.Elements()];
+
+            if (current is IDictionary dictionary)
+            {
+                foreach (XElement entry in children)
+                {
+                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
+                        ?? throw MarkupException.At($"Entries of '{type.Name}.{propertyName}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
+                    dictionary[key.Value] = CreateObject(entry, context);
+                }
+
+                return;
+            }
+
+            if (current is IList list)
+            {
+                Type itemType = GetItemType(list.GetType()) ?? typeof(object);
+                foreach (XElement entry in children)
+                {
+                    list.Add(ConvertValue(CreateObject(entry, context), itemType, entry, context));
+                }
+
+                return;
+            }
+
+            if (children.Count > 1)
+                throw MarkupException.At($"'{type.Name}.{propertyName}' holds a single value, but {children.Count} elements were given.", child, context.SourcePath);
+
+            if (!member.CanSet)
+                throw MarkupException.At($"'{type.Name}.{propertyName}' is read-only, and isn't a collection that could be populated instead.", child, context.SourcePath);
+
+            object? value = children.Count == 1
+                ? CreateObject(children[0], context)
+                : ReadText(child);
+
+            member.SetValue(instance, ConvertValue(value, member.PropertyType, child, context));
+        }
+
+        private void ApplyContentChildren(XElement element, object instance, List<XElement> children, MarkupLoadContext context)
+        {
+            (MarkupMember member, object? current) = ResolveContentProperty(element, instance, context);
+
+            if (current is IList list)
+            {
+                Type itemType = GetItemType(list.GetType()) ?? typeof(object);
+                foreach (XElement child in children)
+                {
+                    list.Add(ConvertValue(CreateObject(child, context), itemType, child, context));
+                }
+
+                return;
+            }
+
+            if (children.Count > 1)
+            {
+                throw MarkupException.At(
+                    $"'{instance.GetType().Name}' holds a single piece of content in '{member.Name}', but {children.Count} elements were given. Wrap them in a panel.",
+                    children[1],
+                    context.SourcePath);
+            }
+
+            if (!member.CanSet)
+                throw MarkupException.At($"'{instance.GetType().Name}.{member.Name}' is read-only, and isn't a collection that could be populated instead.", element, context.SourcePath);
+
+            member.SetValue(instance, ConvertValue(CreateObject(children[0], context), member.PropertyType, children[0], context));
+        }
+
+        private void ApplyContentText(XElement element, object instance, string text, MarkupLoadContext context)
+        {
+            (MarkupMember member, _) = ResolveContentProperty(element, instance, context);
+
+            if (!member.CanSet)
+                throw MarkupException.At($"'{instance.GetType().Name}.{member.Name}' is read-only, so it can't hold this element's text.", element, context.SourcePath);
+
+            // A content property that can hold the string outright takes it directly; anything else needs an adapter
+            // to decide what object represents the text - a UIElement content property gets a TextBlock, say.
+            if (member.PropertyType.IsAssignableFrom(typeof(string)))
+            {
+                member.SetValue(instance, text);
+                return;
+            }
+
+            foreach (IMarkupTextAdapter adapter in markup.TextAdapters)
+            {
+                if (!adapter.CanAdapt(member.PropertyType))
+                    continue;
+
+                member.SetValue(instance, adapter.Adapt(text, member.PropertyType));
+                return;
+            }
+
+            // Fall back to ordinary conversion, which covers value-typed content properties with a parser.
+            member.SetValue(instance, ConvertValue(text, member.PropertyType, element, context));
+        }
+
+        private (MarkupMember Member, object? Current) ResolveContentProperty(XElement element, object instance, MarkupLoadContext context)
+        {
+            Type type = instance.GetType();
+            string name = ContentPropertyAttribute.GetContentPropertyName(type)
+                ?? throw MarkupException.At(
+                    $"'{type.Name}' has no content property, so it can't have children or text. Set a property explicitly, or mark the type with [ContentProperty].",
+                    element,
+                    context.SourcePath);
+
+            MarkupMember member = MarkupMember.Resolve(type, name, registry)
+                ?? throw MarkupException.At($"'{type.Name}' declares '{name}' as its content property, but has no such property.", element, context.SourcePath);
+
+            return (member, member.GetValue(instance));
+        }
+
+        private object? ConvertValue(object? value, Type targetType, IXmlLineInfo? node, MarkupLoadContext context)
+        {
+            if (value is string text)
+            {
+                if (text.StartsWith("{}", StringComparison.Ordinal))
+                {
+                    // The XAML escape for a literal value that genuinely starts with a brace.
+                    value = text[2..];
+                }
+                else if (text.StartsWith('{'))
+                {
+                    throw MarkupException.At($"'{text}' looks like a markup extension, but markup extensions aren't supported yet. Escape it as '{{}}{text}' if it's meant literally.", node, context.SourcePath);
+                }
+            }
+
+            if (value == null || targetType.IsInstanceOfType(value))
+                return value;
+
+            try
+            {
+                return converter.Convert(value, targetType);
+            }
+            catch (Exception ex)
+            {
+                throw MarkupException.At($"Can't convert '{value}' to '{targetType.Name}': {ex.Message}", node, context.SourcePath, ex);
+            }
+        }
+
+        /// <summary>
+        /// The mutable state threaded through one load: where errors come from, and what the document has declared
+        /// so far.
+        /// </summary>
+        /// <param name="sourcePath">The document's path, or <see langword="null"/> when it isn't known.</param>
+        /// <param name="names">The name scope the document's <c>x:Name</c>s are registered into.</param>
+        private sealed class MarkupLoadContext(string? sourcePath, MarkupNameScope names)
+        {
+            /// <summary>
+            /// Gets the document's path, used to make error messages locatable.
+            /// </summary>
+            public string? SourcePath { get; } = sourcePath;
+
+            /// <summary>
+            /// Gets the name scope the document's <c>x:Name</c>s are registered into.
+            /// </summary>
+            public MarkupNameScope Names { get; } = names;
+
+            /// <summary>
+            /// Gets the <c>x:DataType</c> declared for each element that declares one.
+            /// </summary>
+            /// <remarks>
+            /// Collected but unused: bindings, which are what a data type would validate, arrive with markup
+            /// extensions. Resolving the names now means a misspelling is an error at load rather than a surprise
+            /// later.
+            /// </remarks>
+            public Dictionary<XElement, Type> DataTypes { get; } = [];
+        }
+    }
+}

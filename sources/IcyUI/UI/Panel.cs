@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
 using Icy.Data;
+using Icy.Markup;
 using Icy.Rendering;
 
 namespace Icy.UI
@@ -15,6 +16,7 @@ namespace Icy.UI
     /// The <see cref="Panel" /> class is a container element that can hold other <see cref="UIElement" /> objects.
     /// It provides events and methods for managing the child elements.
     /// </remarks>
+    [ContentProperty(nameof(Children))]
     public class Panel : UIElement, IContainerElement
     {
         /// <summary>

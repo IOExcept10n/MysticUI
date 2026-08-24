@@ -1,5 +1,7 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.ComponentModel;
+
 namespace Icy.Rendering.Brushes
 {
     /// <summary>
@@ -10,6 +12,7 @@ namespace Icy.Rendering.Brushes
     /// making it cross-platform by including
     /// texture type guard and basic visual effects code.
     /// </remarks>
+    [TypeConverter(typeof(BrushTypeConverter))]
     public interface IBrush
     {
         /// <summary>

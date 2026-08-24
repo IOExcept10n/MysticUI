@@ -1,8 +1,9 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
 using Icy.Data.Markup.Attributes;
+using Icy.Markup;
 using Icy.Rendering;
 using Icy.Rendering.Brushes;
 
@@ -15,6 +16,7 @@ namespace Icy.UI
     /// <see cref="UIElement"/> itself carries no decoration (only layout: size, margin, padding, alignment,
     /// transforms) - wrap an element in <see cref="Border"/> whenever it needs a background or a drawn border.
     /// </remarks>
+    [ContentProperty(nameof(Child))]
     public class Border : UIElement, IContainerLayout
     {
         private IBrush background = new SolidColorBrush(Color.Transparent);

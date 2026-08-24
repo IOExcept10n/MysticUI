@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using CommunityToolkit.Mvvm.Input;
@@ -32,6 +32,7 @@ namespace Icy.StrideSample
         private Canvas? canvas;
         private UIElement? controlsRoot;
         private UIElement? stylesRoot;
+        private UIElement? markupRoot;
         private int selectedDemo;
 
         protected override void BeginRun()
@@ -64,13 +65,15 @@ namespace Icy.StrideSample
 
             controlsRoot = ControlsDemo.Build(configuration, "Airfool");
             stylesRoot = StylesDemo.Build(configuration, "Airfool");
+            markupRoot = MarkupDemo.Build(configuration, "Airfool");
             canvas.Add(controlsRoot);
             canvas.Add(stylesRoot);
+            canvas.Add(markupRoot);
             UpdateSelectedDemo();
 
             var switchDemo = new RelayCommand(() =>
             {
-                selectedDemo = (selectedDemo + 1) % 2;
+                selectedDemo = (selectedDemo + 1) % 3;
                 UpdateSelectedDemo();
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
@@ -81,6 +84,7 @@ namespace Icy.StrideSample
         {
             controlsRoot!.IsVisible = selectedDemo == 0;
             stylesRoot!.IsVisible = selectedDemo == 1;
+            markupRoot!.IsVisible = selectedDemo == 2;
         }
     }
 }

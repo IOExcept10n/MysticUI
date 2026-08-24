@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Mvvm.Input;
 using Icy.Configuration;
@@ -47,7 +47,8 @@ namespace Icy.MonoGameSample
                 new FontsSample(this, uiConfiguration, canvas),
                 new UISample(this, uiConfiguration, canvas),
                 new ControlsSample(this, uiConfiguration, canvas),
-                new StylesSample(this, uiConfiguration, canvas)
+                new StylesSample(this, uiConfiguration, canvas),
+                new MarkupSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -32,6 +32,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The samples' markup is the only place the loader is exercised against a full, realistic document.
+         Linking the demo in means a document that stops parsing fails the test run rather than a sample launch. -->
+    <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="Markup\MarkupDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>

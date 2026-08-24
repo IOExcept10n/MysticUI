@@ -5,6 +5,7 @@ using Icy.Assets.Importers.DynamicFonts;
 using Icy.Assets.Parsers;
 using Icy.Data;
 using Icy.Data.Markup;
+using Icy.Markup;
 using Icy.Rendering.Fonts;
 
 namespace Icy.Configuration
@@ -185,6 +186,42 @@ namespace Icy.Configuration
         {
             builder.Types.PropertyRegistry = registry;
             return builder;
+        }
+
+        /// <summary>
+        /// Configures the markup facet - the types markup may name, how they're constructed, and how bare text
+        /// becomes objects.
+        /// </summary>
+        /// <param name="builder">The reflection configuration builder instance.</param>
+        /// <param name="configure">The configuration action applied to <see cref="ReflectionConfiguration.Markup"/>.</param>
+        /// <returns>The current reflection configuration builder instance for fluent configuration.</returns>
+        /// <example>
+        /// <code language="csharp">
+        /// builder.ConfigureMarkup(m => m.RegisterShortName&lt;HealthBar&gt;());
+        /// </code>
+        /// </example>
+        public static IReflectionConfigurationBuilder ConfigureMarkup(this IReflectionConfigurationBuilder builder, Action<MarkupConfiguration> configure)
+        {
+            ArgumentNullException.ThrowIfNull(configure);
+            configure(builder.Types.Markup);
+            return builder;
+        }
+
+        /// <summary>
+        /// Adds support for loading markup documents as <see cref="UI.UIElement"/> assets.
+        /// </summary>
+        /// <param name="builder">The asset configuration builder instance.</param>
+        /// <param name="configuration">The built configuration the loader resolves types and properties through.</param>
+        /// <returns>The current asset configuration builder instance for fluent configuration.</returns>
+        /// <remarks>
+        /// Takes the finished <see cref="IcyConfiguration"/> rather than reading it off the builder because the
+        /// loader needs the whole thing - assets, types, and fonts - which only exists once
+        /// <see cref="IConfigurationBuilder.Build"/> has run. Call this after building.
+        /// </remarks>
+        public static IAssetConfigurationBuilder AddMarkupSupport(this IAssetConfigurationBuilder builder, IcyConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            return builder.AddImporter<UI.UIElement>(new MarkupImporter(configuration));
         }
 
         /// <summary>

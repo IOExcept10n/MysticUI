@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -23,6 +23,7 @@
   <ItemGroup>
     <Compile Include="..\Shared Samples\ControlsDemo.cs" Link="Samples\ControlsDemo.cs" />
     <Compile Include="..\Shared Samples\StylesDemo.cs" Link="Samples\StylesDemo.cs" />
+    <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="Samples\MarkupDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

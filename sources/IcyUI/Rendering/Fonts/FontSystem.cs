@@ -56,8 +56,29 @@ namespace Icy.Rendering.Fonts
         public uint AtlasPageLimit { get; set; } = 4;
 
         /// <summary>
+        /// Gets or sets the font family used by text elements that don't name one of their own.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A <see cref="UI.Controls.TextBlock"/> with an empty <see cref="UI.Controls.TextBlock.FontFamily"/>
+        /// resolves this family instead, at its own size and style. This is what lets markup declare bare text -
+        /// <c>&lt;Button&gt;Click Me&lt;/Button&gt;</c> creates a <see cref="UI.Controls.TextBlock"/> that never had
+        /// a family assigned - without silently rendering nothing.
+        /// </para>
+        /// <para>
+        /// Leave empty to skip straight to <see cref="FallbackFont"/>. Setting a family that can't be loaded is
+        /// harmless: <see cref="GetOrLoad(FontInfo)"/> falls back the same way any other miss does.
+        /// </para>
+        /// </remarks>
+        public string DefaultFontFamily { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets a font to be used when an instance of the requested font couldn't be found or created.
         /// </summary>
+        /// <remarks>
+        /// The last resort, below <see cref="DefaultFontFamily"/>: returned by <see cref="GetOrLoad(FontInfo)"/>
+        /// whenever the requested font can't be resolved, at whatever size and style it was itself loaded with.
+        /// </remarks>
         public IFont? FallbackFont { get; set; }
 
         /// <summary>
