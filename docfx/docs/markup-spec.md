@@ -169,7 +169,7 @@ this is what `{Binding}` does, since a binding installs itself rather than produ
 
 | Extension | Milestone | Notes |
 |---|---|---|
-| `{Binding …}` | M2 | Honors `NonBindableAttribute.AsTarget` and `UIPropertyMetadata.IsBindable`. |
+| `{Binding …}` | M2 | Binding a property that is non-bindable (`NonBindableAttribute.AsTarget`, or `UIPropertyMetadata.IsBindable == false`) is an **error**, not a warning — such properties cannot carry bindings, so silently dropping one would leave the UI wrong with no diagnostic. |
 | `{Resource …}` | M4 | Resource dictionary lookup. |
 | `@Key` | M2 (optional) | Localization. Uses a `@` prefix rather than braces, matching the prior implementation. |
 
@@ -249,18 +249,26 @@ this work:
 <Button>Click Me</Button>
 ```
 
-> **OPEN — blocks the `UIElement` text adapter.** A `TextBlock` created by the adapter has no
-> `FontFamily`, and `TextBlock` renders nothing without one (`ResolveFont` returns `null` when
-> `FontFamily` is empty). So `<Button>Click Me</Button>` would silently render an empty button. Two
-> candidate fixes:
-> 1. **Inheritable text properties** — `FontFamily`/`FontSize`/`Foreground` inherit from ancestors,
->    so setting them once on a page root covers the subtree. This is the *same ancestor-inheritance
->    mechanism* `DataContext` needs in M2, so building it once serves both.
-> 2. **A configured default font** on `IcyConfiguration`, used when `FontFamily` is unset.
->
-> These are not exclusive. Option 1 is the more generally useful feature and shares machinery with
-> M2; option 2 is a smaller safety net. Until one lands, the text adapter for `UIElement` should stay
-> disabled rather than produce invisible UI.
+A `TextBlock` created by the adapter has no `FontFamily` of its own, and `TextBlock` renders nothing
+without one — `ResolveFont` returns `null` when `FontFamily` is empty. Left unaddressed,
+`<Button>Click Me</Button>` would silently render an empty button. **Resolved: three layers, so text
+never silently vanishes.**
+
+1. **A configured fallback font** — `FontSystem.FallbackFont` already exists and `GetOrLoad` already
+   returns it on a miss, but `TextBlock.ResolveFont` short-circuits to `null` before ever calling
+   `GetOrLoad` when `FontFamily` is empty. Fixing that short-circuit, plus a default font configurable
+   on `IcyConfiguration`, is the base safety net. **Lands in M1** — it is small and unblocks the
+   adapter immediately.
+2. **Inheritable text properties** — `FontFamily`, `FontSize`, and `Foreground` inherit from
+   ancestors, so setting them once on a page root covers the whole subtree. This is the *same
+   ancestor-inheritance machinery* `DataContext` needs, so it is built once and serves both.
+   **Lands in M2.**
+3. **Default styles per control type** — a control with no explicit `Style` picks up a default one for
+   its type, which can carry a font. The previous implementation did exactly this: its
+   `LayoutSerializer.ActivationFactory` looked up `Stylesheet.Default["{TypeName}Style"]` on every
+   activation. **Lands in M4**, with the rest of the styling design.
+
+Layer 1 alone is enough for the adapter to be safe, which is why it is the one gating M1.
 
 ---
 
@@ -319,9 +327,16 @@ placeholder that proves the namespace layout, not as a validating schema.
 
 ## 10. Open questions
 
+### Resolved
+
+| # | Question | Resolution |
+|---|---|---|
+| 1 | How to keep the `UIElement` text adapter from producing invisible text (§6.4) | All three layers: fallback font (M1), inheritable text properties (M2), default per-type styles (M4). |
+| 2 | Should `{Binding}` on a non-bindable property error or warn? | **Error.** Such properties cannot carry bindings; a warning would leave the UI silently wrong. |
+
+### Still open
+
 | # | Question | Blocks |
 |---|---|---|
-| 1 | Inheritable text properties vs. a configured default font (see §6.4) | The `UIElement` text adapter |
-| 2 | Whether `{Binding}` on a non-bindable property should error or warn | M2 |
-| 3 | Resource dictionary scoping, `BasedOn` syntax, `VisualStateGroup` and `Timeline` serialization | M4 — **needs its own design discussion** |
-| 4 | Property-declaration syntax for markup-defined components | M5 |
+| 3 | Resource dictionary scoping, `BasedOn` syntax, `VisualStateGroup` and `Timeline` serialization, default per-type styles | M4 — **needs its own design discussion before implementation** |
+| 4 | Property-declaration syntax for markup-defined components | M5 — revisit when M5 starts |
