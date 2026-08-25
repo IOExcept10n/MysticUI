@@ -297,7 +297,7 @@ namespace Icy.Markup
             if (property.Metadata is not UIPropertyMetadata { IsAttached: true })
                 throw MarkupException.At($"'{ownerType.Name}.{propertyName}' is an ordinary property, not an attached one, so it can't be set on another element.", attribute, context.SourcePath);
 
-            property.SetRawValue(instance, ConvertValue(attribute.Value, property.PropertyType, attribute, context));
+            AssignValue(instance, MarkupMember.FromReference(property), attribute.Value, attribute, context);
         }
 
         private void ApplyProperty(object instance, string name, string value, XAttribute attribute, MarkupLoadContext context)
@@ -318,7 +318,7 @@ namespace Icy.Markup
             if (!member.CanSet)
                 throw MarkupException.At($"'{type.Name}.{name}' is read-only and can't be assigned from an attribute.", attribute, context.SourcePath);
 
-            member.SetValue(instance, ConvertValue(value, member.PropertyType, attribute, context));
+            AssignValue(instance, member, value, attribute, context);
         }
 
         private void ApplyChildren(XElement element, object instance, MarkupLoadContext context)
@@ -415,7 +415,7 @@ namespace Icy.Markup
                 ? CreateObject(children[0], context)
                 : ReadText(child);
 
-            member.SetValue(instance, ConvertValue(value, member.PropertyType, child, context));
+            AssignValue(instance, member, value, child, context);
         }
 
         private void ApplyContentChildren(XElement element, object instance, List<XElement> children, MarkupLoadContext context)
@@ -454,11 +454,12 @@ namespace Icy.Markup
             if (!member.CanSet)
                 throw MarkupException.At($"'{instance.GetType().Name}.{member.Name}' is read-only, so it can't hold this element's text.", element, context.SourcePath);
 
-            // A content property that can hold the string outright takes it directly; anything else needs an adapter
-            // to decide what object represents the text - a UIElement content property gets a TextBlock, say.
+            // A content property that can hold the string outright takes it directly (still through AssignValue, so
+            // {Binding}/{} escaping work here too); anything else needs an adapter to decide what object represents
+            // the text - a UIElement content property gets a TextBlock, say.
             if (member.PropertyType.IsAssignableFrom(typeof(string)))
             {
-                member.SetValue(instance, text);
+                AssignValue(instance, member, text, element, context);
                 return;
             }
 
@@ -472,7 +473,7 @@ namespace Icy.Markup
             }
 
             // Fall back to ordinary conversion, which covers value-typed content properties with a parser.
-            member.SetValue(instance, ConvertValue(text, member.PropertyType, element, context));
+            AssignValue(instance, member, text, element, context);
         }
 
         private (MarkupMember Member, object? Current) ResolveContentProperty(XElement element, object instance, MarkupLoadContext context)
@@ -490,7 +491,40 @@ namespace Icy.Markup
             return (member, member.GetValue(instance));
         }
 
-        private object? ConvertValue(object? value, Type targetType, IXmlLineInfo? node, MarkupLoadContext context)
+        /// <summary>
+        /// Resolves <paramref name="value"/> - a markup extension, an escaped literal, or an ordinary value - and
+        /// assigns it to <paramref name="member"/> on <paramref name="instance"/>, unless the extension resolved to
+        /// <see cref="MarkupValue.Unset"/>, in which case nothing is assigned.
+        /// </summary>
+        /// <remarks>
+        /// The one entry point every string-sourced property or content value goes through - attributes, property
+        /// elements, and content text alike - so <c>{Binding ...}</c> and the <c>{}</c> escape work uniformly
+        /// everywhere a value can be written as text.
+        /// </remarks>
+        private void AssignValue(object instance, MarkupMember member, object? value, IXmlLineInfo? node, MarkupLoadContext context)
+        {
+            object? resolved = ConvertValue(value, member.PropertyType, node, context, instance, member);
+            if (ReferenceEquals(resolved, MarkupValue.Unset))
+                return;
+
+            member.SetValue(instance, resolved);
+        }
+
+        /// <summary>
+        /// Converts <paramref name="value"/> to <paramref name="targetType"/>, resolving a markup extension first
+        /// when it is a <c>{...}</c> string.
+        /// </summary>
+        /// <param name="value">The raw value: text from an attribute or element content, or an already-built object.</param>
+        /// <param name="targetType">The type the resolved value must be assignable to.</param>
+        /// <param name="node">The value's position in the source document, for error reporting.</param>
+        /// <param name="context">The load's mutable state.</param>
+        /// <param name="instance">
+        /// The object the value is being resolved for, or <see langword="null"/> when there is none - collection
+        /// and dictionary items are converted this way, and can't be a markup extension themselves since they never
+        /// come from a string.
+        /// </param>
+        /// <param name="member">The property the value is being resolved for; required together with <paramref name="instance"/> to resolve a markup extension.</param>
+        private object? ConvertValue(object? value, Type targetType, IXmlLineInfo? node, MarkupLoadContext context, object? instance = null, MarkupMember? member = null)
         {
             if (value is string text)
             {
@@ -501,7 +535,10 @@ namespace Icy.Markup
                 }
                 else if (text.StartsWith('{'))
                 {
-                    throw MarkupException.At($"'{text}' looks like a markup extension, but markup extensions aren't supported yet. Escape it as '{{}}{text}' if it's meant literally.", node, context.SourcePath);
+                    if (instance == null || member == null)
+                        throw MarkupException.At($"'{text}' looks like a markup extension, but this position doesn't support them. Escape it as '{{}}{text}' if it's meant literally.", node, context.SourcePath);
+
+                    return ResolveExtension(text, instance, member, node, context);
                 }
             }
 
@@ -515,6 +552,58 @@ namespace Icy.Markup
             catch (Exception ex)
             {
                 throw MarkupException.At($"Can't convert '{value}' to '{targetType.Name}': {ex.Message}", node, context.SourcePath, ex);
+            }
+        }
+
+        /// <summary>
+        /// Parses and evaluates a <c>{Name ...}</c> markup extension.
+        /// </summary>
+        private object? ResolveExtension(string text, object instance, MarkupMember member, IXmlLineInfo? node, MarkupLoadContext context)
+        {
+            if (!MarkupExtensionSyntax.TryParse(text, out string name, out List<(string? Key, string Value)> arguments))
+                throw MarkupException.At($"'{text}' isn't a valid markup extension.", node, context.SourcePath);
+
+            if (!markup.Extensions.TryGetValue(name, out Type? extensionType))
+                throw MarkupException.At($"Unknown markup extension '{{{name}}}'.{NameSuggestion.Clause(name, markup.Extensions.Keys)}", node, context.SourcePath);
+
+            var extension = (IMarkupExtension)markup.Activator.CreateInstance(extensionType);
+            ApplyExtensionArguments(extension, name, arguments, node, context);
+
+            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, node, context.SourcePath);
+            return extension.ProvideValue(extensionContext);
+        }
+
+        /// <summary>
+        /// Sets an extension's properties from its parsed <c>Key=Value</c> and positional arguments.
+        /// </summary>
+        private void ApplyExtensionArguments(IMarkupExtension extension, string extensionName, List<(string? Key, string Value)> arguments, IXmlLineInfo? node, MarkupLoadContext context)
+        {
+            Type type = extension.GetType();
+            string? defaultProperty = MarkupExtensionDefaultPropertyAttribute.GetDefaultPropertyName(type);
+            bool usedPositional = false;
+
+            foreach ((string? key, string value) in arguments)
+            {
+                string propertyName = key ?? defaultProperty
+                    ?? throw MarkupException.At($"'{{{extensionName}}}' has no default property, so its argument must be written as 'Name=Value'.", node, context.SourcePath);
+
+                if (key == null)
+                {
+                    if (usedPositional)
+                        throw MarkupException.At($"'{{{extensionName}}}' was given more than one positional argument.", node, context.SourcePath);
+                    usedPositional = true;
+                }
+
+                PropertyInfo? property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+                if (property == null || !property.CanWrite)
+                {
+                    throw MarkupException.At(
+                        $"'{{{extensionName}}}' has no settable property '{propertyName}'.{NameSuggestion.Clause(propertyName, type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(x => x.CanWrite).Select(x => x.Name))}",
+                        node,
+                        context.SourcePath);
+                }
+
+                property.SetValue(extension, ConvertValue(value, property.PropertyType, node, context));
             }
         }
 

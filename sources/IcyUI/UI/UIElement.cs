@@ -42,6 +42,8 @@ namespace Icy.UI
         private Canvas? canvas;
         private bool clipToBounds = true;
         private ControlState controlState;
+        private object? dataContext;
+        private bool hasDataContext;
         private bool isFocusable;
         private bool isFocused;
         private bool isFocusScope;
@@ -105,6 +107,12 @@ namespace Icy.UI
         /// Occurs when the value of the <see cref="IsVisible"/> property of the <see cref="UIElement"/> is changed.
         /// </summary>
         public event EventHandler? VisibilityChanged;
+
+        /// <summary>
+        /// Occurs when the effective <see cref="DataContext"/> changes - including when it changes only because an
+        /// ancestor's did, since an element with no <see cref="DataContext"/> of its own inherits one.
+        /// </summary>
+        public event EventHandler? DataContextChanged;
 
         /// <summary>
         /// Occurs when the <see cref="UIElement"/> is attached to the <see cref="UI.Canvas"/> instance.
@@ -205,6 +213,33 @@ namespace Icy.UI
         [DefaultValue(true)]
         [RegisterReference]
         public bool ClipToBounds { get => clipToBounds; set => SetProperty(ref clipToBounds, value); }
+
+        /// <summary>
+        /// Gets or sets the data object this <see cref="UIElement"/> and the bindings on it resolve against.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// An element that never sets this inherits its nearest ancestor's value by walking <see cref="Parent"/> on
+        /// every read - there is no eager push-down of the value itself, only of the fact that it changed (see
+        /// <see cref="DataContextChanged"/>). Setting it here stops the inheritance at this element: descendants
+        /// see this value instead of continuing further up the tree.
+        /// </para>
+        /// <para>
+        /// A <c>{Binding}</c> markup extension with no explicit <c>Source</c> or <c>ElementName</c> resolves
+        /// against this - see <see cref="Markup.Extensions.BindingExtension"/>.
+        /// </para>
+        /// </remarks>
+        [Category("Data")]
+        public object? DataContext
+        {
+            get => hasDataContext ? dataContext : Parent?.DataContext;
+            set
+            {
+                hasDataContext = true;
+                if (SetProperty(ref dataContext, value))
+                    OnDataContextChanged();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the size the <see cref="UIElement"/> instance wants to be.
@@ -657,7 +692,17 @@ namespace Icy.UI
         [Browsable(false)]
         [XmlIgnore]
         [JsonIgnore]
-        public UIElement? Parent { get => parent; internal set => SetProperty(ref parent, value); }
+        public UIElement? Parent
+        {
+            get => parent;
+            internal set
+            {
+                // A Parent change can change what an inherited DataContext resolves to, even though this element's
+                // own value (and hasDataContext) didn't change - see OnDataContextChanged's remarks.
+                if (SetProperty(ref parent, value) && !hasDataContext)
+                    OnDataContextChanged();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the offset applied to the <see cref="UIElement"/> at rendering.
@@ -1362,6 +1407,27 @@ namespace Icy.UI
         protected virtual void OnVisibilityChanged()
         {
             VisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises <see cref="DataContextChanged"/>, then recurses into every element in
+        /// <see cref="GetVisualChildren"/> that has no <see cref="DataContext"/> of its own.
+        /// </summary>
+        /// <remarks>
+        /// Mirrors <see cref="OnAttached"/>'s cascade through the visual tree, but propagates a change
+        /// notification instead of the value itself - preferred over pushing the value down eagerly, since
+        /// <see cref="DataContext"/> is read lazily by walking <see cref="Parent"/> anyway (see its remarks). A
+        /// descendant that set its own <see cref="DataContext"/> keeps it and stops the cascade there: nothing
+        /// about its own effective value changed.
+        /// </remarks>
+        protected virtual void OnDataContextChanged()
+        {
+            DataContextChanged?.Invoke(this, EventArgs.Empty);
+            foreach (UIElement child in GetVisualChildren())
+            {
+                if (!child.hasDataContext)
+                    child.OnDataContextChanged();
+            }
         }
 
         /// <summary>

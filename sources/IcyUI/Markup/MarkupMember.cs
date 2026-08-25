@@ -62,6 +62,31 @@ namespace Icy.Markup
         public bool IsRegistered => reference != null;
 
         /// <summary>
+        /// Gets the registered property reference, when <see cref="IsRegistered"/> is <see langword="true"/>.
+        /// </summary>
+        /// <remarks>
+        /// Exposed for callers that need the reference itself rather than the get/set indirection this class
+        /// provides - <see cref="Extensions.BindingExtension"/> is the reason this exists, since
+        /// <see cref="Data.Bindings.Binding"/> binds against an <see cref="IPropertyReference"/>, not a name.
+        /// </remarks>
+        public IPropertyReference? Reference => reference;
+
+        /// <summary>
+        /// Wraps an already-resolved <see cref="IPropertyReference"/> as a <see cref="MarkupMember"/>.
+        /// </summary>
+        /// <param name="reference">The property reference to wrap.</param>
+        /// <returns>A member that writes through <paramref name="reference"/>.</returns>
+        /// <remarks>
+        /// Lets attached-property assignment (which already has the reference from a qualified lookup) share the
+        /// same value-assignment path - markup extensions included - as an ordinary named property.
+        /// </remarks>
+        public static MarkupMember FromReference(IPropertyReference reference)
+        {
+            ArgumentNullException.ThrowIfNull(reference);
+            return new MarkupMember(reference.Name, reference.PropertyType, reference, null);
+        }
+
+        /// <summary>
         /// Resolves a property on <paramref name="targetType"/>, preferring a registered one.
         /// </summary>
         /// <param name="targetType">The type declaring the property.</param>

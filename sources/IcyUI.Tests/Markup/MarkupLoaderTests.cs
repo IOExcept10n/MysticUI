@@ -298,13 +298,16 @@ namespace Icy.Tests.Markup
         }
 
         [Fact]
-        public void Load_RejectsAValueThatLooksLikeAMarkupExtension()
+        public void Load_ResolvesAMarkupExtensionValue()
         {
+            // The full {Binding ...} grammar, DataContext inheritance, and error cases are covered in
+            // MarkupExtensionTests - this just pins that ordinary attribute assignment recognizes and dispatches
+            // {...} text instead of treating it as a literal string.
             var loader = CreateLoader();
 
-            var error = Assert.Throws<MarkupException>(() => loader.Load("<TextBlock Text=\"{Binding Name}\"/>"));
+            var text = (TextBlock)loader.Load("<TextBlock Text=\"{Binding Name}\"/>");
 
-            Assert.Contains("markup extensions aren't supported yet", error.Message);
+            Assert.Single(text.Bindings);
         }
 
         [Fact]

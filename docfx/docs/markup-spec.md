@@ -164,26 +164,54 @@ public interface IMarkupExtension
 }
 ```
 
-`MarkupExtensionContext` carries the target object, the target `IPropertyReference`, the namespace
-scope, the name scope, and the ambient `IcyConfiguration`.
+`MarkupExtensionContext` carries the target object, the target `MarkupMember` (which exposes the
+registered `IPropertyReference` when there is one — see §2.1's reflection-fallback note), the `x:Name`
+scope, the ambient `IcyConfiguration`, and the source position for error reporting.
 
 Returning `MarkupValue.Unset` means *"I handled the assignment myself; do not set the property"* —
 this is what `{Binding}` does, since a binding installs itself rather than producing a one-shot value.
 
 > This replaces the old `IExpressionResolver`, which returned `string?` where `null` meant "handled".
 > That forced the loader to re-parse an already-resolved value, and made it impossible for an
-> extension to return a non-string. Extensions now return typed values and receive an
-> `IPropertyReference` rather than a raw `PropertyInfo`.
+> extension to return a non-string. Extensions now return typed values and receive a `MarkupMember`
+> rather than a raw `PropertyInfo`.
+
+**Implemented in M2.** The argument grammar above is exact, including one detail not obvious from the
+BNF: a value may be single-quoted to contain a literal comma or brace, e.g.
+`{Binding Path='A, B'}` — needed because the argument list itself is comma-separated.
 
 ### 4.3 Built-in extensions
 
 | Extension | Milestone | Notes |
 |---|---|---|
-| `{Binding …}` | M2 | Binding a property that is non-bindable (`NonBindableAttribute.AsTarget`, or `UIPropertyMetadata.IsBindable == false`) is an **error**, not a warning — such properties cannot carry bindings, so silently dropping one would leave the UI wrong with no diagnostic. |
+| `{Binding …}` | **M2 — done** | `Path`, `Source`, `ElementName`, `Mode`, `UpdateTargetTrigger`. No explicit `Source`/`ElementName` binds against the target's `DataContext` (§4.4) and keeps tracking it for the binding's lifetime. Binding a property that is non-bindable (`NonBindableAttribute.AsTarget`, or `UIPropertyMetadata.IsBindable == false`) is an **error**, not a warning — such properties cannot carry bindings, so silently dropping one would leave the UI wrong with no diagnostic. Binding a plain CLR property that was never registered (no `IPropertyReference`) is likewise an error: there is no precedence-system slot for the binding to write into. |
 | `{Resource …}` | M4 | Resource dictionary lookup. |
-| `@Key` | M2 (optional) | Localization. Uses a `@` prefix rather than braces, matching the prior implementation. |
+| `@Key` | Deferred | Localization. Not built in M2 — nothing in the codebase currently needs it, and it can land whenever it does without touching the extension mechanism above. |
 
-Custom extensions register through the same configuration facet as short names.
+Custom extensions register through `MarkupConfiguration.RegisterExtension`, the same pattern as short
+names (§1.3): `{MyExtension}` maps to a registered `IMarkupExtension` type, with the name defaulting to
+the type name minus an `Extension` suffix.
+
+### 4.4 Implicit binding source: `DataContext`
+
+`UIElement.DataContext` is what a `{Binding}` with no explicit `Source` or `ElementName` resolves
+against. It is **inherited**, not copied: an element with no `DataContext` of its own returns its
+nearest ancestor's, computed by walking `Parent` on every read — there is no eager push-down of the
+value itself.
+
+What *does* propagate eagerly is a change notification: `DataContextChanged` fires on an element
+whenever its effective value changes, then recurses into every child that has no `DataContext` of its
+own (a child that set one keeps it and stops the cascade there). This is also raised when an element's
+`Parent` changes, which matters because markup construction is bottom-up — a child's attributes,
+`{Binding}` included, are resolved before it is added to its parent, so at bind time it commonly has no
+effective `DataContext` yet. `{Binding}` subscribes to this event to keep tracking the inherited value
+for as long as the binding lives, rather than reading it once at construction and never again.
+
+**Implemented in M2.** Not yet implemented: the same ancestor-inheritance pattern for `FontFamily`,
+`FontSize`, and `Foreground` that §6.4 layer 2 originally described as landing alongside this — it did
+not make the approved M2 scope and remains unscheduled. `DataContext` inheritance is hand-written on
+`UIElement` rather than built on a shared "inherited property" abstraction; revisit that only if a
+second inherited property is actually added, per the project's no-premature-abstraction convention.
 
 ---
 
@@ -270,9 +298,10 @@ never silently vanishes.**
    on `IcyConfiguration`, is the base safety net. **Lands in M1** — it is small and unblocks the
    adapter immediately.
 2. **Inheritable text properties** — `FontFamily`, `FontSize`, and `Foreground` inherit from
-   ancestors, so setting them once on a page root covers the whole subtree. This is the *same
-   ancestor-inheritance machinery* `DataContext` needs, so it is built once and serves both.
-   **Lands in M2.**
+   ancestors, so setting them once on a page root covers the whole subtree. This was expected to share
+   the ancestor-inheritance machinery `DataContext` needed (§4.4) — that part held, `DataContext`'s
+   inheritance shipped in M2, but text-property inheritance itself did not make the approved M2 scope
+   and is **not yet scheduled**.
 3. **Default styles per control type** — a control with no explicit `Style` picks up a default one for
    its type, which can carry a font. The previous implementation did exactly this: its
    `LayoutSerializer.ActivationFactory` looked up `Stylesheet.Default["{TypeName}Style"]` on every
@@ -345,7 +374,7 @@ placeholder that proves the namespace layout, not as a validating schema.
 
 | # | Question | Resolution |
 |---|---|---|
-| 1 | How to keep the `UIElement` text adapter from producing invisible text (§6.4) | All three layers: fallback font (M1), inheritable text properties (M2), default per-type styles (M4). |
+| 1 | How to keep the `UIElement` text adapter from producing invisible text (§6.4) | Layer 1, the fallback font, shipped in M1 and is sufficient on its own for the adapter to be safe. Layer 2 (inheritable text properties) did not make M2's approved scope and is unscheduled; layer 3 (default per-type styles) lands in M4. |
 | 2 | Should `{Binding}` on a non-bindable property error or warn? | **Error.** Such properties cannot carry bindings; a warning would leave the UI silently wrong. |
 
 ### Still open

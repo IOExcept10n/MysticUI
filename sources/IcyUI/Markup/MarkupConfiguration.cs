@@ -1,5 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using Icy.Markup.Extensions;
 using Icy.UI;
 
 namespace Icy.Markup
@@ -16,6 +17,10 @@ namespace Icy.Markup
     public class MarkupConfiguration
     {
         private readonly Dictionary<string, Type> shortNames = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Type> extensions = new(StringComparer.Ordinal)
+        {
+            ["Binding"] = typeof(BindingExtension),
+        };
 
         /// <summary>
         /// Gets or sets the service that constructs the objects a markup document declares.
@@ -50,6 +55,15 @@ namespace Icy.Markup
         /// Gets the custom types that may be written unprefixed, keyed by the name markup writes.
         /// </summary>
         public IReadOnlyDictionary<string, Type> ShortNames => shortNames;
+
+        /// <summary>
+        /// Gets the markup extension types markup may write as <c>{Name ...}</c>, keyed by the name written inside
+        /// the braces.
+        /// </summary>
+        /// <remarks>
+        /// Seeded with <c>"Binding"</c> mapping to <see cref="BindingExtension"/>.
+        /// </remarks>
+        public IReadOnlyDictionary<string, Type> Extensions => extensions;
 
         /// <summary>
         /// Registers <typeparamref name="T"/> so markup can write it without a namespace prefix.
@@ -99,6 +113,39 @@ namespace Icy.Markup
         }
 
         /// <summary>
+        /// Registers <typeparamref name="T"/> so markup can invoke it as <c>{Name ...}</c>.
+        /// </summary>
+        /// <typeparam name="T">The extension type to register.</typeparam>
+        /// <param name="name">
+        /// The name markup writes inside the braces, or <see langword="null"/> to derive one from the type's name
+        /// - <c>MyExtension</c> becomes <c>My</c>, following the same <c>Binding</c>/<see cref="BindingExtension"/>
+        /// convention as the built-in one.
+        /// </param>
+        /// <returns>This configuration, for chaining.</returns>
+        public MarkupConfiguration RegisterExtension<T>(string? name = null)
+            where T : IMarkupExtension, new() => RegisterExtension(typeof(T), name);
+
+        /// <summary>
+        /// Registers <paramref name="type"/> so markup can invoke it as <c>{Name ...}</c>.
+        /// </summary>
+        /// <param name="type">The extension type to register. Must implement <see cref="IMarkupExtension"/>.</param>
+        /// <param name="name">
+        /// The name markup writes inside the braces, or <see langword="null"/> to derive one from the type's name.
+        /// </param>
+        /// <returns>This configuration, for chaining.</returns>
+        /// <exception cref="MarkupException"><paramref name="type"/> doesn't implement <see cref="IMarkupExtension"/>.</exception>
+        public MarkupConfiguration RegisterExtension(Type type, string? name = null)
+        {
+            ArgumentNullException.ThrowIfNull(type);
+
+            if (!typeof(IMarkupExtension).IsAssignableFrom(type))
+                throw new MarkupException($"'{type.FullName}' can't be registered as a markup extension because it doesn't implement {nameof(IMarkupExtension)}.");
+
+            extensions[name ?? DeriveExtensionName(type)] = type;
+            return this;
+        }
+
+        /// <summary>
         /// Finds the built-in control named <paramref name="name"/>.
         /// </summary>
         /// <param name="name">The unqualified type name to look up.</param>
@@ -130,6 +177,18 @@ namespace Icy.Markup
             {
                 yield return name;
             }
+        }
+
+        /// <summary>
+        /// Derives a default registration name from an extension type: <c>BindingExtension</c> becomes
+        /// <c>Binding</c>, and a type not named with the <c>Extension</c> suffix keeps its own name.
+        /// </summary>
+        private static string DeriveExtensionName(Type type)
+        {
+            const string suffix = "Extension";
+            return type.Name.EndsWith(suffix, StringComparison.Ordinal)
+                ? type.Name[..^suffix.Length]
+                : type.Name;
         }
     }
 }

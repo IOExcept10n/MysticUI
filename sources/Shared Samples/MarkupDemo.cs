@@ -1,6 +1,9 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System;
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Icy.Configuration;
 using Icy.Markup;
 using Icy.UI;
@@ -26,9 +29,41 @@ namespace Icy.SharedSamples
     /// <c>&lt;Button&gt;Click Me&lt;/Button&gt;</c> - resolves through it. That is the whole point of the fallback:
     /// markup can declare text without every element having to repeat a font family it doesn't care about.
     /// </para>
+    /// <para>
+    /// The document shows both wiring stories side by side: the first button is found by <c>x:Name</c> and wired
+    /// from code, the second is driven entirely by <see cref="DemoViewModel"/> through <c>{Binding}</c> - see
+    /// <see cref="Build(IcyConfiguration, string)"/> for where its <see cref="UIElement.DataContext"/> is set.
+    /// </para>
     /// </remarks>
     public static class MarkupDemo
     {
+        /// <summary>
+        /// The view-model behind the document's <c>{Binding}</c> section.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately plain <see cref="ObservableObject"/>/<see cref="RelayCommand"/> from
+        /// <c>CommunityToolkit.Mvvm</c> rather than its source-generated attributes - a sample project has no
+        /// interest in demonstrating the generator, only that IcyUI's bindings work against an ordinary
+        /// <see cref="System.ComponentModel.INotifyPropertyChanged"/>/<see cref="ICommand"/> pair.
+        /// </remarks>
+        private sealed class DemoViewModel : ObservableObject
+        {
+            private int clicks;
+
+            public DemoViewModel()
+            {
+                IncrementCommand = new RelayCommand(() =>
+                {
+                    clicks++;
+                    OnPropertyChanged(nameof(Message));
+                });
+            }
+
+            public string Message => clicks == 0 ? "Not clicked yet" : $"Clicked {clicks}x";
+
+            public ICommand IncrementCommand { get; }
+        }
+
         /// <summary>
         /// The markup this demo loads, kept inline so the sample stays self-contained.
         /// </summary>
@@ -85,6 +120,12 @@ namespace Icy.SharedSamples
                 <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,12,0,6">Bare text becomes a TextBlock - no font named anywhere:</TextBlock>
                 <Button x:Name="ok" Padding="12,6" HorizontalAlignment="Left" Background="#FF3C64C8">Click Me</Button>
 
+                <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,12,0,6">Data binding, driven by a view-model:</TextBlock>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock FontSize="14" Foreground="WhiteSmoke" VerticalAlignment="Center" Margin="0,0,12,0" Text="{Binding Path=Message}"/>
+                  <Button Padding="12,6" Background="#FF3C64C8" Command="{Binding Path=IncrementCommand}">Increment</Button>
+                </StackPanel>
+
               </StackPanel>
             </Border>
             """;
@@ -111,8 +152,8 @@ namespace Icy.SharedSamples
 
             UIElement root = new MarkupLoader(configuration).Load(Markup, nameof(MarkupDemo));
 
-            // x:Name'd elements are reachable by name from anywhere in the tree - the wiring story until bindings
-            // and generated fields arrive.
+            // x:Name'd elements are reachable by name from anywhere in the tree - the wiring story for code that
+            // doesn't have a view-model to bind against.
             Button ok = root.FindRequiredControl<Button>("ok");
             int clicks = 0;
             ok.Click += (_, _) =>
@@ -121,6 +162,11 @@ namespace Icy.SharedSamples
                 if (ok.Content is TextBlock label)
                     label.Text = $"Clicked {clicks}x";
             };
+
+            // The {Binding} section resolves against this - see DemoViewModel's remarks. Set after Load() to
+            // exercise the same ancestor-inheritance path a real screen would: the bindings inside were built
+            // before any of this tree had a DataContext to read.
+            root.DataContext = new DemoViewModel();
 
             return root;
         }

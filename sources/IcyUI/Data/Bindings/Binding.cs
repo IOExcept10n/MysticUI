@@ -56,9 +56,10 @@ namespace Icy.Data.Bindings
         {
             Path = sourceProperty;
 
-            // HACK
+            // Left genuinely unset, not routed through the TargetProperty setter - it dereferences its argument's
+            // Metadata unconditionally, which a real "not assigned yet" value can't provide.
             target = null!;
-            TargetProperty = null!;
+            targetProperty = null!;
         }
 
         /// <summary>
