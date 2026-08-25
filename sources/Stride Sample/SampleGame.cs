@@ -81,6 +81,23 @@ namespace Icy.StrideSample
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageUp));
+
+            // Icy.Diagnostics (Phase 9 M3.5) - F1 toggles the box-model overlay, F2 the diagnostics HUD (frame
+            // time/memory/focused element), both engine-agnostic.
+            var toggleBoundsOverlay = new RelayCommand(() => ToggleDebugTool("Bounds"));
+            var toggleDiagnosticsHud = new RelayCommand(() =>
+            {
+                ToggleDebugTool("Focus");
+                ToggleDebugTool("DiagnosticsHud");
+            });
+            configuration.Input.Events.RegisterCommand(toggleBoundsOverlay, new KeyGesture(Keys.F1));
+            configuration.Input.Events.RegisterCommand(toggleDiagnosticsHud, new KeyGesture(Keys.F2));
+        }
+
+        private void ToggleDebugTool(string name)
+        {
+            if (!canvas!.ActiveDebugTools.Remove(name))
+                canvas.ActiveDebugTools.Add(name);
         }
 
         private void UpdateSelectedDemo()

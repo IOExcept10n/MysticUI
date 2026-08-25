@@ -9,7 +9,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
-using System.Text;
 
 namespace Icy.MonoGameSample
 {
@@ -18,14 +17,8 @@ namespace Icy.MonoGameSample
         private readonly GraphicsDeviceManager graphics;
         private readonly SamplesRunner samplesRunner;
 
-        private readonly StringBuilder diagnosticsInfo = new();
-
-        private SpriteBatch diagSb;
-        private SpriteFont diagFont;
         private IcyConfiguration uiConfiguration;
         private Canvas canvas;
-
-        private Type unsafeMemoryStats = typeof(IcyConfiguration).Assembly.GetType("Hebron.Runtime.MemoryStats");
 
         public SampleGame()
         {
@@ -64,9 +57,27 @@ namespace Icy.MonoGameSample
             uiConfiguration.Input.Events.RegisterCommand(upCommand, new(Input.Devices.Keys.PageUp));
             uiConfiguration.Input.Events.RegisterCommand(downCommand, new(Input.Devices.Keys.PageDown));
             uiConfiguration.Input.Events.RegisterCommand(switchFullScreen, new(Input.Devices.Keys.Enter, Input.Devices.ModifierKeys.Alt));
+
+            // Icy.Diagnostics (Phase 9 M3.5) - F1 toggles the box-model overlay, F2 the diagnostics HUD (frame
+            // time/memory/focused element), both engine-agnostic.
+            var toggleBoundsOverlay = new RelayCommand(() => ToggleDebugTool("Bounds"));
+            var toggleDiagnosticsHud = new RelayCommand(() =>
+            {
+                ToggleDebugTool("Focus");
+                ToggleDebugTool("DiagnosticsHud");
+            });
+            uiConfiguration.Input.Events.RegisterCommand(toggleBoundsOverlay, new(Input.Devices.Keys.F1));
+            uiConfiguration.Input.Events.RegisterCommand(toggleDiagnosticsHud, new(Input.Devices.Keys.F2));
+
             ToWindow();
             graphics.ApplyChanges();
             base.Initialize();
+        }
+
+        private void ToggleDebugTool(string name)
+        {
+            if (!canvas.ActiveDebugTools.Remove(name))
+                canvas.ActiveDebugTools.Add(name);
         }
 
         private void ToWindow()
@@ -85,8 +96,6 @@ namespace Icy.MonoGameSample
 
         protected override void LoadContent()
         {
-            diagSb = new(GraphicsDevice);
-            diagFont = Content.Load<SpriteFont>("Consolas");
             // TODO: use this.Content to load your game content here
         }
 
@@ -102,16 +111,6 @@ namespace Icy.MonoGameSample
         {
             GraphicsDevice.Clear(Color.White);
             canvas.Render();
-            diagSb.Begin();
-            diagnosticsInfo.Clear();
-            diagnosticsInfo.Append("Current test:").Append(samplesRunner.CurrentSample.Name).AppendLine(". Use PgUp/PgDown to switch tests.")
-                           .Append("FPS: ").Append(1 / gameTime.ElapsedGameTime.TotalSeconds).AppendLine()
-                           .AppendLine("Memory stats:")
-                           .Append("Heap size:").Append(GC.GetGCMemoryInfo().HeapSizeBytes).Append('B').AppendLine()
-                           .Append("Memory excluding fragmentation: ").Append(GC.GetTotalMemory(false)).Append('B').AppendLine()
-                           .Append("Unsafe allocations: ").Append(unsafeMemoryStats.GetProperty("Allocations").GetValue(null)).Append('.').AppendLine();
-            diagSb.DrawString(diagFont, diagnosticsInfo.ToString(), new(600, 1), Color.DarkGreen);
-            diagSb.End();
             base.Draw(gameTime);
         }
 

@@ -5,6 +5,7 @@ using Icy.Assets.Importers.DynamicFonts;
 using Icy.Assets.Parsers;
 using Icy.Data;
 using Icy.Data.Markup;
+using Icy.Diagnostics;
 using Icy.Markup;
 using Icy.Rendering.Fonts;
 
@@ -204,6 +205,24 @@ namespace Icy.Configuration
         {
             ArgumentNullException.ThrowIfNull(configure);
             configure(builder.Types.Markup);
+            return builder;
+        }
+
+        /// <summary>
+        /// Configures the catalog of registered debug overlays and HUD panels.
+        /// </summary>
+        /// <param name="builder">The reflection configuration builder instance.</param>
+        /// <param name="configure">The configuration action applied to <see cref="ReflectionConfiguration.Diagnostics"/>.</param>
+        /// <returns>The current reflection configuration builder instance for fluent configuration.</returns>
+        /// <example>
+        /// <code language="csharp">
+        /// builder.ConfigureDiagnostics(d => d.RegisterOverlay&lt;MyCustomOverlay&gt;());
+        /// </code>
+        /// </example>
+        public static IReflectionConfigurationBuilder ConfigureDiagnostics(this IReflectionConfigurationBuilder builder, Action<DebugToolRegistry> configure)
+        {
+            ArgumentNullException.ThrowIfNull(configure);
+            configure(builder.Types.Diagnostics);
             return builder;
         }
 

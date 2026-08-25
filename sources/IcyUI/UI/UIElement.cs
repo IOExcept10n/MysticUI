@@ -13,6 +13,7 @@ using Icy.Data;
 using Icy.Data.Bindings.Attributes;
 using Icy.Data.Markup;
 using Icy.Data.Markup.Attributes;
+using Icy.Diagnostics;
 using Icy.Rendering;
 using Icy.Rendering.Brushes;
 using Icy.UI.Styles;
@@ -1116,6 +1117,13 @@ namespace Icy.UI
 
             // Draw content
             OnRender(context);
+
+            // context.Transform still equals this element's own screen transform here - the one place a debug
+            // overlay (Icy.Diagnostics.IDebugOverlay) can draw in this element's local space without re-deriving
+            // its absolute screen position. AllowPerElementDebugOverrides lets a single element be drilled into
+            // via Debug.Visualization even while nothing is active canvas-wide.
+            if (Canvas is { } canvas && (canvas.ActiveDebugTools.Count > 0 || canvas.AllowPerElementDebugOverrides))
+                DebugVisualization.RenderElementOverlays(this, context, canvas);
 
             // Restore rendering context options.
             context.Transform = oldTransform;

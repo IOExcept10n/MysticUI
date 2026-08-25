@@ -25,6 +25,7 @@ namespace Icy.UI
     /// </remarks>
     public class Canvas : ObservableDispatcherObject, IContainerLayout
     {
+        private readonly Diagnostics.DebugHudHost debugHudHost;
         private readonly Stopwatch frameTime = new();
         private readonly List<UIElement> rootElements = [];
         private readonly Dictionary<UIElement, UIElement?> scopeReturnFocus = [];
@@ -51,7 +52,30 @@ namespace Icy.UI
         public Canvas(IcyConfiguration config)
         {
             Configuration = config;
+            debugHudHost = new(this);
         }
+
+        /// <summary>
+        /// Gets the names of the registered debug tools (see
+        /// <see cref="Icy.Configuration.ReflectionConfiguration.Diagnostics"/>) currently active for this canvas -
+        /// empty by default, so debug visualization costs nothing until something is added here.
+        /// </summary>
+        /// <remarks>
+        /// A name here that matches a registered <c>IDebugOverlay</c> applies to every element unless overridden
+        /// by its own <c>Debug.Visualization</c>; a name that matches a registered <c>IDebugHudPanel</c> shows
+        /// that panel in the screen-space HUD. The two catalogs are looked up independently, so one active set can
+        /// freely mix overlay and panel names.
+        /// </remarks>
+        public ISet<string> ActiveDebugTools { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Gets or sets a value indicating whether a <c>Debug.Visualization</c> override on an individual element
+        /// is honored even while <see cref="ActiveDebugTools"/> is empty - letting one element be "drilled into"
+        /// without turning anything on canvas-wide. <see langword="false"/> by default, so the fully-disabled path
+        /// costs one collection-count check and one boolean check per element, and never touches per-element
+        /// attached-property storage.
+        /// </summary>
+        public bool AllowPerElementDebugOverrides { get; set; }
 
         /// <summary>
         /// Gets or sets the background brush of the canvas.
@@ -486,6 +510,9 @@ namespace Icy.UI
             {
                 element.Draw(context);
             }
+
+            if (ActiveDebugTools.Count > 0)
+                debugHudHost.Render(context, frameTime.Elapsed);
 
             context.End();
             context.Options.Scissor = oldScissor;

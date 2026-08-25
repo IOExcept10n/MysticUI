@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Data;
 using Icy.Data.Markup;
+using Icy.Diagnostics;
 using Icy.Markup;
 
 namespace Icy.Configuration
@@ -47,5 +48,14 @@ namespace Icy.Configuration
         /// <see cref="BuildingExtensions.ConfigureMarkup(IReflectionConfigurationBuilder, Action{Markup.MarkupConfiguration})"/>.
         /// </remarks>
         public MarkupConfiguration Markup { get; set; } = new();
+
+        /// <summary>
+        /// Gets or sets the catalog of registered debug overlays and HUD panels.
+        /// </summary>
+        /// <remarks>
+        /// Configure it fluently through
+        /// <see cref="BuildingExtensions.ConfigureDiagnostics(IReflectionConfigurationBuilder, Action{DebugToolRegistry})"/>.
+        /// </remarks>
+        public DebugToolRegistry Diagnostics { get; set; } = new();
     }
 }
