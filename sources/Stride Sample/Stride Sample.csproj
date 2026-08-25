@@ -19,6 +19,7 @@
     <Compile Include="..\Shared Samples\ControlsDemo.cs" Link="ControlsDemo.cs" />
     <Compile Include="..\Shared Samples\StylesDemo.cs" Link="StylesDemo.cs" />
     <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="MarkupDemo.cs" />
+    <Compile Include="..\Shared Samples\NavigationDemo.cs" Link="NavigationDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

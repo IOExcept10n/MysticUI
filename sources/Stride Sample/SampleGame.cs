@@ -15,10 +15,10 @@ namespace Icy.StrideSample
 {
     /// <summary>
     /// A minimal Stride game demonstrating IcyUI wired up purely in code (no Game Studio project/asset pipeline) -
-    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/> and
-    /// <see cref="StylesDemo"/>, the same demos <c>MonoGame Sample</c>'s <c>ControlsSample</c>/<c>StylesSample</c>
-    /// run - PageUp/PageDown switches between them (Stride has no multi-sample runner like MonoGame's
-    /// <c>SamplesRunner</c>, so this just toggles which of the two demo roots is visible).
+    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/>,
+    /// <see cref="StylesDemo"/>, <see cref="MarkupDemo"/>, and <see cref="NavigationDemo"/> - the same demos
+    /// <c>MonoGame Sample</c>'s per-demo samples run - PageUp/PageDown cycles between them (Stride has no
+    /// multi-sample runner like MonoGame's <c>SamplesRunner</c>, so this just toggles which demo root is visible).
     /// </summary>
     /// <remarks>
     /// This is the newest, least-verified part of the IcyUI.Stride port: it was written and compiled against the
@@ -33,6 +33,7 @@ namespace Icy.StrideSample
         private UIElement? controlsRoot;
         private UIElement? stylesRoot;
         private UIElement? markupRoot;
+        private UIElement? navigationRoot;
         private int selectedDemo;
 
         protected override void BeginRun()
@@ -66,14 +67,16 @@ namespace Icy.StrideSample
             controlsRoot = ControlsDemo.Build(configuration, "Airfool");
             stylesRoot = StylesDemo.Build(configuration, "Airfool");
             markupRoot = MarkupDemo.Build(configuration, "Airfool");
+            navigationRoot = NavigationDemo.Build(configuration, "Airfool");
             canvas.Add(controlsRoot);
             canvas.Add(stylesRoot);
             canvas.Add(markupRoot);
+            canvas.Add(navigationRoot);
             UpdateSelectedDemo();
 
             var switchDemo = new RelayCommand(() =>
             {
-                selectedDemo = (selectedDemo + 1) % 3;
+                selectedDemo = (selectedDemo + 1) % 4;
                 UpdateSelectedDemo();
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
@@ -85,6 +88,7 @@ namespace Icy.StrideSample
             controlsRoot!.IsVisible = selectedDemo == 0;
             stylesRoot!.IsVisible = selectedDemo == 1;
             markupRoot!.IsVisible = selectedDemo == 2;
+            navigationRoot!.IsVisible = selectedDemo == 3;
         }
     }
 }

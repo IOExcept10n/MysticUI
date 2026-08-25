@@ -1,0 +1,3 @@
+<Page>
+  <TextBlock x:Name="label">Hello from a page</TextBlock>
+</Page>

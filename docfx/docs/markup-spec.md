@@ -1,8 +1,8 @@
 # IcyUI Markup Specification
 
-> **Status: draft for review (Phase 9, M0).** This document defines the markup language before any
-> loader code is written. Sections marked **OPEN** need a decision before the milestone they belong
-> to starts.
+> **Status: M0–M3 implemented.** Sections describe the shipped behavior except where marked
+> otherwise — an inline note gives the milestone something landed in, and §10 tracks what's still
+> open (M4 styling/animation, M5 composition).
 
 IcyUI markup is an XML dialect for declaring UI trees. It is deliberately XAML-familiar — anyone who
 knows WPF or Avalonia should be productive immediately — but sugared so that the common cases carry
@@ -333,9 +333,48 @@ In M6 the source generator will emit a partial class for each `x:Class` file, ca
 for every `x:Name` and a generated construction method — which is why the loader keeps object
 construction behind a single activation seam.
 
-> Implemented in **M1**, not M3 as originally sequenced: resolving a named type and instantiating it
-> in the tag's place is a dozen lines on top of the activation seam the loader already needed. M3
-> keeps the part that is actually about pages — `Page`, `Frame`, and the navigation service.
+> `x:Class` resolution itself landed in **M1**, not M3 as originally sequenced: resolving a named type
+> and instantiating it in the tag's place is a dozen lines on top of the activation seam the loader
+> already needed. M3 (below) is the part that is actually about pages — `Page`, `Frame`, and the
+> navigation service.
+
+### 7.1 `Page`, `Frame`, and navigation
+
+A `Page` is an ordinary `ContentControl` — its `Content` is the page's UI, settable via markup like
+any other content property, and its markup root can carry `x:Class` exactly as §7 describes:
+
+```xml
+<Page x:Class="MyGame.UI.MainMenuPage">
+  <StackPanel>…</StackPanel>
+</Page>
+```
+
+What makes it *navigable* is a `Frame`: a `ContentControl` that owns an `INavigationService`
+(`Frame.Navigation`), created for it in its constructor. `NavigateTo(Page)` swaps the frame's
+`Content` to the given page, calling `Page.OnNavigatedFrom`/`OnNavigatedTo` as it does; `Navigate(string
+path)` additionally loads the page from that path through the asset pipeline first (the same one any
+other `.xml` markup file loads through — see `MarkupImporter`), returning `null` when the path doesn't
+exist rather than throwing, so a caller can treat a missing page as data rather than an exception.
+
+Back/forward history is two stacks of `Page` instances. Navigating away from a page only keeps it in
+history when `Page.KeepAlive` is set — an unset page is simply dropped, so returning to that logical
+page later needs a fresh `Navigate` call rather than `TryNavigateBack`/`TryNavigateNext`. A fresh
+forward-navigation always clears the forward stack, the same way a browser discards "forward" once you
+navigate somewhere new instead of following it.
+
+`Page.Initialize()` runs a page's one-time setup exactly once per instance (guarded by
+`Page.IsInitialized`); `Page.Prepare()` runs on every activation, including repeat visits to a
+`KeepAlive` page, with no such guard.
+
+> **Deviation from the original plan:** the plan described porting the pre-rewrite `MysticUI`'s
+> `IPage`/`INavigationService` pair, including a `NavigateTo(Uri url)` overload. Neither survived
+> unchanged: `IPage` added nothing that `ContentControl`'s existing content property and `UIElement`'s
+> attach/detach machinery didn't already cover once `Page` was reworked as a plain `ContentControl`, so
+> `INavigationService` operates on the concrete `Page` type directly. The `Uri` overload was dropped
+> because nothing else in the asset system — `MarkupImporter`, `IAssetContext`, `AssetResolver` — takes
+> a `Uri`; every path is a plain string, and adding a `Uri`-based sibling would have been fidelity to
+> the old interface at the cost of consistency with the current one. Both calls were confirmed with the
+> maintainer before implementation, not decided unilaterally.
 
 ---
 
