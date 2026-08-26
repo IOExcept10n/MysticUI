@@ -1517,9 +1517,21 @@ namespace Icy.UI
                 // but the render transform chain (Draw() composes each ancestor's layoutTransform/renderTransform
                 // together) *also* accumulates translation hierarchically. Using the raw absolute ActualBounds.Location
                 // here would double (or further multiply, for deeper nesting) every ancestor's contribution once per
-                // level. Subtracting the parent's own content origin leaves only this element's own relative offset,
-                // which is what the hierarchical transform chain expects to accumulate.
-                Point parentContentOrigin = LogicalParent?.ContentBounds.Location ?? Point.Empty;
+                // level. Subtracting the parent's own origin leaves only this element's own relative offset, which is
+                // what the hierarchical transform chain expects to accumulate.
+                //
+                // That origin must be Parent.ActualBounds.Location, not Parent.ContentBounds.Location - Draw() never
+                // applies a separate translation for the parent's own Padding/BorderThickness before drawing its
+                // children (Panel.OnRender/Border.OnRender/Control.OnRender all call child.Draw(context) directly),
+                // so context.Transform already flowing into this element's Draw() call still equals the parent's raw
+                // ActualBounds-based transform. Subtracting ContentBounds.Location (which is ActualBounds inset by
+                // Padding) double-subtracted that inset, pulling every child of a padded/bordered container back by
+                // exactly its parent's Padding/BorderThickness - invisible whenever Padding was zero, which is why
+                // this went unnoticed until a container with real Padding was inspected against the box-model debug
+                // overlay (which reads ActualBounds directly and was never affected). LogicalParent's ContentBounds
+                // is still the right basis for a parentless root, since Canvas has no Padding concept - ContentBounds
+                // and this element's own effective origin coincide there.
+                Point parentContentOrigin = Parent?.ActualBounds.Location ?? LogicalParent?.ContentBounds.Location ?? Point.Empty;
                 Vector2 relativeLocation = new(ActualBounds.X - parentContentOrigin.X, ActualBounds.Y - parentContentOrigin.Y);
 
                 layoutTransform = Transform2D.Create(

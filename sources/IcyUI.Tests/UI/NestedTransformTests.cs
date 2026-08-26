@@ -125,5 +125,39 @@ namespace Icy.Tests.UI
             Assert.Equal(55f, leaf.WorldOrigin!.Value.X);
             Assert.Equal(55f, leaf.WorldOrigin!.Value.Y);
         }
+
+        [Fact]
+        public void ChildOfPaddedContainer_RendersInsetByPadding_NotPulledBackToContainersRawOrigin()
+        {
+            // Regression for a real bug: UpdateTransformMatrix used to subtract LogicalParent.ContentBounds.Location
+            // (ActualBounds inset by Padding) from this element's own absolute ActualBounds, on the assumption that
+            // the render transform chain already carried that same inset by the time this element's Draw() runs.
+            // It never did - Draw() never applies a separate translation for a parent's own Padding before drawing
+            // its children - so context.Transform flowing into a child's Draw() always equals the parent's raw
+            // ActualBounds-based transform. Every child of a padded container rendered pulled back by exactly the
+            // parent's Padding (e.g. a centered Button label rendering near the container's unpadded corner instead
+            // of at its own correctly-arranged, padding-inset ActualBounds - invisible whenever Padding was zero).
+            var container = new FixedBoundsContainer { Padding = new Thickness(20, 15, 0, 0) };
+            container.SetActualBoundsForTest(new Rectangle(100, 100, 400, 300));
+
+            var child = new RecordingElement
+            {
+                Width = 50,
+                Height = 50,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            container.Children.Add(child);
+            child.Parent = container;
+
+            var context = new FakeRenderContext { Transform = Transform2D.Identity };
+            container.Draw(context);
+
+            // child.ActualBounds.Location = container.ContentBounds.Location = (100+20, 100+15) = (120,115) - the
+            // draw-time world position must match that exactly, not the container's unpadded (100,100).
+            Assert.NotNull(child.WorldOrigin);
+            Assert.Equal(120f, child.WorldOrigin!.Value.X);
+            Assert.Equal(115f, child.WorldOrigin!.Value.Y);
+        }
     }
 }
