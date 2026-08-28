@@ -937,16 +937,17 @@ git commit -m "Add ResourceDictionary and UIElement.Resources"
 
 **Files:**
 - Create: `sources/IcyUI/Markup/Extensions/StaticResourceExtension.cs`
-- Modify: `sources/IcyUI/Configuration/ReflectionConfiguration.cs` or wherever `MarkupConfiguration`'s extension dictionary is seeded (`sources/IcyUI/Markup/MarkupConfiguration.cs` — it's seeded inline there with `"Binding"`)
+- Modify: `sources/IcyUI/Markup/MarkupConfiguration.cs` (extension dictionary — seeded inline there with `"Binding"`)
+- Modify: `sources/IcyUI/Markup/MarkupExtensionContext.cs`, `sources/IcyUI/Markup/MarkupLoader.cs`, `sources/IcyUI/UI/UIElement.cs`
 - Test: `sources/IcyUI.Tests/Markup/StaticResourceExtensionTests.cs` (new)
 
 **Interfaces:**
-- Consumes: `ResourceDictionary.TryGetValue` (Task 4), `UIElement.Parent`/`LogicalParent`, `MarkupExtensionContext.Target`.
-- Produces: `StaticResourceExtension`, registered under the name `"StaticResource"`.
+- Consumes: `ResourceDictionary.TryGetValue` (Task 4).
+- Produces: `StaticResourceExtension`, registered under the name `"StaticResource"`; `MarkupLoadContext.ElementStack` (new); `MarkupExtensionContext.ElementStack` (new).
 
-`{StaticResource Key}`'s `ProvideValue` needs to walk from *some* `UIElement` up to the root. `context.Target` is the object whose property is being set — for an ordinary element attribute (`Background="{StaticResource AccentBrush}"` on a `<Border>`) that's a `UIElement` directly. For a value *inside* a `<Style>`/`<VisualState>` (`BasedOn="{StaticResource Base}"`, or a setter value converted via Task 3's overflow path), `context.Target` is the `Style`/`VisualState` instance, which has no `Parent` of its own. Handle both: walk from `context.Target` if it's a `UIElement`; otherwise this extension can't resolve without a starting element and throws (matches how `BindingExtension` already throws when its target isn't an `IBindingTarget` - a `{StaticResource}` inside a `<Style>` setter written under `<Style.StateGroups>`, itself under `<Panel.Resources>`, is authored *inside* the `UIElement` that owns that `<Panel.Resources>`, so the eventual consumer of this plan's own `MarkupDemo` sample should route `{StaticResource}` uses through the `Setter`/attribute values that resolve while a real `UIElement` context is still reachable via `Style`'s own eventual application, not via `context.Target` — see the note below).
+**Design note resolved during SDD pre-flight (this is not what an earlier draft of this task assumed — read this before implementing):** `{StaticResource}` cannot walk `UIElement.Parent` at all. Markup builds bottom-up — `MarkupLoader.ApplyContentChildren`'s `list.Add(CreateObject(child, context))` fully constructs a child (running all of *its own* attribute/child resolution, where any `{StaticResource}` inside it would resolve) *before* adding it to the parent's collection, which is the step that actually sets `child.Parent`. So during any child's own construction, `Parent` is always `null` — walking it would only ever see the single element `{StaticResource}` was written directly on, never a true ancestor, silently defeating the entire point of hierarchical resource dictionaries.
 
-Actually, since Task 3's overflow path calls `ConvertValue(value, ..., instance, MarkupMember.FromReference(property))` with `instance` being the `Style`/`VisualState` object (not a `UIElement`), and a `Style.Setters["Background"]` value legitimately might want `{StaticResource AccentBrush}` per the spec's own §2 example, `StaticResourceExtension` must resolve using the *document's* nearest enclosing `UIElement`, not `context.Target`. Thread this the same way `SetterTargetType` was threaded in Task 3: add a second `MarkupLoadContext` field.
+The fix: walk the *loader's own construction-time nesting stack* instead of the runtime `Parent` link — it already mirrors document nesting exactly, and unlike `Parent` it's fully populated (innermost-to-outermost) at the exact moment any attribute or child text on the innermost element is being resolved.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -959,31 +960,42 @@ using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Markup
 {
     public class StaticResourceExtensionTests
     {
-        private static IcyConfiguration CreateConfiguration() =>
-            new(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+        private static IcyConfiguration CreateConfiguration()
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            configuration.Types.Markup.RegisterShortName<Style>();
+            return configuration;
+        }
 
         [Fact]
         public void ResolvesFromTheDeclaringElementsOwnResources()
         {
             var loader = new MarkupLoader(CreateConfiguration());
 
+            // <Border.Resources> is processed before <Border.Style> - both are property elements handled in
+            // document order within the same ApplyChildren call, so this works even though Style is an ATTRIBUTE
+            // -eligible property: written as a property element here specifically so Resources is populated first
+            // (an attribute-form Style="..." would be resolved during ApplyAttributes, which runs before ANY
+            // property elements - including this element's own <Border.Resources> - so it could never see it).
             var border = (Border)loader.Load(
                 """
                 <Border>
                   <Border.Resources>
-                    <SolidColorBrush x:Key="Accent">Blue</SolidColorBrush>
+                    <Style x:Key="Accent" TargetType="Border" Width="42"/>
                   </Border.Resources>
-                  <Border.Background>{StaticResource Accent}</Border.Background>
+                  <Border.Style>{StaticResource Accent}</Border.Style>
                 </Border>
                 """);
 
-            Assert.NotNull(border.Background);
+            Assert.NotNull(border.Style);
+            Assert.Equal(42f, border.Style!.Setters["Width"]);
         }
 
         [Fact]
@@ -991,17 +1003,21 @@ namespace Icy.Tests.Markup
         {
             var loader = new MarkupLoader(CreateConfiguration());
 
-            var root = (Border)loader.Load(
+            var root = (StackPanel)loader.Load(
                 """
-                <Border>
-                  <Border.Resources>
-                    <SolidColorBrush x:Key="Accent">Blue</SolidColorBrush>
-                  </Border.Resources>
-                  <Border Background="{StaticResource Accent}"/>
-                </Border>
+                <StackPanel>
+                  <StackPanel.Resources>
+                    <Style x:Key="Accent" TargetType="Border" Width="42"/>
+                  </StackPanel.Resources>
+                  <Border>
+                    <Border.Style>{StaticResource Accent}</Border.Style>
+                  </Border>
+                </StackPanel>
                 """);
 
-            var child = (Border)root.Children switch { _ => root }; // Border's content isn't a list - see below
+            var child = (Border)root.Children[0];
+            Assert.NotNull(child.Style);
+            Assert.Equal(42f, child.Style!.Setters["Width"]);
         }
 
         [Fact]
@@ -1016,67 +1032,50 @@ namespace Icy.Tests.Markup
 }
 ```
 
-`Border`'s content property is single-child (not a list), so the second test's fixture needs a real container - fix it to use `StackPanel` for the ancestor-lookup case:
-
-```csharp
-[Fact]
-public void ResolvesFromAnAncestorsResourcesWhenNotFoundLocally()
-{
-    var loader = new MarkupLoader(CreateConfiguration());
-
-    var root = (Icy.UI.Controls.StackPanel)loader.Load(
-        """
-        <StackPanel>
-          <StackPanel.Resources>
-            <SolidColorBrush x:Key="Accent">Blue</SolidColorBrush>
-          </StackPanel.Resources>
-          <Border Background="{StaticResource Accent}"/>
-        </StackPanel>
-        """);
-
-    var child = (Border)root.Children[0];
-    Assert.NotNull(child.Background);
-}
-```
-
-Use this corrected version when writing the file (replace the broken first draft above). Confirm `SolidColorBrush` is the actual built-in brush type name and that assigning bare text to it goes through `BrushTypeConverter` (per the M1 milestone note) — check `sources/IcyUI/Rendering/Brushes/` for the exact type name before finalizing the test; substitute the real name if `SolidColorBrush` isn't it.
-
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `dotnet test sources/IcyUI.Tests --filter "FullyQualifiedName~StaticResourceExtensionTests"`
 Expected: FAIL — `{StaticResource ...}` isn't a registered extension yet (`Unknown markup extension '{StaticResource}'`).
 
-- [ ] **Step 3: Thread the declaring-element context**
+- [ ] **Step 3: Thread a construction-time element stack**
 
 In `MarkupLoader.cs`'s `MarkupLoadContext`, add:
 
 ```csharp
 /// <summary>
-/// Gets or sets the nearest enclosing <see cref="UIElement"/> being constructed - what
-/// <c>{StaticResource}</c> (see <see cref="Markup.Extensions.StaticResourceExtension"/>) walks from when the
-/// value it's resolving belongs to a non-<see cref="UIElement"/> object (a <see cref="UI.Styles.Style"/> setter,
-/// say) that has no <see cref="UIElement.Parent"/> of its own.
+/// Gets the <see cref="UIElement"/>s currently under construction, innermost last - what
+/// <c>{StaticResource}</c> (see <see cref="Markup.Extensions.StaticResourceExtension"/>) walks in reverse. Must
+/// be a construction-time stack, not <see cref="UIElement.Parent"/>: markup builds bottom-up (a child's own
+/// attributes/children fully resolve, via <see cref="CreateObject"/>, before it's added to any parent's
+/// collection - the step that actually sets <see cref="UIElement.Parent"/>), so <c>Parent</c> is always
+/// <see langword="null"/> for the entire duration of an element's own construction.
 /// </summary>
-public UIElement? DeclaringElement { get; set; }
+public List<UIElement> ElementStack { get; } = [];
 ```
 
-In `CreateObject`, save/restore alongside the `SetterTargetType` save/restore added in Task 3:
+In `CreateObject`, push/pop alongside the `SetterTargetType` save/restore added in Task 3 (read the current body of `CreateObject` first — this extends it, not replaces Task 3's addition):
 
 ```csharp
-UIElement? previousDeclaringElement = context.DeclaringElement;
+bool pushedElement = instance is UIElement;
 if (instance is UIElement element)
-    context.DeclaringElement = element;
-...
+    context.ElementStack.Add(element);
+
+try
+{
+    ApplyAttributes(element_or_instance, instance, context, consumedByConstructor); // keep whatever parameter Task 1 already established here
+    ApplyChildren(element_or_instance, instance, context);
+}
 finally
 {
-    context.SetterTargetType = previousSetterTargetType;
-    context.DeclaringElement = previousDeclaringElement;
+    context.SetterTargetType = previousSetterTargetType; // from Task 3 - keep it
+    if (pushedElement)
+        context.ElementStack.RemoveAt(context.ElementStack.Count - 1);
 }
 ```
 
-- [ ] **Step 4: Give `MarkupExtensionContext` access to it**
+- [ ] **Step 4: Give `MarkupExtensionContext` access to the stack**
 
-`MarkupExtensionContext` currently takes `(target, member, configuration, names, node, sourcePath)`. Add a `declaringElement` parameter:
+`MarkupExtensionContext` currently takes `(target, member, configuration, names, node, sourcePath)`. Add an `elementStack` parameter:
 
 ```csharp
 public sealed class MarkupExtensionContext(
@@ -1084,25 +1083,28 @@ public sealed class MarkupExtensionContext(
     MarkupMember member,
     IcyConfiguration configuration,
     MarkupNameScope names,
-    UIElement? declaringElement,
+    IReadOnlyList<UIElement> elementStack,
     IXmlLineInfo? node,
     string? sourcePath)
 {
     // ... existing members unchanged ...
 
     /// <summary>
-    /// Gets the nearest enclosing <see cref="UIElement"/> being constructed, or <see langword="null"/> if none
-    /// exists yet (the very first element in a document, before it's returned from its own constructor call).
+    /// Gets the <see cref="UIElement"/>s currently under construction, innermost last - see
+    /// <see cref="Markup.MarkupLoader"/>'s private <c>MarkupLoadContext.ElementStack</c> for why this can't
+    /// simply be <see cref="UIElement.Parent"/>.
     /// </summary>
-    public UIElement? DeclaringElement { get; } = declaringElement;
+    public IReadOnlyList<UIElement> ElementStack { get; } = elementStack;
 }
 ```
 
 Update its one construction site in `MarkupLoader.ResolveExtension`:
 
 ```csharp
-var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, context.DeclaringElement, node, context.SourcePath);
+var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, context.ElementStack, node, context.SourcePath);
 ```
+
+(Passing `context.ElementStack` directly, not a copy, is intentional and safe: `ResolveExtension` runs synchronously inside `ConvertValue`, itself called synchronously from `ApplyAttributes`/`ApplyChildren` while the relevant elements are still on the stack — the extension's `ProvideValue` reads it before returning, and nothing mutates it concurrently.)
 
 - [ ] **Step 5: Implement `StaticResourceExtension`**
 
@@ -1113,9 +1115,9 @@ using Icy.UI;
 namespace Icy.Markup.Extensions
 {
     /// <summary>
-    /// <c>{StaticResource Key}</c>: resolves a named resource by walking from the value's declaring element up
-    /// through <see cref="UIElement.Parent"/>/<see cref="UIElement.LogicalParent"/> to the root, checking each
-    /// element's own <see cref="UIElement.Resources"/> in turn.
+    /// <c>{StaticResource Key}</c>: resolves a named resource by walking outward from the innermost element
+    /// currently under construction (see <see cref="MarkupExtensionContext.ElementStack"/>) to the document root,
+    /// checking each element's own <see cref="UIElement.Resources"/> in turn.
     /// </summary>
     /// <remarks>
     /// Resolved once, at load time - not re-evaluated if the resource dictionary changes afterward (there is no
@@ -1132,15 +1134,16 @@ namespace Icy.Markup.Extensions
 
         /// <inheritdoc/>
         /// <exception cref="MarkupException">
-        /// No enclosing element is available to search from, or no ancestor's <see cref="UIElement.Resources"/>
-        /// (own entries or merged dictionaries) has an entry for <see cref="Key"/>.
+        /// No ancestor's <see cref="UIElement.Resources"/> (own entries or merged dictionaries) has an entry for
+        /// <see cref="Key"/>.
         /// </exception>
         public object? ProvideValue(MarkupExtensionContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            for (UIElement? element = context.DeclaringElement; element != null; element = element.Parent)
+            for (int i = context.ElementStack.Count - 1; i >= 0; i--)
             {
+                UIElement element = context.ElementStack[i];
                 if (element.HasResources && element.Resources.TryGetValue(Key, out object? value))
                     return value;
             }
@@ -1240,7 +1243,7 @@ namespace Icy.Tests.Markup
 Run: `dotnet test sources/IcyUI.Tests --filter "FullyQualifiedName~ResourceDictionaryMergingTests"`
 Expected: FAIL — no `LoadObject` member exists, and even bypassing that, `<ResourceDictionary>` isn't a registered short name/built-in type yet (fixed in Task 13) and `Load` would reject a non-`UIElement` root anyway.
 
-- [ ] **Step 3: Add `MarkupLoader.LoadObject`**
+- [ ] **Step 3: Add `MarkupLoader.LoadObject`, sharing logic with `Load` via a private core**
 
 ```csharp
 /// <summary>
@@ -1272,43 +1275,31 @@ public object LoadObject(Stream stream, string? sourcePath = null)
     return LoadObject(reader, sourcePath);
 }
 
-private object LoadObject(TextReader reader, string? sourcePath)
-{
-    ArgumentNullException.ThrowIfNull(reader);
-
-    XDocument document = ParseDocument(reader, sourcePath);
-    XElement root = document.Root ?? throw new MarkupException("The document is empty.", sourcePath);
-
-    var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
-    using (PropertyRegistry.UseScope(registry))
-    {
-        object instance = CreateObject(root, context);
-        if (instance is UIElement element)
-            MarkupNameScope.SetScope(element, context.Names);
-        return instance;
-    }
-}
+/// <summary>
+/// Loads a markup document from an already-parsed <see cref="TextReader"/> whose root need not be a
+/// <see cref="UIElement"/>.
+/// </summary>
+/// <param name="reader">The reader positioned at the start of the document.</param>
+/// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+/// <returns>The root object the document declares.</returns>
+/// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+public object LoadObject(TextReader reader, string? sourcePath = null) => LoadCore(reader, sourcePath, out _);
 ```
 
-Refactor the existing `public UIElement Load(TextReader reader, ...)` to delegate to `LoadObject` and cast, to avoid duplicating the parse/scope logic:
-
-```csharp
-public UIElement Load(TextReader reader, string? sourcePath = null)
-{
-    object instance = LoadObject(reader, sourcePath);
-    return instance as UIElement
-        ?? throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", (XElement?)null, sourcePath);
-}
-```
-
-Note the error needs the root `XElement` for its position — restructure slightly so `LoadObject(TextReader, string?)` returns both the instance and the parsed root, or simplest: keep `Load`'s existing body mostly as-is and just extract the *body after `CreateObject`* into the shared private method, rather than trying to make `Load` call a stringly-typed `LoadObject`. Use this shape instead:
+Extract the existing `public UIElement Load(TextReader reader, ...)` body into a shared private core that also returns the parsed root element (needed for the "must be a UIElement" error's file position), then have both `Load` and `LoadObject` call it:
 
 ```csharp
 private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
 {
+    ArgumentNullException.ThrowIfNull(reader);
+
     XDocument document = ParseDocument(reader, sourcePath);
     root = document.Root ?? throw new MarkupException("The document is empty.", sourcePath);
+
     var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
+
+    // Construct the whole tree against the configuration's registry, so every element captures the same one
+    // the loader resolves properties through.
     using (PropertyRegistry.UseScope(registry))
     {
         object instance = CreateObject(root, context);
@@ -1324,9 +1315,9 @@ public UIElement Load(TextReader reader, string? sourcePath = null)
     return instance as UIElement
         ?? throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", root, sourcePath);
 }
-
-public object LoadObject(TextReader reader, string? sourcePath = null) => LoadCore(reader, sourcePath, out _);
 ```
+
+(This is a refactor of the existing method — move its doc comment/remarks onto `LoadCore` and/or `Load` as appropriate rather than dropping them; check the current file for the exact text before editing.)
 
 - [ ] **Step 4: Register `ResourceDictionary` as a built-in short name and load `Source=`**
 
@@ -1524,10 +1515,12 @@ public class Style(Type targetType) : Markup.IImplicitResourceKey
 
 - [ ] **Step 4: Update dictionary population to use it, and check for duplicate keys (spec §5)**
 
-In `MarkupLoader.ApplyPropertyElement`'s `IDictionary` branch, construct the value before resolving its key, and check for a pre-existing key (per spec: "Duplicate `x:Key` within one dictionary's own direct entries -> `MarkupException`"):
+**Ruling (made during SDD pre-flight, recorded in the ledger):** `ResourceDictionary` (Task 4) only implements the *generic* `IDictionary<string, object?>`, not the non-generic `System.Collections.IDictionary` the original `ApplyPropertyElement` branch checked against (`current is IDictionary dictionary` would be `false` for it otherwise, silently falling through to the wrong branch). A repo-wide check confirms `ResourceDictionary` is the *only* dictionary-shaped markup property that will ever exist at this point — nothing else uses this branch today. Switch the branch's type check to the generic interface outright rather than making `ResourceDictionary` also implement the non-generic one:
+
+In `MarkupLoader.ApplyPropertyElement`, replace the existing `if (current is IDictionary dictionary)` branch with:
 
 ```csharp
-if (current is IDictionary dictionary)
+if (current is IDictionary<string, object?> dictionary)
 {
     foreach (XElement entry in children)
     {
@@ -1537,7 +1530,7 @@ if (current is IDictionary dictionary)
             ?? (value as Markup.IImplicitResourceKey)?.ImplicitResourceKey
             ?? throw MarkupException.At($"Entries of '{type.Name}.{propertyName}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
 
-        if (dictionary.Contains(resolvedKey))
+        if (dictionary.ContainsKey(resolvedKey))
             throw MarkupException.At($"Duplicate key '{resolvedKey}' in this dictionary.", entry, context.SourcePath);
 
         dictionary[resolvedKey] = value;
@@ -1547,13 +1540,7 @@ if (current is IDictionary dictionary)
 }
 ```
 
-`IDictionary.Contains(key)` — confirm this overload exists on the non-generic `IDictionary` interface (it does, `IDictionary.Contains(object key)`), so this compiles against `ResourceDictionary`'s explicit `IDictionary<string, object?>` implementation only if `ResourceDictionary` also implements non-generic `IDictionary`, or add a `ContainsKey`-based check instead since `current` here is typed as the non-generic `System.Collections.IDictionary`. Correct this to:
-
-```csharp
-if (dictionary.Contains(resolvedKey))
-```
-
-only works if `ResourceDictionary` implements non-generic `IDictionary`. Since Task 4 only declared `ResourceDictionary : IDictionary<string, object?>`, casting to non-generic `IDictionary` will fail at runtime (`current is IDictionary dictionary` would be `false` for a `ResourceDictionary` that only implements the generic interface!). **This is a real bug to fix in this step, not defer**: either (a) make `ResourceDictionary` also implement non-generic `System.Collections.IDictionary`, or (b) change this branch's type check to `IDictionary<string, object?>` for the resource-dictionary case while keeping the existing non-generic `IDictionary` check for other dictionary-shaped content (check what else currently relies on this branch — grep for other `IDictionary`-typed markup properties in the codebase first; if `ResourceDictionary` is the *only* dictionary-shaped markup property today, simplify the branch to check `IDictionary<string, object?>` outright and drop the non-generic path entirely, updating this comment to reflect that). Resolve this concretely during implementation, not left ambiguous — write a quick test loading a `<Panel.Resources>` dictionary before trusting either path compiles and passes.
+(`IDictionary` in the `using System.Collections;` sense is no longer referenced by this branch at all — remove the now-unnecessary cast/using if nothing else in the file needs the non-generic interface; check first.)
 
 - [ ] **Step 5: Apply an implicit style on attach**
 
@@ -2336,7 +2323,7 @@ namespace Icy.Tests.Markup
 
             var timeline = (Timeline)loader.LoadObject(
                 """
-                <Timeline TargetProperty="Opacity" Duration="0:0:1" Easing="SineInOut" RepeatCount="Forever" AutoReverse="True">
+                <Timeline TargetProperty="Opacity" Duration="0:0:1" Easing="SineInOut" RepeatCount="-1" AutoReverse="True">
                   <AnimationKeyframe Offset="0" Value="0.5"/>
                   <AnimationKeyframe Offset="1" Value="1.0"/>
                 </Timeline>
@@ -2356,13 +2343,7 @@ namespace Icy.Tests.Markup
 
 Note the last assertion: `Timeline.Keyframes[0].Value` is `"0.5"` (a string) right after loading, *not* `0.5f` — conversion happens lazily, inside `Animation`'s constructor, exactly once the target's real property type is known (Task 12 Step 4). This is intentional (a `{StaticResource}`-retrieved `Timeline` can be replayed against different targets/property types over its lifetime), and worth calling out plainly if this test's assertion looks surprising during review.
 
-`RepeatCount="Forever"` needs `ITypeConverter` to parse the string `"Forever"` into `Timeline.Forever` (the int constant `-1`) — `RepeatCount` is a plain `int` property, so a bare `"Forever"` string won't parse via `int.Parse`. **This is a real gap**: either author markup with the literal number (`RepeatCount="-1"`, ugly and unclear) or give `Timeline.RepeatCount` a small custom `IValueConverter`/keep it as a documented markup limitation for v1. Resolve pragmatically: register a converter,
-
-```csharp
-// wherever built-in converters are seeded (check how other custom converters, if any, are registered - likely in ReflectionConfiguration's construction or a BuildingExtensions default)
-```
-
-by adding a small `IValueConverter<string, int>` that special-cases `"Forever"` (case-insensitive) before falling back to `int.Parse`, registered for `(typeof(string), typeof(int))` — but that would apply to *every* string→int conversion in the whole configuration, not just `Timeline.RepeatCount`, which is too broad a change for this milestone's scope. **Simplify instead**: change the test to use `RepeatCount="-1"` and document in the spec addendum (or just in this plan, surfaced to Ivan during plan review) that `Timeline.Forever`'s markup spelling is the literal `-1` for v1, not the word `"Forever"` — a one-line documentation note on `Timeline.RepeatCount`'s XML doc comment (`/// <c>-1</c> in markup - see <see cref="Forever"/>.`) rather than new conversion infrastructure. Use `RepeatCount="-1"` in the test and move on; flag this specific simplification to Ivan explicitly when presenting the finished plan/work, since it's a small but real authoring-ergonomics compromise.
+**Ruling (made during SDD pre-flight, recorded in the ledger):** `RepeatCount` is a plain `int` property; a bare `"Forever"` string won't parse via `int.Parse`, and adding a scoped `IValueConverter<string, int>` just for this one property would apply to *every* string→int conversion in the whole configuration - too broad for this milestone. `Timeline.Forever`'s markup spelling is the literal `-1` for v1, not the word `"Forever"` (the test above already uses `RepeatCount="-1"`). Add a one-line note to `Timeline.RepeatCount`'s existing XML doc comment: `/// <c>-1</c> in markup - see <see cref="Forever"/>.` No new conversion infrastructure.
 
 - [ ] **Step 7: Run test to verify it fails, then implement, then verify it passes**
 
