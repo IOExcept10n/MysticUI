@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Data.Markup;
+using Icy.Markup;
 
 namespace Icy.UI.Styles
 {
@@ -9,6 +10,7 @@ namespace Icy.UI.Styles
     /// <see cref="UIElement"/> whose <see cref="UIElement.Style"/> is set to this instance.
     /// </summary>
     /// <param name="targetType">The type of element this style is meant to be applied to.</param>
+    [MarkupSetterCollection(nameof(Setters))]
     public class Style(Type targetType)
     {
         /// <summary>

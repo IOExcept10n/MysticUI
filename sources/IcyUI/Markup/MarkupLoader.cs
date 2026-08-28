@@ -45,9 +45,9 @@ namespace Icy.Markup
         /// </summary>
         /// <param name="text">The markup document.</param>
         /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <returns>The root element the document declares.</returns>
+        /// <returns>The root object the document declares.</returns>
         /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
-        public UIElement Load(string text, string? sourcePath = null)
+        public object Load(string text, string? sourcePath = null)
         {
             ArgumentNullException.ThrowIfNull(text);
             using var reader = new StringReader(text);
@@ -59,9 +59,9 @@ namespace Icy.Markup
         /// </summary>
         /// <param name="stream">The stream to read the document from.</param>
         /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <returns>The root element the document declares.</returns>
+        /// <returns>The root object the document declares.</returns>
         /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
-        public UIElement Load(Stream stream, string? sourcePath = null)
+        public object Load(Stream stream, string? sourcePath = null)
         {
             ArgumentNullException.ThrowIfNull(stream);
             using var reader = new StreamReader(stream, leaveOpen: true);
@@ -81,7 +81,7 @@ namespace Icy.Markup
         public T Load<T>(string text, string? sourcePath = null)
             where T : UIElement
         {
-            UIElement root = Load(text, sourcePath);
+            object root = Load(text, sourcePath);
             return root as T
                 ?? throw new MarkupException($"Expected a '{typeof(T).Name}' root, but the document declares a '{root.GetType().Name}'.", sourcePath);
         }
@@ -91,9 +91,9 @@ namespace Icy.Markup
         /// </summary>
         /// <param name="reader">The reader positioned at the start of the document.</param>
         /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <returns>The root element the document declares.</returns>
+        /// <returns>The root object the document declares.</returns>
         /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
-        public UIElement Load(TextReader reader, string? sourcePath = null)
+        public object Load(TextReader reader, string? sourcePath = null)
         {
             ArgumentNullException.ThrowIfNull(reader);
 
@@ -108,11 +108,11 @@ namespace Icy.Markup
             using (PropertyRegistry.UseScope(registry))
             {
                 object instance = CreateObject(root, context);
-                if (instance is not UIElement element)
-                    throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", root, sourcePath);
-
-                MarkupNameScope.SetScope(element, context.Names);
-                return element;
+                if (instance is UIElement element)
+                {
+                    MarkupNameScope.SetScope(element, context.Names);
+                }
+                return instance;
             }
         }
 
@@ -217,8 +217,20 @@ namespace Icy.Markup
                 ? markup.Activator.CreateInstance(type)
                 : CreateObjectFromConstructorAttributes(type, element, context, out consumedByConstructor);
 
-            ApplyAttributes(element, instance, context, consumedByConstructor);
-            ApplyChildren(element, instance, context);
+            Type? previousSetterTargetType = context.SetterTargetType;
+            if (instance is Icy.UI.Styles.Style style)
+                context.SetterTargetType = style.TargetType;
+
+            try
+            {
+                ApplyAttributes(element, instance, context, consumedByConstructor);
+                ApplyChildren(element, instance, context);
+            }
+            finally
+            {
+                context.SetterTargetType = previousSetterTargetType;
+            }
+
             return instance;
         }
 
@@ -393,6 +405,9 @@ namespace Icy.Markup
             MarkupMember? member = MarkupMember.Resolve(type, name, registry);
             if (member == null)
             {
+                if (TryApplyAsSetterOverflow(instance, name, value, attribute, context))
+                    return;
+
                 if (type.GetEvent(name, BindingFlags.Public | BindingFlags.Instance) != null)
                     throw MarkupException.At($"'{type.Name}.{name}' is an event. Wiring handlers from markup isn't supported yet.", attribute, context.SourcePath);
 
@@ -406,6 +421,41 @@ namespace Icy.Markup
                 throw MarkupException.At($"'{type.Name}.{name}' is read-only and can't be assigned from an attribute.", attribute, context.SourcePath);
 
             AssignValue(instance, member, value, attribute, context);
+        }
+
+        /// <summary>
+        /// Resolves <paramref name="name"/> as a setter to apply through <paramref name="context"/>'s ambient
+        /// <see cref="MarkupLoadContext.SetterTargetType"/>, writing it into <paramref name="instance"/>'s
+        /// <see cref="MarkupSetterCollectionAttribute"/>-marked dictionary.
+        /// </summary>
+        /// <returns><see langword="true"/> when <paramref name="instance"/>'s type opts into this, whether or not the
+        /// name itself resolved (a bad name still throws - it just throws from inside this method).</returns>
+        private bool TryApplyAsSetterOverflow(object instance, string name, string value, XAttribute attribute, MarkupLoadContext context)
+        {
+            string? setterMemberName = MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType());
+            if (setterMemberName == null)
+                return false;
+
+            if (context.SetterTargetType == null)
+            {
+                throw MarkupException.At(
+                    $"'{instance.GetType().Name}' has no governing target type in scope to resolve '{name}' against.",
+                    attribute,
+                    context.SourcePath);
+            }
+
+            if (!registry.GetPropertyStore(context.SetterTargetType).TryGetProperty(name, searchInherited: true, out IPropertyReference? property))
+            {
+                throw MarkupException.At(
+                    $"'{context.SetterTargetType.Name}' has no property '{name}' to set." +
+                    NameSuggestion.Clause(name, registry.GetPropertyStore(context.SetterTargetType).EnumerateProperties().Select(x => x.Name)),
+                    attribute,
+                    context.SourcePath);
+            }
+
+            var setters = (Dictionary<string, object?>)instance.GetType().GetProperty(setterMemberName)!.GetValue(instance)!;
+            setters[name] = ConvertValue(value, property.PropertyType, attribute, context, instance, MarkupMember.FromReference(property));
+            return true;
         }
 
         private void ApplyChildren(XElement element, object instance, MarkupLoadContext context)
@@ -721,6 +771,14 @@ namespace Icy.Markup
             /// later.
             /// </remarks>
             public Dictionary<XElement, Type> DataTypes { get; } = [];
+
+            /// <summary>
+            /// Gets or sets the <see cref="Icy.UI.Styles.Style.TargetType"/> of the nearest enclosing
+            /// <see cref="Icy.UI.Styles.Style"/> being constructed, used to resolve an unrecognized attribute on a type
+            /// marked with <see cref="MarkupSetterCollectionAttribute"/> against the right <see cref="PropertyRegistry"/>
+            /// store. <see langword="null"/> outside any style.
+            /// </summary>
+            public Type? SetterTargetType { get; set; }
         }
     }
 }

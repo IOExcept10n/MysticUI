@@ -28,7 +28,7 @@ namespace Icy.Tests.Markup
         {
             var loader = new MarkupLoader(CreateConfiguration());
 
-            UIElement fromMarkup = loader.Load(
+            UIElement fromMarkup = (UIElement)loader.Load(
                 """
                 <Border Padding="14" Background="#FF26262C" BorderThickness="1">
                   <StackPanel Orientation="Horizontal">
@@ -106,7 +106,7 @@ namespace Icy.Tests.Markup
             // only surface when someone launches a sample.
             var loader = new MarkupLoader(CreateConfiguration());
 
-            UIElement root = loader.Load(SharedSamples.MarkupDemo.Markup, nameof(SharedSamples.MarkupDemo));
+            UIElement root = (UIElement)loader.Load(SharedSamples.MarkupDemo.Markup, nameof(SharedSamples.MarkupDemo));
 
             var button = root.FindRequiredControl<Button>("ok");
             Assert.Equal("Click Me", Assert.IsType<TextBlock>(button.Content).Text);

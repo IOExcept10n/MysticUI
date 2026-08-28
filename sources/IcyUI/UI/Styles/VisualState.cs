@@ -1,5 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using Icy.Markup;
+
 namespace Icy.UI.Styles
 {
     /// <summary>
@@ -50,6 +52,7 @@ namespace Icy.UI.Styles
     /// </summary>
     /// <param name="name">The name of this state.</param>
     /// <param name="state">The combination of <see cref="ControlState"/> flags this state responds to.</param>
+    [MarkupSetterCollection(nameof(Setters))]
     public class VisualState(string name, ControlState state)
     {
         /// <summary>

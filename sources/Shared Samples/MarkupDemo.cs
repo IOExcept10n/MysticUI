@@ -150,7 +150,7 @@ namespace Icy.SharedSamples
 
             configuration.Fonts.DefaultFontFamily = fontFamily;
 
-            UIElement root = new MarkupLoader(configuration).Load(Markup, nameof(MarkupDemo));
+            UIElement root = (UIElement)new MarkupLoader(configuration).Load(Markup, nameof(MarkupDemo));
 
             // x:Name'd elements are reachable by name from anywhere in the tree - the wiring story for code that
             // doesn't have a view-model to bind against.
