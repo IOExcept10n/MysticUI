@@ -97,7 +97,20 @@ namespace Icy.Markup
             }
         }
 
-        private static System.Reflection.ConstructorInfo ResolveConstructor(Type type, IEnumerable<string> availableNames)
+        /// <summary>
+        /// Finds a parameterized constructor for <paramref name="type"/> whose parameters are all covered by
+        /// <paramref name="availableNames"/>, for use by markup construction.
+        /// </summary>
+        /// <param name="type">The type to find a constructor for.</param>
+        /// <param name="availableNames">The parameter names available from markup attributes (case-insensitive).</param>
+        /// <returns>The matching constructor.</returns>
+        /// <exception cref="MarkupException">No matching constructor was found, or multiple matches exist.</exception>
+        /// <remarks>
+        /// This is internal to allow the markup loader to determine which constructor will be used
+        /// before asking the activator to construct, so it can validate available attributes and track
+        /// which ones are consumed.
+        /// </remarks>
+        internal static System.Reflection.ConstructorInfo ResolveConstructor(Type type, IEnumerable<string> availableNames)
         {
             var available = new HashSet<string>(availableNames, StringComparer.OrdinalIgnoreCase);
             var candidates = type.GetConstructors()

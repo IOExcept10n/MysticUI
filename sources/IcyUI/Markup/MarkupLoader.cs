@@ -191,32 +191,34 @@ namespace Icy.Markup
         }
 
         /// <summary>
-        /// Constructs <paramref name="type"/> through its single parameterized public constructor, binding each
-        /// parameter to an attribute of the same name (case-insensitive).
+        /// Constructs <paramref name="type"/> through its parameterized public constructor, binding each
+        /// parameter to an attribute of the same name (case-insensitive). Constructor selection is delegated to
+        /// the activator: the loader gathers candidate attributes, the activator picks the matching constructor.
         /// </summary>
         private object CreateObjectFromConstructorAttributes(Type type, XElement element, MarkupLoadContext context, out HashSet<string> consumed)
         {
-            var candidates = type.GetConstructors().Where(c => c.GetParameters().Length > 0).ToList();
-            if (candidates.Count != 1)
+            // Gather all candidate attributes (non-directive, non-namespaced) by name
+            var candidateAttributes = new Dictionary<string, XAttribute>(StringComparer.OrdinalIgnoreCase);
+            foreach (XAttribute attr in element.Attributes())
             {
-                throw MarkupException.At(
-                    $"'{type.Name}' has no parameterless constructor, and markup can only construct a type with exactly one parameterized public constructor (found {candidates.Count}).",
-                    element,
-                    context.SourcePath);
+                if (attr.IsNamespaceDeclaration)
+                    continue;
+                if (MarkupNamespaces.IsDirective(attr.Name.Namespace))
+                    continue;
+
+                candidateAttributes[attr.Name.LocalName] = attr;
             }
 
-            System.Reflection.ParameterInfo[] parameters = candidates[0].GetParameters();
+            // Let the activator's ResolveConstructor determine which constructor matches the available attributes.
+            // This is the single source of truth for constructor selection.
+            System.Reflection.ConstructorInfo constructor = DefaultMarkupActivator.ResolveConstructor(type, candidateAttributes.Keys);
+            System.Reflection.ParameterInfo[] parameters = constructor.GetParameters();
             var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (System.Reflection.ParameterInfo parameter in parameters)
             {
-                XAttribute? attribute = element.Attributes().FirstOrDefault(a =>
-                    !a.IsNamespaceDeclaration
-                    && !MarkupNamespaces.IsDirective(a.Name.Namespace)
-                    && string.Equals(a.Name.LocalName, parameter.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (attribute == null)
+                if (!candidateAttributes.TryGetValue(parameter.Name!, out XAttribute? attribute))
                 {
                     throw MarkupException.At(
                         $"'{type.Name}' requires an attribute '{parameter.Name}' - it has no parameterless constructor.",
@@ -268,14 +270,15 @@ namespace Icy.Markup
             {
                 if (attribute.IsNamespaceDeclaration)
                     continue;
-                if (consumedByConstructor != null && consumedByConstructor.Contains(attribute.Name.LocalName))
-                    continue;
 
                 if (MarkupNamespaces.IsDirective(attribute.Name.Namespace))
                 {
                     ApplyDirective(element, instance, attribute, context);
                     continue;
                 }
+
+                if (consumedByConstructor != null && consumedByConstructor.Contains(attribute.Name.LocalName))
+                    continue;
 
                 if (attribute.Name.LocalName.Contains('.', StringComparison.Ordinal))
                 {
