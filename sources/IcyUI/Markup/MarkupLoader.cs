@@ -244,6 +244,19 @@ namespace Icy.Markup
         }
 
         /// <summary>
+        /// Finds the closed <see cref="IDictionary{TKey, TValue}"/> interface <paramref name="collection"/>'s
+        /// runtime type implements, for a property element's <c>x:Key</c>-keyed entries to populate a collection -
+        /// such as <see cref="Icy.UI.ResourceDictionary"/> - that implements only the generic dictionary interface
+        /// rather than the non-generic <see cref="IDictionary"/> the sibling check above handles.
+        /// </summary>
+        /// <param name="collection">The collection object to inspect.</param>
+        /// <returns>The closed generic interface type, or <see langword="null"/> when none is implemented.</returns>
+        private static Type? FindGenericDictionaryInterface(object collection) =>
+            collection.GetType()
+                .GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>));
+
+        /// <summary>
         /// Invokes a duck-typed <c>Add</c> method found by <see cref="FindAddMethod"/>, translating a failure
         /// inside the target method into a <see cref="MarkupException"/> carrying file position instead of letting
         /// reflection's <see cref="TargetInvocationException"/> wrapper escape.
@@ -279,6 +292,10 @@ namespace Icy.Markup
             if (instance is Icy.UI.Styles.Style style)
                 context.SetterTargetType = style.TargetType;
 
+            bool pushedElement = instance is UIElement;
+            if (instance is UIElement constructedElement)
+                context.ElementStack.Add(constructedElement);
+
             try
             {
                 ApplyAttributes(element, instance, context, consumedByConstructor);
@@ -287,6 +304,8 @@ namespace Icy.Markup
             finally
             {
                 context.SetterTargetType = previousSetterTargetType;
+                if (pushedElement)
+                    context.ElementStack.RemoveAt(context.ElementStack.Count - 1);
             }
 
             return instance;
@@ -598,6 +617,22 @@ namespace Icy.Markup
                 return;
             }
 
+            if (current != null && FindGenericDictionaryInterface(current) is { } genericDictionary)
+            {
+                Type[] typeArguments = genericDictionary.GetGenericArguments();
+                PropertyInfo indexer = genericDictionary.GetProperty("Item")!;
+                foreach (XElement entry in children)
+                {
+                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
+                        ?? throw MarkupException.At($"Entries of '{type.Name}.{propertyName}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
+                    object? convertedKey = ConvertValue(key.Value, typeArguments[0], entry, context);
+                    object? convertedValue = ConvertValue(CreateObject(entry, context), typeArguments[1], entry, context);
+                    indexer.SetValue(current, convertedValue, [convertedKey]);
+                }
+
+                return;
+            }
+
             if (current != null && FindAddMethod(current) is { } addable)
             {
                 foreach (XElement entry in children)
@@ -773,7 +808,7 @@ namespace Icy.Markup
             var extension = (IMarkupExtension)markup.Activator.CreateInstance(extensionType);
             ApplyExtensionArguments(extension, name, arguments, node, context);
 
-            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, node, context.SourcePath);
+            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, context.ElementStack, node, context.SourcePath);
             return extension.ProvideValue(extensionContext);
         }
 
@@ -846,6 +881,17 @@ namespace Icy.Markup
             /// store. <see langword="null"/> outside any style.
             /// </summary>
             public Type? SetterTargetType { get; set; }
+
+            /// <summary>
+            /// Gets the <see cref="UIElement"/>s currently under construction, innermost last - what
+            /// <c>{StaticResource}</c> (see <see cref="Markup.Extensions.StaticResourceExtension"/>) walks in
+            /// reverse. Must be a construction-time stack, not <see cref="UIElement.Parent"/>: markup builds
+            /// bottom-up (a child's own attributes/children fully resolve, via <see cref="CreateObject"/>, before
+            /// it's added to any parent's collection - the step that actually sets <see cref="UIElement.Parent"/>),
+            /// so <c>Parent</c> is always <see langword="null"/> for the entire duration of an element's own
+            /// construction.
+            /// </summary>
+            public List<UIElement> ElementStack { get; } = [];
         }
     }
 }

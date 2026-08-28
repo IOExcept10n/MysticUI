@@ -654,6 +654,15 @@ namespace Icy.UI
         public ResourceDictionary Resources => resources ??= [];
 
         /// <summary>
+        /// Gets a value indicating whether <see cref="Resources"/> has been allocated - reading it never allocates
+        /// on its own, unlike reading <see cref="Resources"/> itself.
+        /// </summary>
+        [Browsable(false)]
+        [XmlIgnore]
+        [JsonIgnore]
+        public bool HasResources => resources != null;
+
+        /// <summary>
         /// Gets or sets the opacity of the <see cref="UIElement"/> instance.
         /// </summary>
         /// <remarks>
