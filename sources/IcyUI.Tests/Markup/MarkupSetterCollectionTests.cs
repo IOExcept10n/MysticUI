@@ -36,7 +36,7 @@ namespace Icy.Tests.Markup
         {
             var loader = new MarkupLoader(CreateConfiguration());
 
-            var style = (Style)loader.Load("""<Style TargetType="TestElement" Width="42"/>""");
+            var style = (Style)loader.LoadObject("""<Style TargetType="TestElement" Width="42"/>""");
 
             Assert.Equal(42f, style.Setters["Width"]);
         }
@@ -46,7 +46,7 @@ namespace Icy.Tests.Markup
         {
             var loader = new MarkupLoader(CreateConfiguration());
 
-            var ex = Assert.Throws<MarkupException>(() => loader.Load("""<Style TargetType="TestElement" NotARealProperty="1"/>"""));
+            var ex = Assert.Throws<MarkupException>(() => loader.LoadObject("""<Style TargetType="TestElement" NotARealProperty="1"/>"""));
             Assert.Contains("NotARealProperty", ex.Description);
         }
     }

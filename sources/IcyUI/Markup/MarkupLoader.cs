@@ -45,9 +45,9 @@ namespace Icy.Markup
         /// </summary>
         /// <param name="text">The markup document.</param>
         /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <returns>The root object the document declares.</returns>
+        /// <returns>The root element the document declares.</returns>
         /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
-        public object Load(string text, string? sourcePath = null)
+        public UIElement Load(string text, string? sourcePath = null)
         {
             ArgumentNullException.ThrowIfNull(text);
             using var reader = new StringReader(text);
@@ -59,9 +59,9 @@ namespace Icy.Markup
         /// </summary>
         /// <param name="stream">The stream to read the document from.</param>
         /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <returns>The root object the document declares.</returns>
+        /// <returns>The root element the document declares.</returns>
         /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
-        public object Load(Stream stream, string? sourcePath = null)
+        public UIElement Load(Stream stream, string? sourcePath = null)
         {
             ArgumentNullException.ThrowIfNull(stream);
             using var reader = new StreamReader(stream, leaveOpen: true);
@@ -81,7 +81,7 @@ namespace Icy.Markup
         public T Load<T>(string text, string? sourcePath = null)
             where T : UIElement
         {
-            object root = Load(text, sourcePath);
+            UIElement root = Load(text, sourcePath);
             return root as T
                 ?? throw new MarkupException($"Expected a '{typeof(T).Name}' root, but the document declares a '{root.GetType().Name}'.", sourcePath);
         }
@@ -91,14 +91,72 @@ namespace Icy.Markup
         /// </summary>
         /// <param name="reader">The reader positioned at the start of the document.</param>
         /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <returns>The root object the document declares.</returns>
+        /// <returns>The root element the document declares.</returns>
         /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
-        public object Load(TextReader reader, string? sourcePath = null)
+        public UIElement Load(TextReader reader, string? sourcePath = null)
         {
             ArgumentNullException.ThrowIfNull(reader);
 
+            object instance = LoadCore(reader, sourcePath, out XElement root);
+            return instance as UIElement
+                ?? throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", root, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document whose root need not be a <see cref="UIElement"/> - a <see cref="Icy.UI.Styles.Style"/>
+        /// document, for instance.
+        /// </summary>
+        /// <param name="text">The markup document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root object the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public object LoadObject(string text, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+            using var reader = new StringReader(text);
+            return LoadObject(reader, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document from a stream whose root need not be a <see cref="UIElement"/>.
+        /// </summary>
+        /// <param name="stream">The stream to read the document from.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root object the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public object LoadObject(Stream stream, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            using var reader = new StreamReader(stream, leaveOpen: true);
+            return LoadObject(reader, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document from an already-parsed <see cref="TextReader"/> whose root need not be a
+        /// <see cref="UIElement"/>.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root object the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public object LoadObject(TextReader reader, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return LoadCore(reader, sourcePath, out _);
+        }
+
+        /// <summary>
+        /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
+        /// turns out to be - the two families only differ in how they react to that root.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <param name="root">The document's root element, for callers that need it to build an error message.</param>
+        /// <returns>The root object the document declares.</returns>
+        private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
+        {
             XDocument document = ParseDocument(reader, sourcePath);
-            XElement root = document.Root
+            root = document.Root
                 ?? throw new MarkupException("The document is empty.", sourcePath);
 
             var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
@@ -444,16 +502,25 @@ namespace Icy.Markup
                     context.SourcePath);
             }
 
-            if (!registry.GetPropertyStore(context.SetterTargetType).TryGetProperty(name, searchInherited: true, out IPropertyReference? property))
+            IPropertyStore targetStore = registry.GetPropertyStore(context.SetterTargetType);
+            if (!targetStore.TryGetProperty(name, searchInherited: true, out IPropertyReference? property))
             {
                 throw MarkupException.At(
                     $"'{context.SetterTargetType.Name}' has no property '{name}' to set." +
-                    NameSuggestion.Clause(name, registry.GetPropertyStore(context.SetterTargetType).EnumerateProperties().Select(x => x.Name)),
+                    NameSuggestion.Clause(name, targetStore.EnumerateProperties().Select(x => x.Name)),
                     attribute,
                     context.SourcePath);
             }
 
-            var setters = (Dictionary<string, object?>)instance.GetType().GetProperty(setterMemberName)!.GetValue(instance)!;
+            PropertyInfo? setterProperty = instance.GetType().GetProperty(setterMemberName);
+            if (setterProperty?.GetValue(instance) is not Dictionary<string, object?> setters)
+            {
+                throw MarkupException.At(
+                    $"'{instance.GetType().Name}' declares '{setterMemberName}' as its setter collection, but has no readable property of that name returning a Dictionary<string, object?>.",
+                    attribute,
+                    context.SourcePath);
+            }
+
             setters[name] = ConvertValue(value, property.PropertyType, attribute, context, instance, MarkupMember.FromReference(property));
             return true;
         }

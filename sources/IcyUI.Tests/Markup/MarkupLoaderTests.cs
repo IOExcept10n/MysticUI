@@ -25,7 +25,7 @@ namespace Icy.Tests.Markup
         {
             var loader = CreateLoader();
 
-            UIElement root = (UIElement)loader.Load("<StackPanel/>");
+            UIElement root = loader.Load("<StackPanel/>");
 
             Assert.IsType<StackPanel>(root);
         }
@@ -35,7 +35,7 @@ namespace Icy.Tests.Markup
         {
             var loader = CreateLoader();
 
-            UIElement root = (UIElement)loader.Load($"<StackPanel xmlns=\"{MarkupNamespaces.Default}\"/>");
+            UIElement root = loader.Load($"<StackPanel xmlns=\"{MarkupNamespaces.Default}\"/>");
 
             Assert.IsType<StackPanel>(root);
         }
@@ -193,7 +193,7 @@ namespace Icy.Tests.Markup
         {
             var loader = CreateLoader();
 
-            UIElement root = (UIElement)loader.Load($"<StackPanel x:Class=\"{typeof(NamedPanel).FullName}\"/>");
+            UIElement root = loader.Load($"<StackPanel x:Class=\"{typeof(NamedPanel).FullName}\"/>");
 
             Assert.IsType<NamedPanel>(root);
         }
@@ -214,7 +214,7 @@ namespace Icy.Tests.Markup
             var loader = CreateLoader();
             string assembly = typeof(NamedPanel).Assembly.GetName().Name!;
 
-            UIElement root = (UIElement)loader.Load(
+            UIElement root = loader.Load(
                 $"""
                 <StackPanel xmlns:test="clr-namespace:{typeof(NamedPanel).Namespace};assembly={assembly}">
                   <test:NamedPanel/>
@@ -231,7 +231,7 @@ namespace Icy.Tests.Markup
             configuration.Types.Markup.RegisterShortName<NamedPanel>("Named");
             var loader = new MarkupLoader(configuration);
 
-            UIElement root = (UIElement)loader.Load("<StackPanel><Named/></StackPanel>");
+            UIElement root = loader.Load("<StackPanel><Named/></StackPanel>");
 
             Assert.IsType<NamedPanel>(((StackPanel)root).Children[0]);
         }

@@ -47,10 +47,7 @@ namespace Icy.Markup
             ArgumentNullException.ThrowIfNull(stream);
             ArgumentNullException.ThrowIfNull(importContext);
 
-            object root = loader.Load(stream, importContext.ResourceName);
-            if (root is not UIElement element)
-                throw new MarkupException($"Markup imported from '{importContext.ResourceName}' must declare a UIElement root, but it declares '{root.GetType().Name}'.");
-            return element;
+            return loader.Load(stream, importContext.ResourceName);
         }
     }
 }
