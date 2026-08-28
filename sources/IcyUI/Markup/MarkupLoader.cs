@@ -164,14 +164,22 @@ namespace Icy.Markup
         }
 
         /// <summary>
-        /// Finds the item type of a collection, so items can be converted before being added to it.
+        /// Finds a public instance <c>Add</c> method on <paramref name="collection"/>'s runtime type that accepts a
+        /// single argument - the same duck-typed rule C#'s own collection-initializer syntax uses, so a property
+        /// declared as a read-only interface (<see cref="IReadOnlyList{T}"/>, say) can still be populated as long as
+        /// what it actually returns has an <c>Add</c>.
         /// </summary>
-        private static Type? GetItemType(Type collectionType)
+        /// <param name="collection">The collection object to inspect.</param>
+        /// <returns>A tuple containing the Add method and the type of its parameter, or <see langword="null"/> if no suitable Add method was found.</returns>
+        private static (MethodInfo Add, Type ItemType)? FindAddMethod(object collection)
         {
-            foreach (Type contract in collectionType.GetInterfaces())
+            foreach (MethodInfo method in collection.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance))
             {
-                if (contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(ICollection<>))
-                    return contract.GetGenericArguments()[0];
+                if (method.Name != "Add")
+                    continue;
+                ParameterInfo[] parameters = method.GetParameters();
+                if (parameters.Length == 1)
+                    return (method, parameters[0].ParameterType);
             }
 
             return null;
@@ -449,12 +457,11 @@ namespace Icy.Markup
                 return;
             }
 
-            if (current is IList list)
+            if (current != null && FindAddMethod(current) is { } addable)
             {
-                Type itemType = GetItemType(list.GetType()) ?? typeof(object);
                 foreach (XElement entry in children)
                 {
-                    list.Add(ConvertValue(CreateObject(entry, context), itemType, entry, context));
+                    addable.Add.Invoke(current, [ConvertValue(CreateObject(entry, context), addable.ItemType, entry, context)]);
                 }
 
                 return;
@@ -477,12 +484,11 @@ namespace Icy.Markup
         {
             (MarkupMember member, object? current) = ResolveContentProperty(element, instance, context);
 
-            if (current is IList list)
+            if (current != null && FindAddMethod(current) is { } addable)
             {
-                Type itemType = GetItemType(list.GetType()) ?? typeof(object);
                 foreach (XElement child in children)
                 {
-                    list.Add(ConvertValue(CreateObject(child, context), itemType, child, context));
+                    addable.Add.Invoke(current, [ConvertValue(CreateObject(child, context), addable.ItemType, child, context)]);
                 }
 
                 return;
