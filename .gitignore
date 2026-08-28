@@ -400,3 +400,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Git worktrees (local scratch, not part of the repo)
+/.worktrees/
