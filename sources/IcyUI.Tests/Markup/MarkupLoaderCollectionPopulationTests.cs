@@ -96,6 +96,102 @@ namespace Icy.Tests.Markup
         }
 
         /// <summary>
+        /// A custom collection whose <c>Add</c> method always fails. Used to verify that a duck-typed
+        /// <c>Add</c> invocation failure surfaces as a <see cref="MarkupException"/> carrying file position,
+        /// rather than a raw <see cref="System.Reflection.TargetInvocationException"/> escaping from
+        /// <see cref="System.Reflection.MethodInfo.Invoke(object?, object?[]?)"/>.
+        /// </summary>
+        private class ThrowingCollection : IReadOnlyList<IntBox>
+        {
+            private readonly List<IntBox> items = [];
+
+            /// <summary>
+            /// Gets the number of items in the collection.
+            /// </summary>
+            public int Count => items.Count;
+
+            /// <summary>
+            /// Gets the item at the specified index.
+            /// </summary>
+            /// <param name="index">The index of the item to get.</param>
+            /// <returns>The item at the specified index.</returns>
+            public IntBox this[int index] => items[index];
+
+            /// <summary>
+            /// Returns an enumerator for the items in the collection.
+            /// </summary>
+            /// <returns>An enumerator.</returns>
+            public IEnumerator<IntBox> GetEnumerator() => items.GetEnumerator();
+
+            /// <summary>
+            /// Returns an enumerator for the items in the collection.
+            /// </summary>
+            /// <returns>An enumerator.</returns>
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => items.GetEnumerator();
+
+            /// <summary>
+            /// Always throws, to simulate a collection that rejects an item at add-time.
+            /// </summary>
+            /// <param name="item">The item that would have been added.</param>
+            /// <exception cref="System.InvalidOperationException">Always thrown.</exception>
+            public void Add(IntBox item) => throw new System.InvalidOperationException("ThrowingCollection rejects every item.");
+        }
+
+        /// <summary>
+        /// Content-property host backed by <see cref="ThrowingCollection"/>, exercising the duck-typed
+        /// <c>Add</c> call site in <c>MarkupLoader.ApplyContentChildren</c>.
+        /// </summary>
+        [ContentProperty(nameof(Items))]
+        private class ThrowingContentHost : UIElement
+        {
+            private readonly ThrowingCollection items = new();
+
+            /// <summary>
+            /// Gets the content property, backed by a collection whose <c>Add</c> always throws.
+            /// </summary>
+            public IReadOnlyList<IntBox> Items => items;
+
+            /// <summary>
+            /// Measures the host's content.
+            /// </summary>
+            protected override System.Drawing.Size MeasureContent() => System.Drawing.Size.Empty;
+
+            /// <summary>
+            /// Arranges the host's content.
+            /// </summary>
+            protected override void ArrangeContent()
+            {
+            }
+        }
+
+        /// <summary>
+        /// Non-content property host backed by <see cref="ThrowingCollection"/>, exercising the duck-typed
+        /// <c>Add</c> call site in <c>MarkupLoader.ApplyPropertyElement</c> (via <c>&lt;Type.Property&gt;</c>
+        /// property-element syntax).
+        /// </summary>
+        private class ThrowingPropertyHost : UIElement
+        {
+            private readonly ThrowingCollection items = new();
+
+            /// <summary>
+            /// Gets a plain (non-content) property, backed by a collection whose <c>Add</c> always throws.
+            /// </summary>
+            public IReadOnlyList<IntBox> Items => items;
+
+            /// <summary>
+            /// Measures the host's content.
+            /// </summary>
+            protected override System.Drawing.Size MeasureContent() => System.Drawing.Size.Empty;
+
+            /// <summary>
+            /// Arranges the host's content.
+            /// </summary>
+            protected override void ArrangeContent()
+            {
+            }
+        }
+
+        /// <summary>
         /// Creates the configuration for these tests.
         /// </summary>
         private static IcyConfiguration CreateConfiguration()
@@ -103,6 +199,8 @@ namespace Icy.Tests.Markup
             var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
             configuration.Types.Markup.RegisterShortName<ReadOnlyListHost>();
             configuration.Types.Markup.RegisterShortName<IntBox>();
+            configuration.Types.Markup.RegisterShortName<ThrowingContentHost>();
+            configuration.Types.Markup.RegisterShortName<ThrowingPropertyHost>();
             return configuration;
         }
 
@@ -128,6 +226,55 @@ namespace Icy.Tests.Markup
             Assert.Equal(2, host.Items.Count);
             Assert.Equal(1, host.Items[0].Value);
             Assert.Equal(2, host.Items[1].Value);
+        }
+
+        /// <summary>
+        /// Tests that a duck-typed <c>Add</c> method throwing while populating a content-property collection
+        /// surfaces as a <see cref="MarkupException"/> carrying the failure message and file position, rather
+        /// than an unwrapped <see cref="System.Reflection.TargetInvocationException"/>.
+        /// </summary>
+        [Fact]
+        public void ContentChildren_AddMethodThrows_SurfacesAsMarkupExceptionWithFailureMessage()
+        {
+            var loader = new MarkupLoader(CreateConfiguration());
+
+            MarkupException exception = Assert.Throws<MarkupException>(() => loader.Load(
+                """
+                <ThrowingContentHost>
+                  <IntBox Value="1"/>
+                </ThrowingContentHost>
+                """,
+                "test.icyml"));
+
+            Assert.Contains("ThrowingCollection rejects every item.", exception.Message);
+            Assert.IsType<System.InvalidOperationException>(exception.InnerException);
+            Assert.Contains("test.icyml", exception.Message);
+        }
+
+        /// <summary>
+        /// Tests that a duck-typed <c>Add</c> method throwing while populating a property-element collection
+        /// (<c>&lt;Type.Property&gt;</c> syntax) surfaces as a <see cref="MarkupException"/> carrying the
+        /// failure message and file position, rather than an unwrapped
+        /// <see cref="System.Reflection.TargetInvocationException"/>.
+        /// </summary>
+        [Fact]
+        public void PropertyElement_AddMethodThrows_SurfacesAsMarkupExceptionWithFailureMessage()
+        {
+            var loader = new MarkupLoader(CreateConfiguration());
+
+            MarkupException exception = Assert.Throws<MarkupException>(() => loader.Load(
+                """
+                <ThrowingPropertyHost>
+                  <ThrowingPropertyHost.Items>
+                    <IntBox Value="1"/>
+                  </ThrowingPropertyHost.Items>
+                </ThrowingPropertyHost>
+                """,
+                "test.icyml"));
+
+            Assert.Contains("ThrowingCollection rejects every item.", exception.Message);
+            Assert.IsType<System.InvalidOperationException>(exception.InnerException);
+            Assert.Contains("test.icyml", exception.Message);
         }
     }
 }

@@ -185,6 +185,30 @@ namespace Icy.Markup
             return null;
         }
 
+        /// <summary>
+        /// Invokes a duck-typed <c>Add</c> method found by <see cref="FindAddMethod"/>, translating a failure
+        /// inside the target method into a <see cref="MarkupException"/> carrying file position instead of letting
+        /// reflection's <see cref="TargetInvocationException"/> wrapper escape.
+        /// </summary>
+        /// <param name="addable">The <c>Add</c> method and its parameter type, as returned by <see cref="FindAddMethod"/>.</param>
+        /// <param name="collection">The collection instance to add <paramref name="value"/> to.</param>
+        /// <param name="value">The already-converted item to add.</param>
+        /// <param name="memberLabel">The owning type and property name, for the error message (e.g. <c>"Panel.Children"</c>).</param>
+        /// <param name="node">The item's position in the source document, for error reporting.</param>
+        /// <param name="context">The load's mutable state.</param>
+        private static void InvokeAdd((MethodInfo Add, Type ItemType) addable, object collection, object? value, string memberLabel, IXmlLineInfo? node, MarkupLoadContext context)
+        {
+            try
+            {
+                addable.Add.Invoke(collection, [value]);
+            }
+            catch (TargetInvocationException ex)
+            {
+                Exception cause = ex.InnerException ?? ex;
+                throw MarkupException.At($"'{memberLabel}' failed to add an item: {cause.Message}", node, context.SourcePath, cause);
+            }
+        }
+
         private object CreateObject(XElement element, MarkupLoadContext context)
         {
             Type type = ResolveInstanceType(element, context);
@@ -461,7 +485,8 @@ namespace Icy.Markup
             {
                 foreach (XElement entry in children)
                 {
-                    addable.Add.Invoke(current, [ConvertValue(CreateObject(entry, context), addable.ItemType, entry, context)]);
+                    object? item = ConvertValue(CreateObject(entry, context), addable.ItemType, entry, context);
+                    InvokeAdd(addable, current, item, $"{type.Name}.{propertyName}", entry, context);
                 }
 
                 return;
@@ -488,7 +513,8 @@ namespace Icy.Markup
             {
                 foreach (XElement child in children)
                 {
-                    addable.Add.Invoke(current, [ConvertValue(CreateObject(child, context), addable.ItemType, child, context)]);
+                    object? item = ConvertValue(CreateObject(child, context), addable.ItemType, child, context);
+                    InvokeAdd(addable, current, item, $"{instance.GetType().Name}.{member.Name}", child, context);
                 }
 
                 return;
