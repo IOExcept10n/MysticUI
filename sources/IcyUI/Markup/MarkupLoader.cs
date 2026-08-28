@@ -210,8 +210,8 @@ namespace Icy.Markup
             }
 
             // Let the activator's ResolveConstructor determine which constructor matches the available attributes.
-            // This is the single source of truth for constructor selection.
-            System.Reflection.ConstructorInfo constructor = DefaultMarkupActivator.ResolveConstructor(type, candidateAttributes.Keys);
+            // This is the single source of truth for constructor selection, and goes through the pluggable activator.
+            System.Reflection.ConstructorInfo constructor = markup.Activator.ResolveConstructor(type, (IReadOnlyCollection<string>)candidateAttributes.Keys);
             System.Reflection.ParameterInfo[] parameters = constructor.GetParameters();
             var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -277,7 +277,9 @@ namespace Icy.Markup
                     continue;
                 }
 
-                if (consumedByConstructor != null && consumedByConstructor.Contains(attribute.Name.LocalName))
+                // Only skip consumed attributes that have no namespace. Namespaced attributes are never constructor parameters
+                // (constructor parameters must be matched case-insensitively from plain attributes).
+                if (consumedByConstructor != null && attribute.Name.Namespace == XNamespace.None && consumedByConstructor.Contains(attribute.Name.LocalName))
                     continue;
 
                 if (attribute.Name.LocalName.Contains('.', StringComparison.Ordinal))

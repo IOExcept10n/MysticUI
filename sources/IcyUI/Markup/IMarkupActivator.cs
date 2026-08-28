@@ -46,6 +46,21 @@ namespace Icy.Markup
         /// </remarks>
         object CreateInstance(Type type, IReadOnlyDictionary<string, object?> constructorArguments) =>
             throw new MarkupException($"'{type.FullName}' has no parameterless constructor, and this {nameof(IMarkupActivator)} doesn't support constructor-argument binding.");
+
+        /// <summary>
+        /// Resolves the constructor <paramref name="type"/> should be built through, given the attribute names
+        /// available to bind as arguments, for a type with no parameterless constructor.
+        /// </summary>
+        /// <param name="type">The type to resolve a constructor for.</param>
+        /// <param name="availableAttributeNames">The attribute names available on the markup element (case-insensitive).</param>
+        /// <returns>The constructor to use.</returns>
+        /// <exception cref="MarkupException">No constructor - or more than one - has its parameters fully covered by <paramref name="availableAttributeNames"/>.</exception>
+        /// <remarks>
+        /// The default implementation throws, matching <see cref="CreateInstance(Type, IReadOnlyDictionary{string, object?})"/>'s
+        /// pattern, so an existing custom <see cref="IMarkupActivator"/> that predates this method keeps compiling.
+        /// </remarks>
+        System.Reflection.ConstructorInfo ResolveConstructor(Type type, IReadOnlyCollection<string> availableAttributeNames) =>
+            throw new MarkupException($"'{type.FullName}' has no parameterless constructor, and this {nameof(IMarkupActivator)} doesn't support constructor resolution.");
     }
 
     /// <summary>
@@ -84,7 +99,7 @@ namespace Icy.Markup
             ArgumentNullException.ThrowIfNull(type);
             ArgumentNullException.ThrowIfNull(constructorArguments);
 
-            System.Reflection.ConstructorInfo constructor = ResolveConstructor(type, constructorArguments.Keys);
+            System.Reflection.ConstructorInfo constructor = ResolveConstructor(type, (IReadOnlyCollection<string>)constructorArguments.Keys);
             object?[] arguments = [.. constructor.GetParameters().Select(p => constructorArguments[p.Name!])];
 
             try
@@ -97,22 +112,13 @@ namespace Icy.Markup
             }
         }
 
-        /// <summary>
-        /// Finds a parameterized constructor for <paramref name="type"/> whose parameters are all covered by
-        /// <paramref name="availableNames"/>, for use by markup construction.
-        /// </summary>
-        /// <param name="type">The type to find a constructor for.</param>
-        /// <param name="availableNames">The parameter names available from markup attributes (case-insensitive).</param>
-        /// <returns>The matching constructor.</returns>
-        /// <exception cref="MarkupException">No matching constructor was found, or multiple matches exist.</exception>
-        /// <remarks>
-        /// This is internal to allow the markup loader to determine which constructor will be used
-        /// before asking the activator to construct, so it can validate available attributes and track
-        /// which ones are consumed.
-        /// </remarks>
-        internal static System.Reflection.ConstructorInfo ResolveConstructor(Type type, IEnumerable<string> availableNames)
+        /// <inheritdoc/>
+        public System.Reflection.ConstructorInfo ResolveConstructor(Type type, IReadOnlyCollection<string> availableAttributeNames)
         {
-            var available = new HashSet<string>(availableNames, StringComparer.OrdinalIgnoreCase);
+            ArgumentNullException.ThrowIfNull(type);
+            ArgumentNullException.ThrowIfNull(availableAttributeNames);
+
+            var available = new HashSet<string>(availableAttributeNames, StringComparer.OrdinalIgnoreCase);
             var candidates = type.GetConstructors()
                 .Where(c => c.GetParameters().Length > 0 && c.GetParameters().All(p => available.Contains(p.Name!)))
                 .ToList();
