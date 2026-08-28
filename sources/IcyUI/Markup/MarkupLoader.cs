@@ -180,11 +180,59 @@ namespace Icy.Markup
         private object CreateObject(XElement element, MarkupLoadContext context)
         {
             Type type = ResolveInstanceType(element, context);
-            object instance = markup.Activator.CreateInstance(type);
+            HashSet<string>? consumedByConstructor = null;
+            object instance = type.GetConstructor(Type.EmptyTypes) != null
+                ? markup.Activator.CreateInstance(type)
+                : CreateObjectFromConstructorAttributes(type, element, context, out consumedByConstructor);
 
-            ApplyAttributes(element, instance, context);
+            ApplyAttributes(element, instance, context, consumedByConstructor);
             ApplyChildren(element, instance, context);
             return instance;
+        }
+
+        /// <summary>
+        /// Constructs <paramref name="type"/> through its single parameterized public constructor, binding each
+        /// parameter to an attribute of the same name (case-insensitive).
+        /// </summary>
+        private object CreateObjectFromConstructorAttributes(Type type, XElement element, MarkupLoadContext context, out HashSet<string> consumed)
+        {
+            var candidates = type.GetConstructors().Where(c => c.GetParameters().Length > 0).ToList();
+            if (candidates.Count != 1)
+            {
+                throw MarkupException.At(
+                    $"'{type.Name}' has no parameterless constructor, and markup can only construct a type with exactly one parameterized public constructor (found {candidates.Count}).",
+                    element,
+                    context.SourcePath);
+            }
+
+            System.Reflection.ParameterInfo[] parameters = candidates[0].GetParameters();
+            var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (System.Reflection.ParameterInfo parameter in parameters)
+            {
+                XAttribute? attribute = element.Attributes().FirstOrDefault(a =>
+                    !a.IsNamespaceDeclaration
+                    && !MarkupNamespaces.IsDirective(a.Name.Namespace)
+                    && string.Equals(a.Name.LocalName, parameter.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (attribute == null)
+                {
+                    throw MarkupException.At(
+                        $"'{type.Name}' requires an attribute '{parameter.Name}' - it has no parameterless constructor.",
+                        element,
+                        context.SourcePath);
+                }
+
+                object? value = parameter.ParameterType == typeof(Type)
+                    ? types.ResolveTypeName(attribute.Value, element, attribute, context.SourcePath)
+                    : ConvertValue(attribute.Value, parameter.ParameterType, attribute, context);
+
+                arguments[parameter.Name!] = value;
+                consumed.Add(attribute.Name.LocalName);
+            }
+
+            return markup.Activator.CreateInstance(type, arguments);
         }
 
         /// <summary>
@@ -214,11 +262,13 @@ namespace Icy.Markup
             return backingType;
         }
 
-        private void ApplyAttributes(XElement element, object instance, MarkupLoadContext context)
+        private void ApplyAttributes(XElement element, object instance, MarkupLoadContext context, HashSet<string>? consumedByConstructor = null)
         {
             foreach (XAttribute attribute in element.Attributes())
             {
                 if (attribute.IsNamespaceDeclaration)
+                    continue;
+                if (consumedByConstructor != null && consumedByConstructor.Contains(attribute.Name.LocalName))
                     continue;
 
                 if (MarkupNamespaces.IsDirective(attribute.Name.Namespace))
