@@ -69,6 +69,7 @@ namespace Icy.UI
         private float opacity = 1;
         private Thickness padding;
         private UIElement? parent;
+        private ResourceDictionary? resources;
         private Vector2 renderOffset;
         private float renderRotation;
         private Vector2 renderScale = Vector2.One;
@@ -638,6 +639,19 @@ namespace Icy.UI
         [NonBindable]
         [NonAnimatable]
         public string? Name { get => name; set => SetProperty(ref name, value); }
+
+        /// <summary>
+        /// Gets the resources this element declares - <see cref="Styles.Style"/>s, <see cref="Animations.Timeline"/>s,
+        /// or anything else keyed by name for <c>{StaticResource}</c> lookup within this element's subtree.
+        /// </summary>
+        /// <remarks>
+        /// Lazily allocated - reading this on an element with no declared resources never allocates.
+        /// See <see cref="ResourceDictionary"/>'s remarks for how lookup walks the element tree.
+        /// </remarks>
+        [Browsable(false)]
+        [XmlIgnore]
+        [JsonIgnore]
+        public ResourceDictionary Resources => resources ??= [];
 
         /// <summary>
         /// Gets or sets the opacity of the <see cref="UIElement"/> instance.
