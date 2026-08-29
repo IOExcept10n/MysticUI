@@ -282,13 +282,18 @@ namespace Icy.Markup
         }
 
         /// <summary>
-        /// Populates <paramref name="target"/>'s own entries from <paramref name="entries"/>, each requiring an
-        /// <c>x:Key</c>, when <paramref name="target"/> is itself a dictionary - either the non-generic
-        /// <see cref="IDictionary"/> or a closed <see cref="IDictionary{TKey, TValue}"/>. Shared by a property
-        /// element whose value is a dictionary (<c>&lt;Border.Resources&gt;</c>) and by <see cref="ApplyChildren"/>,
-        /// for a document whose root element - such as <see cref="Icy.UI.ResourceDictionary"/> - is itself a
-        /// dictionary rather than holding one behind a property.
+        /// Populates <paramref name="target"/>'s own entries from <paramref name="entries"/>, when
+        /// <paramref name="target"/> is itself a dictionary - either the non-generic <see cref="IDictionary"/> or a
+        /// closed <see cref="IDictionary{TKey, TValue}"/>. Shared by a property element whose value is a dictionary
+        /// (<c>&lt;Border.Resources&gt;</c>) and by <see cref="ApplyChildren"/>, for a document whose root element -
+        /// such as <see cref="Icy.UI.ResourceDictionary"/> - is itself a dictionary rather than holding one behind a
+        /// property.
         /// </summary>
+        /// <remarks>
+        /// Each entry needs a resource key: an explicit <c>x:Key</c> attribute, or - when absent - the value's own
+        /// <see cref="IImplicitResourceKey.ImplicitResourceKey"/> (e.g. a keyless <c>&lt;Style TargetType="Button"&gt;</c>
+        /// registering under <see cref="Icy.UI.ResourceDictionary.GetImplicitStyleKey(Type)"/>).
+        /// </remarks>
         /// <param name="target">The object to check, and populate if it qualifies.</param>
         /// <param name="entries">The child elements to add as entries.</param>
         /// <param name="memberLabel">The owning type (and property name, if any), for error messages.</param>
@@ -298,16 +303,26 @@ namespace Icy.Markup
         /// applied to it; <see langword="false"/> when <paramref name="target"/> isn't a dictionary at all, in
         /// which case the caller must try some other way to apply <paramref name="entries"/>.
         /// </returns>
-        /// <exception cref="MarkupException">An entry has no <c>x:Key</c>.</exception>
+        /// <exception cref="MarkupException">
+        /// An entry has no <c>x:Key</c> and its value has no <see cref="IImplicitResourceKey.ImplicitResourceKey"/>
+        /// either, or its resolved key is already present in <paramref name="target"/>.
+        /// </exception>
         private bool TryPopulateDictionaryEntries(object target, List<XElement> entries, string memberLabel, MarkupLoadContext context)
         {
             if (target is IDictionary dictionary)
             {
                 foreach (XElement entry in entries)
                 {
-                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
+                    object value = CreateObject(entry, context);
+                    XAttribute? key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key);
+                    string resolvedKey = key?.Value
+                        ?? (value as IImplicitResourceKey)?.ImplicitResourceKey
                         ?? throw MarkupException.At($"Entries of '{memberLabel}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
-                    dictionary[key.Value] = CreateObject(entry, context);
+
+                    if (dictionary.Contains(resolvedKey))
+                        throw MarkupException.At($"Duplicate key '{resolvedKey}' in this dictionary.", entry, context.SourcePath);
+
+                    dictionary[resolvedKey] = value;
                 }
 
                 return true;
@@ -317,12 +332,20 @@ namespace Icy.Markup
             {
                 Type[] typeArguments = genericDictionary.GetGenericArguments();
                 PropertyInfo indexer = genericDictionary.GetProperty("Item")!;
+                MethodInfo containsKey = genericDictionary.GetMethod("ContainsKey")!;
                 foreach (XElement entry in entries)
                 {
-                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
+                    object value = CreateObject(entry, context);
+                    XAttribute? key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key);
+                    string resolvedKey = key?.Value
+                        ?? (value as IImplicitResourceKey)?.ImplicitResourceKey
                         ?? throw MarkupException.At($"Entries of '{memberLabel}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
-                    object? convertedKey = ConvertValue(key.Value, typeArguments[0], entry, context);
-                    object? convertedValue = ConvertValue(CreateObject(entry, context), typeArguments[1], entry, context);
+                    object? convertedKey = ConvertValue(resolvedKey, typeArguments[0], entry, context);
+
+                    if ((bool)containsKey.Invoke(target, [convertedKey])!)
+                        throw MarkupException.At($"Duplicate key '{resolvedKey}' in this dictionary.", entry, context.SourcePath);
+
+                    object? convertedValue = ConvertValue(value, typeArguments[1], entry, context);
                     indexer.SetValue(target, convertedValue, [convertedKey]);
                 }
 

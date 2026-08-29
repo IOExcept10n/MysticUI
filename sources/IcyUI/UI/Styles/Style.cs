@@ -11,12 +11,19 @@ namespace Icy.UI.Styles
     /// </summary>
     /// <param name="targetType">The type of element this style is meant to be applied to.</param>
     [MarkupSetterCollection(nameof(Setters))]
-    public class Style(Type targetType)
+    public class Style(Type targetType) : IImplicitResourceKey
     {
         /// <summary>
         /// Gets the type of element this style is meant to be applied to.
         /// </summary>
         public Type TargetType { get; } = targetType;
+
+        /// <summary>
+        /// Gets the reserved key this style registers under when placed in a dictionary with no explicit
+        /// <c>x:Key</c> - see <see cref="ResourceDictionary.GetImplicitStyleKey(Type)"/>. Implemented explicitly so
+        /// it stays out of <see cref="Style"/>'s own public surface.
+        /// </summary>
+        string? IImplicitResourceKey.ImplicitResourceKey => ResourceDictionary.GetImplicitStyleKey(TargetType);
 
         /// <summary>
         /// Gets the property values this style sets, keyed by property name.

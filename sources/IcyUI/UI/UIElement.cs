@@ -1475,12 +1475,36 @@ namespace Icy.UI
         /// </remarks>
         protected virtual void OnAttached()
         {
+            if (Style == null && ResolveImplicitStyle() is { } implicitStyle)
+                Style = implicitStyle;
+
             foreach (UIElement child in GetVisualChildren())
             {
                 child.Canvas = Canvas;
             }
 
             Attached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Looks up an implicit (keyless, exact-type-targeted) <see cref="Styles.Style"/> for this element's own
+        /// type, walking <see cref="Parent"/> the same way <c>{StaticResource}</c> does.
+        /// </summary>
+        /// <returns>
+        /// The implicit <see cref="Styles.Style"/> registered for this element's exact type in the nearest
+        /// ancestor's <see cref="Resources"/> (or this element's own), or <see langword="null"/> when none is
+        /// registered anywhere along that chain.
+        /// </returns>
+        private Style? ResolveImplicitStyle()
+        {
+            string key = ResourceDictionary.GetImplicitStyleKey(GetType());
+            for (UIElement? element = this; element != null; element = element.Parent)
+            {
+                if (element.HasResources && element.Resources.TryGetValue(key, out object? value) && value is Style style)
+                    return style;
+            }
+
+            return null;
         }
 
         /// <summary>
