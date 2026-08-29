@@ -52,9 +52,15 @@ namespace Icy.UI.Styles
         /// Applies this style's setters and state groups to <paramref name="control"/>.
         /// </summary>
         /// <param name="control">The element to apply this style to.</param>
-        public void Apply(UIElement control)
+        /// <exception cref="InvalidOperationException">This style's <see cref="BasedOn"/> chain contains a cycle.</exception>
+        public void Apply(UIElement control) => Apply(control, visited: []);
+
+        private void Apply(UIElement control, HashSet<Style> visited)
         {
-            BasedOn?.Apply(control);
+            if (!visited.Add(this))
+                throw new InvalidOperationException($"'{nameof(BasedOn)}' forms a cycle - a style can't (directly or indirectly) be based on itself.");
+
+            BasedOn?.Apply(control, visited);
 
             IPropertyStore store = control.GetPropertyStore();
             foreach (KeyValuePair<string, object?> setter in Setters)
