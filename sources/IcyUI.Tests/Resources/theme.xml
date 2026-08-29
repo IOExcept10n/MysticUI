@@ -1,0 +1,3 @@
+<ResourceDictionary>
+  <Style x:Key="ThemedAccent" TargetType="Border" Width="99"/>
+</ResourceDictionary>

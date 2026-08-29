@@ -9,9 +9,11 @@ namespace Icy.UI
     /// <remarks>
     /// <para>
     /// Every <see cref="UIElement"/> carries its own via <see cref="UIElement.Resources"/> - lookup
-    /// (<c>{StaticResource}</c>, see <see cref="Markup.Extensions.StaticResourceExtension"/>) walks from the
-    /// requesting element up through <see cref="UIElement.Parent"/>/<see cref="UIElement.LogicalParent"/> to the
-    /// root, checking each element's own dictionary before moving to its parent.
+    /// (<c>{StaticResource}</c>, see <see cref="Markup.Extensions.StaticResourceExtension"/>) resolves once, at
+    /// load time, by walking outward from the innermost element currently under construction (the loader's
+    /// construction-time element stack, not <see cref="UIElement.Parent"/>/<see cref="UIElement.LogicalParent"/> -
+    /// see <see cref="Markup.Extensions.StaticResourceExtension"/>'s own remarks for why) to the document root,
+    /// checking each element's own <see cref="UIElement.Resources"/> in turn before moving outward.
     /// </para>
     /// <para>
     /// Within a single dictionary, a direct entry always shadows a same-key entry from

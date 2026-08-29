@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Xml;
 using System.Xml.Linq;
+using Icy.Assets;
 using Icy.Configuration;
 using Icy.Data;
 using Icy.Data.Markup;
@@ -280,6 +281,57 @@ namespace Icy.Markup
             }
         }
 
+        /// <summary>
+        /// Populates <paramref name="target"/>'s own entries from <paramref name="entries"/>, each requiring an
+        /// <c>x:Key</c>, when <paramref name="target"/> is itself a dictionary - either the non-generic
+        /// <see cref="IDictionary"/> or a closed <see cref="IDictionary{TKey, TValue}"/>. Shared by a property
+        /// element whose value is a dictionary (<c>&lt;Border.Resources&gt;</c>) and by <see cref="ApplyChildren"/>,
+        /// for a document whose root element - such as <see cref="Icy.UI.ResourceDictionary"/> - is itself a
+        /// dictionary rather than holding one behind a property.
+        /// </summary>
+        /// <param name="target">The object to check, and populate if it qualifies.</param>
+        /// <param name="entries">The child elements to add as entries.</param>
+        /// <param name="memberLabel">The owning type (and property name, if any), for error messages.</param>
+        /// <param name="context">The load's mutable state.</param>
+        /// <returns>
+        /// <see langword="true"/> when <paramref name="target"/> is a dictionary and <paramref name="entries"/> was
+        /// applied to it; <see langword="false"/> when <paramref name="target"/> isn't a dictionary at all, in
+        /// which case the caller must try some other way to apply <paramref name="entries"/>.
+        /// </returns>
+        /// <exception cref="MarkupException">An entry has no <c>x:Key</c>.</exception>
+        private bool TryPopulateDictionaryEntries(object target, List<XElement> entries, string memberLabel, MarkupLoadContext context)
+        {
+            if (target is IDictionary dictionary)
+            {
+                foreach (XElement entry in entries)
+                {
+                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
+                        ?? throw MarkupException.At($"Entries of '{memberLabel}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
+                    dictionary[key.Value] = CreateObject(entry, context);
+                }
+
+                return true;
+            }
+
+            if (FindGenericDictionaryInterface(target) is { } genericDictionary)
+            {
+                Type[] typeArguments = genericDictionary.GetGenericArguments();
+                PropertyInfo indexer = genericDictionary.GetProperty("Item")!;
+                foreach (XElement entry in entries)
+                {
+                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
+                        ?? throw MarkupException.At($"Entries of '{memberLabel}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
+                    object? convertedKey = ConvertValue(key.Value, typeArguments[0], entry, context);
+                    object? convertedValue = ConvertValue(CreateObject(entry, context), typeArguments[1], entry, context);
+                    indexer.SetValue(target, convertedValue, [convertedKey]);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
         private object CreateObject(XElement element, MarkupLoadContext context)
         {
             Type type = ResolveInstanceType(element, context);
@@ -287,6 +339,14 @@ namespace Icy.Markup
             object instance = type.GetConstructor(Type.EmptyTypes) != null
                 ? markup.Activator.CreateInstance(type)
                 : CreateObjectFromConstructorAttributes(type, element, context, out consumedByConstructor);
+
+            // A ResourceDictionary's Source is a load-time instruction, not runtime state - much like x:Class, it's
+            // consumed before the instance would otherwise start resolving its own attributes/children. The freshly
+            // constructed (empty) instance above is discarded wholesale in favor of the dictionary Source names, so
+            // it never runs its own attribute/child resolution and must never be pushed onto ElementStack or have
+            // SetterTargetType touched for it.
+            if (instance is ResourceDictionary && element.Attribute("Source") is { } source)
+                return LoadMergedDictionary(source.Value, element, context);
 
             Type? previousSetterTargetType = context.SetterTargetType;
             if (instance is Icy.UI.Styles.Style style)
@@ -309,6 +369,29 @@ namespace Icy.Markup
             }
 
             return instance;
+        }
+
+        /// <summary>
+        /// Loads the <see cref="ResourceDictionary"/> a <c>Source</c> attribute names, through the asset pipeline -
+        /// the load-time substitute for a <c>&lt;ResourceDictionary Source="..."/&gt;</c> element, which otherwise
+        /// would have gone on to construct and populate an empty dictionary of its own.
+        /// </summary>
+        /// <param name="path">
+        /// The path to the resource dictionary document, resolved against
+        /// <see cref="Icy.Configuration.AssetConfiguration.DefaultAssetContext"/> - the same asset context
+        /// <see cref="Icy.Navigation.NavigationService.Navigate(string)"/> resolves a page path through.
+        /// </param>
+        /// <param name="element">The element carrying the <c>Source</c> attribute, for error reporting.</param>
+        /// <param name="context">The load's mutable state, for error reporting.</param>
+        /// <returns>The dictionary loaded from <paramref name="path"/>.</returns>
+        /// <exception cref="MarkupException">No document exists at <paramref name="path"/>.</exception>
+        private ResourceDictionary LoadMergedDictionary(string path, XElement element, MarkupLoadContext context)
+        {
+            IAssetContext assetContext = configuration.Assets.DefaultAssetContext;
+            if (!assetContext.IsAvailable(path))
+                throw MarkupException.At($"No resource dictionary found at '{path}'.", element, context.SourcePath);
+
+            return configuration.Assets.AssetResolver.LoadAsset<ResourceDictionary>(assetContext, path);
         }
 
         /// <summary>
@@ -557,6 +640,12 @@ namespace Icy.Markup
 
             if (content.Count > 0)
             {
+                // A root that is itself a dictionary (a ResourceDictionary document, say) takes its children as
+                // its own keyed entries directly - there is no property to go through, unlike <Border.Resources>,
+                // whose value is what TryPopulateDictionaryEntries would otherwise be checking.
+                if (TryPopulateDictionaryEntries(instance, content, instance.GetType().Name, context))
+                    return;
+
                 ApplyContentChildren(element, instance, content, context);
                 return;
             }
@@ -605,33 +694,8 @@ namespace Icy.Markup
             object? current = member.GetValue(instance);
             List<XElement> children = [.. child.Elements()];
 
-            if (current is IDictionary dictionary)
-            {
-                foreach (XElement entry in children)
-                {
-                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
-                        ?? throw MarkupException.At($"Entries of '{type.Name}.{propertyName}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
-                    dictionary[key.Value] = CreateObject(entry, context);
-                }
-
+            if (current != null && TryPopulateDictionaryEntries(current, children, $"{type.Name}.{propertyName}", context))
                 return;
-            }
-
-            if (current != null && FindGenericDictionaryInterface(current) is { } genericDictionary)
-            {
-                Type[] typeArguments = genericDictionary.GetGenericArguments();
-                PropertyInfo indexer = genericDictionary.GetProperty("Item")!;
-                foreach (XElement entry in children)
-                {
-                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
-                        ?? throw MarkupException.At($"Entries of '{type.Name}.{propertyName}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
-                    object? convertedKey = ConvertValue(key.Value, typeArguments[0], entry, context);
-                    object? convertedValue = ConvertValue(CreateObject(entry, context), typeArguments[1], entry, context);
-                    indexer.SetValue(current, convertedValue, [convertedKey]);
-                }
-
-                return;
-            }
 
             if (current != null && FindAddMethod(current) is { } addable)
             {

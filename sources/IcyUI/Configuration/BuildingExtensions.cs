@@ -227,7 +227,9 @@ namespace Icy.Configuration
         }
 
         /// <summary>
-        /// Adds support for loading markup documents as <see cref="UI.UIElement"/> assets.
+        /// Adds support for loading markup documents through the asset pipeline - both a <see cref="UI.UIElement"/>
+        /// document (a <c>Page</c>, say) and a standalone <see cref="UI.ResourceDictionary"/> document (a theme
+        /// file referenced via <c>Source=</c>), so either can be requested by path like any other asset.
         /// </summary>
         /// <param name="builder">The asset configuration builder instance.</param>
         /// <param name="configuration">The built configuration the loader resolves types and properties through.</param>
@@ -240,7 +242,9 @@ namespace Icy.Configuration
         public static IAssetConfigurationBuilder AddMarkupSupport(this IAssetConfigurationBuilder builder, IcyConfiguration configuration)
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            return builder.AddImporter<UI.UIElement>(new MarkupImporter(configuration));
+            return builder
+                .AddImporter<UI.UIElement>(new MarkupImporter(configuration))
+                .AddImporter<UI.ResourceDictionary>(new ResourceDictionaryImporter(configuration));
         }
 
         /// <summary>
