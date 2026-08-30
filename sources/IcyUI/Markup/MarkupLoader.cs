@@ -652,7 +652,7 @@ namespace Icy.Markup
 
         /// <summary>
         /// Recognizes a <c>&lt;Setter&gt;</c> child on an object marked <see cref="MarkupSetterCollectionAttribute"/> -
-        /// a markup-only convention with no runtime <c>Setter</c> type (see the type's remarks).
+        /// a markup-only convention with no runtime <c>Setter</c> type.
         /// </summary>
         private static bool IsSetterElement(XElement child, object instance) =>
             child.Name.LocalName == "Setter" && MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType()) != null;
@@ -681,9 +681,13 @@ namespace Icy.Markup
                     ApplySetterElement(instance, child, context);
                 }
                 else if (IsPropertyElement(child, instance.GetType(), context, out string? propertyName))
+                {
                     ApplyPropertyElement(instance, propertyName, child, context);
+                }
                 else
+                {
                     content.Add(child);
+                }
             }
 
             if (content.Count > 0)

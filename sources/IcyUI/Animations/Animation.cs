@@ -36,6 +36,15 @@ namespace Icy.Animations
         /// Initializes a new instance of the <see cref="Animation"/> class for <paramref name="timeline"/> applied
         /// to <paramref name="target"/>.
         /// </summary>
+        /// <remarks>
+        /// Converts and caches <paramref name="timeline"/>'s keyframe values exactly once here, against the target
+        /// property's real type - it does not read <see cref="Animations.Timeline.Keyframes"/> live on every tick.
+        /// Consequently, mutating a shared <see cref="Animations.Timeline"/> (e.g. calling
+        /// <see cref="Animations.Timeline.AddKeyframe(float, object?)"/>) after an <see cref="Animation"/> has
+        /// already been constructed from it - running or not - no longer affects that instance, which keeps its own
+        /// frozen, converted copy. This matches <see cref="Animations.Timeline"/> being "a reusable description,
+        /// not a running animation" (see its own remarks).
+        /// </remarks>
         /// <param name="target">
         /// The object to animate. Must have a property named <see cref="Animations.Timeline.TargetProperty"/>
         /// registered with <see cref="PropertyRegistry"/> (e.g. via <see cref="Data.Markup.Attributes.RegisterReferenceAttribute"/>).

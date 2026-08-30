@@ -860,6 +860,14 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets the style applied to the <see cref="UIElement"/> instance.
         /// </summary>
+        /// <remarks>
+        /// An implicit (keyless, type-targeted) style applies automatically whenever <see cref="Style"/> is
+        /// <see langword="null"/> at attach (see <see cref="Markup.IImplicitResourceKey"/> and implicit-style
+        /// resolution), so "no style" and "never explicitly set" are the same state - an element that wants to opt
+        /// out of an ambient implicit style needs its own no-op <see cref="Style"/> (e.g. <c>new
+        /// Style(typeof(YourType))</c> with no setters), not <c>Style = null</c>, since <see langword="null"/> is
+        /// exactly the state that triggers implicit-style lookup.
+        /// </remarks>
         [Category("Appearance")]
         [DefaultValue(null)]
         [RegisterReference]

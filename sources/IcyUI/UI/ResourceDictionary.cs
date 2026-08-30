@@ -34,6 +34,17 @@ namespace Icy.UI
         /// Gets the other dictionaries this one is composed from, checked in order (a later one shadows an
         /// earlier one) after this dictionary's own direct entries.
         /// </summary>
+        /// <remarks>
+        /// Only recognized in markup as a property element on a document's own root - a standalone
+        /// <c>&lt;ResourceDictionary&gt;</c> document loaded via <see cref="Markup.MarkupLoader.LoadObject(string, string?)"/> can
+        /// have a nested <c>&lt;ResourceDictionary.MergedDictionaries&gt;</c>, but nesting it under another
+        /// element's own dictionary-valued property (e.g. inside <c>&lt;Panel.Resources&gt;</c>) does not work today:
+        /// every child there is routed straight into keyed-entry population with no check for a nested property
+        /// element first. To merge into a <see cref="UIElement.Resources"/> dictionary, add the loaded dictionary
+        /// directly in code instead: <c>element.Resources.MergedDictionaries.Add(loadedDictionary)</c> (there is no
+        /// setter for <see cref="UIElement.Resources"/> itself - only <see cref="MergedDictionaries"/>'s own
+        /// <c>Add</c> is available).
+        /// </remarks>
         public IList<ResourceDictionary> MergedDictionaries { get; } = [];
 
         /// <summary>
