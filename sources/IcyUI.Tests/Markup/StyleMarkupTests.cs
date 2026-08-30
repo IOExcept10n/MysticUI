@@ -52,5 +52,19 @@ namespace Icy.Tests.Markup
             var stateBackground = Assert.IsType<SolidColorBrush>(state.Setters["Background"]);
             Assert.Equal(Color.LightBlue.ToArgb(), stateBackground.Color.ToArgb());
         }
+        [Fact]
+        public void SetterElement_IsAFallbackForAttributeSetters()
+        {
+            var loader = new MarkupLoader(CreateConfiguration());
+
+            var style = (Style)loader.LoadObject(
+                """
+                <Style TargetType="Button">
+                  <Setter Property="Width" Value="42"/>
+                </Style>
+                """);
+
+            Assert.Equal(42f, style.Setters["Width"]);
+        }
     }
 }

@@ -650,12 +650,37 @@ namespace Icy.Markup
             return true;
         }
 
+        /// <summary>
+        /// Recognizes a <c>&lt;Setter&gt;</c> child on an object marked <see cref="MarkupSetterCollectionAttribute"/> -
+        /// a markup-only convention with no runtime <c>Setter</c> type (see the type's remarks).
+        /// </summary>
+        private static bool IsSetterElement(XElement child, object instance) =>
+            child.Name.LocalName == "Setter" && MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType()) != null;
+
+        private void ApplySetterElement(object instance, XElement setterElement, MarkupLoadContext context)
+        {
+            XAttribute property = setterElement.Attribute("Property")
+                ?? throw MarkupException.At("A <Setter> needs a 'Property' attribute.", setterElement, context.SourcePath);
+            XAttribute value = setterElement.Attribute("Value")
+                ?? throw MarkupException.At("A <Setter> needs a 'Value' attribute.", setterElement, context.SourcePath);
+
+            // Reuses the exact same resolution TryApplyAsSetterOverflow uses for an attribute-form setter.
+            if (!TryApplyAsSetterOverflow(instance, property.Value, value.Value, value, context))
+            {
+                throw MarkupException.At($"'{instance.GetType().Name}' doesn't support <Setter> elements.", setterElement, context.SourcePath);
+            }
+        }
+
         private void ApplyChildren(XElement element, object instance, MarkupLoadContext context)
         {
             List<XElement> content = [];
             foreach (XElement child in element.Elements())
             {
-                if (IsPropertyElement(child, instance.GetType(), context, out string? propertyName))
+                if (IsSetterElement(child, instance))
+                {
+                    ApplySetterElement(instance, child, context);
+                }
+                else if (IsPropertyElement(child, instance.GetType(), context, out string? propertyName))
                     ApplyPropertyElement(instance, propertyName, child, context);
                 else
                     content.Add(child);
