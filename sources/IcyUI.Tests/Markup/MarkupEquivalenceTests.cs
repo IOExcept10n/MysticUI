@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Text;
+using Icy.Animations;
 using Icy.Assets;
 using Icy.Assets.Importers;
 using Icy.Configuration;
@@ -9,6 +10,7 @@ using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Markup
@@ -43,6 +45,50 @@ namespace Icy.Tests.Markup
                 """);
 
             UIElement fromCode = BuildByHand();
+
+            AssertEquivalent(fromCode, fromMarkup);
+        }
+
+        [Fact]
+        public void ThemedButtonScreen_MatchesTheHandBuiltStyleAndResources()
+        {
+            // The milestone's whole-feature regression guard (M4 design spec, §6): a single small screen exercising
+            // an implicit (keyless) Style (Task 7), a hover VisualState with a Duration/Easing transition (Tasks 9 +
+            // 11), and a {StaticResource}-referenced Timeline sitting unused as a resource (Tasks 5 + 12) - all at
+            // once, in markup and via the exact hand-built pattern StylesDemo.cs itself uses (Style<T>/VisualState<T>
+            // fluent builders).
+            var loader = new MarkupLoader(CreateConfiguration());
+
+            UIElement fromMarkup = loader.Load(
+                """
+                <StackPanel Orientation="Vertical">
+                  <StackPanel.Resources>
+                    <Style TargetType="Button" Background="#FF3C64C8">
+                      <Style.StateGroups>
+                        <VisualStateGroup Name="CommonStates">
+                          <VisualState Name="Hovered" State="Hovered" Duration="0:0:0.2" Easing="EaseOutCubic" Background="#FF5A87E6"/>
+                        </VisualStateGroup>
+                      </Style.StateGroups>
+                    </Style>
+                    <Timeline x:Key="PulseTimeline" TargetProperty="Opacity" Duration="0:0:1">
+                      <AnimationKeyframe Offset="0" Value="0.5"/>
+                      <AnimationKeyframe Offset="1" Value="1.0"/>
+                    </Timeline>
+                  </StackPanel.Resources>
+                  <Button Padding="12,0" CommandParameter="{StaticResource PulseTimeline}">
+                    <TextBlock>Themed Button</TextBlock>
+                  </Button>
+                </StackPanel>
+                """);
+
+            UIElement fromCode = BuildThemedButtonScreenByHand();
+
+            // Neither root has a directly-assigned Style - the implicit style only resolves once each root attaches
+            // to a Canvas (see UIElement.OnAttached/ResolveImplicitStyle). Assigning .Style explicitly on the
+            // hand-built side would defeat the point of this test: proving the *implicit* resolution path produces
+            // the same result as an explicit one would.
+            new Canvas(CreateConfiguration()).Add(fromMarkup);
+            new Canvas(CreateConfiguration()).Add(fromCode);
 
             AssertEquivalent(fromCode, fromMarkup);
         }
@@ -134,6 +180,51 @@ namespace Icy.Tests.Markup
             };
         }
 
+        /// <summary>
+        /// Builds the themed-button screen from <see cref="ThemedButtonScreen_MatchesTheHandBuiltStyleAndResources"/>
+        /// the same way <c>StylesDemo.BuildStateDrivenSection</c> builds its own state-driven section: a fluent
+        /// <see cref="Style{TTarget}"/> carrying a <see cref="VisualStateGroup"/> with a <see cref="VisualState{TTarget}"/>
+        /// transition, registered as an implicit style (not assigned to the button directly) plus an unused
+        /// <see cref="Timeline"/> resource referenced from the button.
+        /// </summary>
+        private static UIElement BuildThemedButtonScreenByHand()
+        {
+            var root = new StackPanel { Orientation = Orientation.Vertical };
+
+            var hoveredState = new VisualState<Button>("Hovered", ControlState.Hovered)
+            {
+                Duration = TimeSpan.FromMilliseconds(200),
+                Easing = Easing.EaseOutCubic,
+            }.Set(x => x.Background, new SolidColorBrush(Color.FromArgb(255, 90, 135, 230)));
+
+            var commonStates = new VisualStateGroup("CommonStates");
+            commonStates.States.Add(hoveredState);
+
+            var buttonStyle = new Style<Button>()
+                .Set(x => x.Background, new SolidColorBrush(Color.FromArgb(255, 60, 100, 200)))
+                .WithStateGroup(commonStates);
+
+            // No x:Key equivalent here - registered under the reserved implicit-style key directly, exactly as
+            // ImplicitStyleTests does, so OnAttached resolves it the same way the markup-loaded StackPanel.Resources
+            // entry does.
+            root.Resources[ResourceDictionary.GetImplicitStyleKey(typeof(Button))] = buttonStyle;
+
+            var pulseTimeline = new Timeline("Opacity", TimeSpan.FromSeconds(1));
+            pulseTimeline.AddKeyframe(0f, "0.5");
+            pulseTimeline.AddKeyframe(1f, "1.0");
+            root.Resources["PulseTimeline"] = pulseTimeline;
+
+            var button = new Button
+            {
+                Content = new TextBlock { Text = "Themed Button" },
+                Padding = new Thickness(12, 0),
+                CommandParameter = pulseTimeline,
+            };
+            root.Children.Add(button);
+
+            return root;
+        }
+
         private static Border CreateSwatch(Color color, string label) => new()
         {
             Background = new SolidColorBrush(color),
@@ -163,6 +254,10 @@ namespace Icy.Tests.Markup
             Assert.Equal(expected.VerticalAlignment, actual.VerticalAlignment);
             Assert.Equal(expected.Foreground, actual.Foreground);
 
+            // Style is a property on every UIElement (not type-specific), so it's checked alongside the common
+            // properties above rather than inside the type switch below.
+            AssertSameStyle(expected.Style, actual.Style, path);
+
             switch (expected)
             {
                 case TextBlock expectedText:
@@ -180,6 +275,12 @@ namespace Icy.Tests.Markup
                 case StackPanel expectedStack:
                     Assert.Equal(expectedStack.Orientation, ((StackPanel)actual).Orientation);
                     break;
+
+                case Button expectedButton:
+                    var actualButton = (Button)actual;
+                    AssertSameBrush(expectedButton.Background, actualButton.Background, path);
+                    AssertSameTimeline(expectedButton.CommandParameter as Timeline, actualButton.CommandParameter as Timeline, path);
+                    break;
             }
 
             List<UIElement> expectedChildren = [.. Children(expected)];
@@ -196,6 +297,7 @@ namespace Icy.Tests.Markup
         {
             Panel panel => panel.Children,
             Border border => border.Child == null ? [] : [border.Child],
+            ContentControl content => content.Content == null ? [] : [content.Content],
             _ => [],
         };
 
@@ -209,6 +311,110 @@ namespace Icy.Tests.Markup
             }
 
             Assert.Equal(expected, actual);
+        }
+
+        /// <summary>
+        /// Asserts that two <see cref="Style"/>s (including a whole <see cref="Style.BasedOn"/> chain, and every
+        /// <see cref="Style.StateGroups"/> entry) set the same properties to the same values.
+        /// </summary>
+        private static void AssertSameStyle(Style? expected, Style? actual, string path)
+        {
+            if (expected == null)
+            {
+                Assert.Null(actual);
+                return;
+            }
+
+            Assert.NotNull(actual);
+            Assert.Equal(expected.TargetType, actual!.TargetType);
+            AssertSameSetters(expected.Setters, actual.Setters, $"{path}.Style");
+
+            Assert.Equal(expected.StateGroups.Count, actual.StateGroups.Count);
+            for (int i = 0; i < expected.StateGroups.Count; i++)
+            {
+                AssertSameStateGroup(expected.StateGroups[i], actual.StateGroups[i], $"{path}.Style.StateGroups[{i}]");
+            }
+
+            AssertSameStyle(expected.BasedOn, actual.BasedOn, $"{path}.Style.BasedOn");
+        }
+
+        /// <summary>
+        /// Asserts that two <see cref="VisualStateGroup"/>s have the same name and the same <see cref="VisualState"/>s,
+        /// in the same order.
+        /// </summary>
+        private static void AssertSameStateGroup(VisualStateGroup expected, VisualStateGroup actual, string path)
+        {
+            Assert.Equal(expected.Name, actual.Name);
+            Assert.Equal(expected.States.Count, actual.States.Count);
+            for (int i = 0; i < expected.States.Count; i++)
+            {
+                AssertSameVisualState(expected.States[i], actual.States[i], $"{path}.States[{i}]");
+            }
+        }
+
+        /// <summary>
+        /// Asserts that two <see cref="VisualState"/>s declare the same name, <see cref="VisualState.State"/> flags,
+        /// transition (<see cref="VisualState.Duration"/>/<see cref="VisualState.Easing"/>), and setters. Does not
+        /// trigger the state or drive its animation forward - that behavior is covered by the animation system's own
+        /// tests; this only pins the declared data markup and hand-built C# agree on.
+        /// </summary>
+        private static void AssertSameVisualState(VisualState expected, VisualState actual, string path)
+        {
+            Assert.Equal(expected.Name, actual.Name);
+            Assert.Equal(expected.State, actual.State);
+            Assert.Equal(expected.Duration, actual.Duration);
+            Assert.Equal(expected.Easing, actual.Easing);
+            AssertSameSetters(expected.Setters, actual.Setters, path);
+        }
+
+        /// <summary>
+        /// Asserts that two setter dictionaries (<see cref="Style.Setters"/> or <see cref="VisualState.Setters"/>)
+        /// set the same property names to equivalent values, comparing brush values by color rather than reference.
+        /// </summary>
+        private static void AssertSameSetters(Dictionary<string, object?> expected, Dictionary<string, object?> actual, string path)
+        {
+            Assert.Equal(expected.Keys.OrderBy(x => x, StringComparer.Ordinal), actual.Keys.OrderBy(x => x, StringComparer.Ordinal));
+
+            foreach (string key in expected.Keys)
+            {
+                object? expectedValue = expected[key];
+                object? actualValue = actual[key];
+                if (expectedValue is IBrush || actualValue is IBrush)
+                {
+                    AssertSameBrush(expectedValue as IBrush, actualValue as IBrush, $"{path}.Setters[{key}]");
+                }
+                else
+                {
+                    Assert.Equal(expectedValue, actualValue);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Asserts that two <see cref="Timeline"/>s describe the same animation: same target property, duration,
+        /// easing, repeat behavior, and keyframes in order.
+        /// </summary>
+        private static void AssertSameTimeline(Timeline? expected, Timeline? actual, string path)
+        {
+            if (expected == null)
+            {
+                Assert.Null(actual);
+                return;
+            }
+
+            Assert.NotNull(actual);
+            Assert.Equal(expected.TargetProperty, actual!.TargetProperty);
+            Assert.Equal(expected.Duration, actual.Duration);
+            Assert.Equal(expected.Easing, actual.Easing);
+            Assert.Equal(expected.RepeatCount, actual.RepeatCount);
+            Assert.Equal(expected.AutoReverse, actual.AutoReverse);
+
+            Assert.Equal(expected.Keyframes.Count, actual.Keyframes.Count);
+            for (int i = 0; i < expected.Keyframes.Count; i++)
+            {
+                Assert.Equal(expected.Keyframes[i].Offset, actual.Keyframes[i].Offset);
+                Assert.Equal(expected.Keyframes[i].Value, actual.Keyframes[i].Value);
+            }
         }
 
         /// <summary>
