@@ -199,5 +199,17 @@ namespace Icy.Tests.UI.Styles
 
             Assert.Equal(0.8f, element.Opacity);
         }
+
+        [Fact]
+        public void Apply_BasedOnCycle_ThrowsInsteadOfStackOverflow()
+        {
+            var element = new TestElement();
+            var a = new Style(typeof(TestElement));
+            var b = new Style(typeof(TestElement));
+            a.BasedOn = b;
+            b.BasedOn = a;
+
+            Assert.Throws<InvalidOperationException>(() => element.Style = a);
+        }
     }
 }

@@ -1,5 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.ComponentModel;
+
 namespace Icy.Animations
 {
     /// <summary>
@@ -8,6 +10,7 @@ namespace Icy.Animations
     /// </summary>
     /// <param name="normalizedTime">The linear playback position, from 0 (start) to 1 (end).</param>
     /// <returns>The reshaped position. Well-behaved easing functions return 0 for an input of 0 and 1 for an input of 1.</returns>
+    [TypeConverter(typeof(EasingFunctionTypeConverter))]
     public delegate float EasingFunction(float normalizedTime);
 
     /// <summary>

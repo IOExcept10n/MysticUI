@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Xml;
 using System.Xml.Linq;
+using Icy.Assets;
 using Icy.Configuration;
 using Icy.Data;
 using Icy.Data.Markup;
@@ -97,8 +98,66 @@ namespace Icy.Markup
         {
             ArgumentNullException.ThrowIfNull(reader);
 
+            object instance = LoadCore(reader, sourcePath, out XElement root);
+            return instance as UIElement
+                ?? throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", root, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document whose root need not be a <see cref="UIElement"/> - a <see cref="Icy.UI.Styles.Style"/>
+        /// document, for instance.
+        /// </summary>
+        /// <param name="text">The markup document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root object the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public object LoadObject(string text, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+            using var reader = new StringReader(text);
+            return LoadObject(reader, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document from a stream whose root need not be a <see cref="UIElement"/>.
+        /// </summary>
+        /// <param name="stream">The stream to read the document from.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root object the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public object LoadObject(Stream stream, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            using var reader = new StreamReader(stream, leaveOpen: true);
+            return LoadObject(reader, sourcePath);
+        }
+
+        /// <summary>
+        /// Loads a markup document from an already-parsed <see cref="TextReader"/> whose root need not be a
+        /// <see cref="UIElement"/>.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <returns>The root object the document declares.</returns>
+        /// <exception cref="MarkupException">The document is malformed, or breaks a rule of the language.</exception>
+        public object LoadObject(TextReader reader, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return LoadCore(reader, sourcePath, out _);
+        }
+
+        /// <summary>
+        /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
+        /// turns out to be - the two families only differ in how they react to that root.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <param name="root">The document's root element, for callers that need it to build an error message.</param>
+        /// <returns>The root object the document declares.</returns>
+        private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
+        {
             XDocument document = ParseDocument(reader, sourcePath);
-            XElement root = document.Root
+            root = document.Root
                 ?? throw new MarkupException("The document is empty.", sourcePath);
 
             var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
@@ -108,11 +167,11 @@ namespace Icy.Markup
             using (PropertyRegistry.UseScope(registry))
             {
                 object instance = CreateObject(root, context);
-                if (instance is not UIElement element)
-                    throw MarkupException.At($"The root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.", root, sourcePath);
-
-                MarkupNameScope.SetScope(element, context.Names);
-                return element;
+                if (instance is UIElement element)
+                {
+                    MarkupNameScope.SetScope(element, context.Names);
+                }
+                return instance;
             }
         }
 
@@ -185,14 +244,224 @@ namespace Icy.Markup
             return null;
         }
 
+        /// <summary>
+        /// Finds the closed <see cref="IDictionary{TKey, TValue}"/> interface <paramref name="collection"/>'s
+        /// runtime type implements, for a property element's <c>x:Key</c>-keyed entries to populate a collection -
+        /// such as <see cref="Icy.UI.ResourceDictionary"/> - that implements only the generic dictionary interface
+        /// rather than the non-generic <see cref="IDictionary"/> the sibling check above handles.
+        /// </summary>
+        /// <param name="collection">The collection object to inspect.</param>
+        /// <returns>The closed generic interface type, or <see langword="null"/> when none is implemented.</returns>
+        private static Type? FindGenericDictionaryInterface(object collection) =>
+            collection.GetType()
+                .GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>));
+
+        /// <summary>
+        /// Invokes a duck-typed <c>Add</c> method found by <see cref="FindAddMethod"/>, translating a failure
+        /// inside the target method into a <see cref="MarkupException"/> carrying file position instead of letting
+        /// reflection's <see cref="TargetInvocationException"/> wrapper escape.
+        /// </summary>
+        /// <param name="addable">The <c>Add</c> method and its parameter type, as returned by <see cref="FindAddMethod"/>.</param>
+        /// <param name="collection">The collection instance to add <paramref name="value"/> to.</param>
+        /// <param name="value">The already-converted item to add.</param>
+        /// <param name="memberLabel">The owning type and property name, for the error message (e.g. <c>"Panel.Children"</c>).</param>
+        /// <param name="node">The item's position in the source document, for error reporting.</param>
+        /// <param name="context">The load's mutable state.</param>
+        private static void InvokeAdd((MethodInfo Add, Type ItemType) addable, object collection, object? value, string memberLabel, IXmlLineInfo? node, MarkupLoadContext context)
+        {
+            try
+            {
+                addable.Add.Invoke(collection, [value]);
+            }
+            catch (TargetInvocationException ex)
+            {
+                Exception cause = ex.InnerException ?? ex;
+                throw MarkupException.At($"'{memberLabel}' failed to add an item: {cause.Message}", node, context.SourcePath, cause);
+            }
+        }
+
+        /// <summary>
+        /// Populates <paramref name="target"/>'s own entries from <paramref name="entries"/>, when
+        /// <paramref name="target"/> is itself a dictionary - either the non-generic <see cref="IDictionary"/> or a
+        /// closed <see cref="IDictionary{TKey, TValue}"/>. Shared by a property element whose value is a dictionary
+        /// (<c>&lt;Border.Resources&gt;</c>) and by <see cref="ApplyChildren"/>, for a document whose root element -
+        /// such as <see cref="Icy.UI.ResourceDictionary"/> - is itself a dictionary rather than holding one behind a
+        /// property.
+        /// </summary>
+        /// <remarks>
+        /// Each entry needs a resource key: an explicit <c>x:Key</c> attribute, or - when absent - the value's own
+        /// <see cref="IImplicitResourceKey.ImplicitResourceKey"/> (e.g. a keyless <c>&lt;Style TargetType="Button"&gt;</c>
+        /// registering under <see cref="Icy.UI.ResourceDictionary.GetImplicitStyleKey(Type)"/>).
+        /// </remarks>
+        /// <param name="target">The object to check, and populate if it qualifies.</param>
+        /// <param name="entries">The child elements to add as entries.</param>
+        /// <param name="memberLabel">The owning type (and property name, if any), for error messages.</param>
+        /// <param name="context">The load's mutable state.</param>
+        /// <returns>
+        /// <see langword="true"/> when <paramref name="target"/> is a dictionary and <paramref name="entries"/> was
+        /// applied to it; <see langword="false"/> when <paramref name="target"/> isn't a dictionary at all, in
+        /// which case the caller must try some other way to apply <paramref name="entries"/>.
+        /// </returns>
+        /// <exception cref="MarkupException">
+        /// An entry has no <c>x:Key</c> and its value has no <see cref="IImplicitResourceKey.ImplicitResourceKey"/>
+        /// either, or its resolved key is already present in <paramref name="target"/>.
+        /// </exception>
+        private bool TryPopulateDictionaryEntries(object target, List<XElement> entries, string memberLabel, MarkupLoadContext context)
+        {
+            if (target is IDictionary dictionary)
+            {
+                foreach (XElement entry in entries)
+                {
+                    object value = CreateObject(entry, context);
+                    XAttribute? key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key);
+                    string resolvedKey = key?.Value
+                        ?? (value as IImplicitResourceKey)?.ImplicitResourceKey
+                        ?? throw MarkupException.At($"Entries of '{memberLabel}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
+
+                    if (dictionary.Contains(resolvedKey))
+                        throw MarkupException.At($"Duplicate key '{resolvedKey}' in this dictionary.", entry, context.SourcePath);
+
+                    dictionary[resolvedKey] = value;
+                }
+
+                return true;
+            }
+
+            if (FindGenericDictionaryInterface(target) is { } genericDictionary)
+            {
+                Type[] typeArguments = genericDictionary.GetGenericArguments();
+                PropertyInfo indexer = genericDictionary.GetProperty("Item")!;
+                MethodInfo containsKey = genericDictionary.GetMethod("ContainsKey")!;
+                foreach (XElement entry in entries)
+                {
+                    object value = CreateObject(entry, context);
+                    XAttribute? key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key);
+                    string resolvedKey = key?.Value
+                        ?? (value as IImplicitResourceKey)?.ImplicitResourceKey
+                        ?? throw MarkupException.At($"Entries of '{memberLabel}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
+                    object? convertedKey = ConvertValue(resolvedKey, typeArguments[0], entry, context);
+
+                    if ((bool)containsKey.Invoke(target, [convertedKey])!)
+                        throw MarkupException.At($"Duplicate key '{resolvedKey}' in this dictionary.", entry, context.SourcePath);
+
+                    object? convertedValue = ConvertValue(value, typeArguments[1], entry, context);
+                    indexer.SetValue(target, convertedValue, [convertedKey]);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
         private object CreateObject(XElement element, MarkupLoadContext context)
         {
             Type type = ResolveInstanceType(element, context);
-            object instance = markup.Activator.CreateInstance(type);
+            HashSet<string>? consumedByConstructor = null;
+            object instance = type.GetConstructor(Type.EmptyTypes) != null
+                ? markup.Activator.CreateInstance(type)
+                : CreateObjectFromConstructorAttributes(type, element, context, out consumedByConstructor);
 
-            ApplyAttributes(element, instance, context);
-            ApplyChildren(element, instance, context);
+            // A ResourceDictionary's Source is a load-time instruction, not runtime state - much like x:Class, it's
+            // consumed before the instance would otherwise start resolving its own attributes/children. The freshly
+            // constructed (empty) instance above is discarded wholesale in favor of the dictionary Source names, so
+            // it never runs its own attribute/child resolution and must never be pushed onto ElementStack or have
+            // SetterTargetType touched for it.
+            if (instance is ResourceDictionary && element.Attribute("Source") is { } source)
+                return LoadMergedDictionary(source.Value, element, context);
+
+            Type? previousSetterTargetType = context.SetterTargetType;
+            if (instance is Icy.UI.Styles.Style style)
+                context.SetterTargetType = style.TargetType;
+
+            bool pushedElement = instance is UIElement;
+            if (instance is UIElement constructedElement)
+                context.ElementStack.Add(constructedElement);
+
+            try
+            {
+                ApplyAttributes(element, instance, context, consumedByConstructor);
+                ApplyChildren(element, instance, context);
+            }
+            finally
+            {
+                context.SetterTargetType = previousSetterTargetType;
+                if (pushedElement)
+                    context.ElementStack.RemoveAt(context.ElementStack.Count - 1);
+            }
+
             return instance;
+        }
+
+        /// <summary>
+        /// Loads the <see cref="ResourceDictionary"/> a <c>Source</c> attribute names, through the asset pipeline -
+        /// the load-time substitute for a <c>&lt;ResourceDictionary Source="..."/&gt;</c> element, which otherwise
+        /// would have gone on to construct and populate an empty dictionary of its own.
+        /// </summary>
+        /// <param name="path">
+        /// The path to the resource dictionary document, resolved against
+        /// <see cref="Icy.Configuration.AssetConfiguration.DefaultAssetContext"/> - the same asset context
+        /// <see cref="Icy.Navigation.NavigationService.Navigate(string)"/> resolves a page path through.
+        /// </param>
+        /// <param name="element">The element carrying the <c>Source</c> attribute, for error reporting.</param>
+        /// <param name="context">The load's mutable state, for error reporting.</param>
+        /// <returns>The dictionary loaded from <paramref name="path"/>.</returns>
+        /// <exception cref="MarkupException">No document exists at <paramref name="path"/>.</exception>
+        private ResourceDictionary LoadMergedDictionary(string path, XElement element, MarkupLoadContext context)
+        {
+            IAssetContext assetContext = configuration.Assets.DefaultAssetContext;
+            if (!assetContext.IsAvailable(path))
+                throw MarkupException.At($"No resource dictionary found at '{path}'.", element, context.SourcePath);
+
+            return configuration.Assets.AssetResolver.LoadAsset<ResourceDictionary>(assetContext, path);
+        }
+
+        /// <summary>
+        /// Constructs <paramref name="type"/> through its parameterized public constructor, binding each
+        /// parameter to an attribute of the same name (case-insensitive). Constructor selection is delegated to
+        /// the activator: the loader gathers candidate attributes, the activator picks the matching constructor.
+        /// </summary>
+        private object CreateObjectFromConstructorAttributes(Type type, XElement element, MarkupLoadContext context, out HashSet<string> consumed)
+        {
+            // Gather all candidate attributes (non-directive, non-namespaced) by name
+            var candidateAttributes = new Dictionary<string, XAttribute>(StringComparer.OrdinalIgnoreCase);
+            foreach (XAttribute attr in element.Attributes())
+            {
+                if (attr.IsNamespaceDeclaration)
+                    continue;
+                if (MarkupNamespaces.IsDirective(attr.Name.Namespace))
+                    continue;
+
+                candidateAttributes[attr.Name.LocalName] = attr;
+            }
+
+            // Let the activator's ResolveConstructor determine which constructor matches the available attributes.
+            // This is the single source of truth for constructor selection, and goes through the pluggable activator.
+            System.Reflection.ConstructorInfo constructor = markup.Activator.ResolveConstructor(type, (IReadOnlyCollection<string>)candidateAttributes.Keys);
+            System.Reflection.ParameterInfo[] parameters = constructor.GetParameters();
+            var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (System.Reflection.ParameterInfo parameter in parameters)
+            {
+                if (!candidateAttributes.TryGetValue(parameter.Name!, out XAttribute? attribute))
+                {
+                    throw MarkupException.At(
+                        $"'{type.Name}' requires an attribute '{parameter.Name}' - it has no parameterless constructor.",
+                        element,
+                        context.SourcePath);
+                }
+
+                object? value = parameter.ParameterType == typeof(Type)
+                    ? types.ResolveTypeName(attribute.Value, element, attribute, context.SourcePath)
+                    : ConvertValue(attribute.Value, parameter.ParameterType, attribute, context);
+
+                arguments[parameter.Name!] = value;
+                consumed.Add(attribute.Name.LocalName);
+            }
+
+            return markup.Activator.CreateInstance(type, arguments);
         }
 
         /// <summary>
@@ -222,7 +491,7 @@ namespace Icy.Markup
             return backingType;
         }
 
-        private void ApplyAttributes(XElement element, object instance, MarkupLoadContext context)
+        private void ApplyAttributes(XElement element, object instance, MarkupLoadContext context, HashSet<string>? consumedByConstructor = null)
         {
             foreach (XAttribute attribute in element.Attributes())
             {
@@ -234,6 +503,11 @@ namespace Icy.Markup
                     ApplyDirective(element, instance, attribute, context);
                     continue;
                 }
+
+                // Only skip consumed attributes that have no namespace. Namespaced attributes are never constructor parameters
+                // (constructor parameters must be matched case-insensitively from plain attributes).
+                if (consumedByConstructor != null && attribute.Name.Namespace == XNamespace.None && consumedByConstructor.Contains(attribute.Name.LocalName))
+                    continue;
 
                 if (attribute.Name.LocalName.Contains('.', StringComparison.Ordinal))
                 {
@@ -314,6 +588,9 @@ namespace Icy.Markup
             MarkupMember? member = MarkupMember.Resolve(type, name, registry);
             if (member == null)
             {
+                if (TryApplyAsSetterOverflow(instance, name, value, attribute, context))
+                    return;
+
                 if (type.GetEvent(name, BindingFlags.Public | BindingFlags.Instance) != null)
                     throw MarkupException.At($"'{type.Name}.{name}' is an event. Wiring handlers from markup isn't supported yet.", attribute, context.SourcePath);
 
@@ -329,19 +606,98 @@ namespace Icy.Markup
             AssignValue(instance, member, value, attribute, context);
         }
 
+        /// <summary>
+        /// Resolves <paramref name="name"/> as a setter to apply through <paramref name="context"/>'s ambient
+        /// <see cref="MarkupLoadContext.SetterTargetType"/>, writing it into <paramref name="instance"/>'s
+        /// <see cref="MarkupSetterCollectionAttribute"/>-marked dictionary.
+        /// </summary>
+        /// <returns><see langword="true"/> when <paramref name="instance"/>'s type opts into this, whether or not the
+        /// name itself resolved (a bad name still throws - it just throws from inside this method).</returns>
+        private bool TryApplyAsSetterOverflow(object instance, string name, string value, XAttribute attribute, MarkupLoadContext context)
+        {
+            string? setterMemberName = MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType());
+            if (setterMemberName == null)
+                return false;
+
+            if (context.SetterTargetType == null)
+            {
+                throw MarkupException.At(
+                    $"'{instance.GetType().Name}' has no governing target type in scope to resolve '{name}' against.",
+                    attribute,
+                    context.SourcePath);
+            }
+
+            IPropertyStore targetStore = registry.GetPropertyStore(context.SetterTargetType);
+            if (!targetStore.TryGetProperty(name, searchInherited: true, out IPropertyReference? property))
+            {
+                throw MarkupException.At(
+                    $"'{context.SetterTargetType.Name}' has no property '{name}' to set." +
+                    NameSuggestion.Clause(name, targetStore.EnumerateProperties().Select(x => x.Name)),
+                    attribute,
+                    context.SourcePath);
+            }
+
+            PropertyInfo? setterProperty = instance.GetType().GetProperty(setterMemberName);
+            if (setterProperty?.GetValue(instance) is not Dictionary<string, object?> setters)
+            {
+                throw MarkupException.At(
+                    $"'{instance.GetType().Name}' declares '{setterMemberName}' as its setter collection, but has no readable property of that name returning a Dictionary<string, object?>.",
+                    attribute,
+                    context.SourcePath);
+            }
+
+            setters[name] = ConvertValue(value, property.PropertyType, attribute, context, instance, MarkupMember.FromReference(property));
+            return true;
+        }
+
+        /// <summary>
+        /// Recognizes a <c>&lt;Setter&gt;</c> child on an object marked <see cref="MarkupSetterCollectionAttribute"/> -
+        /// a markup-only convention with no runtime <c>Setter</c> type.
+        /// </summary>
+        private static bool IsSetterElement(XElement child, object instance) =>
+            child.Name.LocalName == "Setter" && MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType()) != null;
+
+        private void ApplySetterElement(object instance, XElement setterElement, MarkupLoadContext context)
+        {
+            XAttribute property = setterElement.Attribute("Property")
+                ?? throw MarkupException.At("A <Setter> needs a 'Property' attribute.", setterElement, context.SourcePath);
+            XAttribute value = setterElement.Attribute("Value")
+                ?? throw MarkupException.At("A <Setter> needs a 'Value' attribute.", setterElement, context.SourcePath);
+
+            // Reuses the exact same resolution TryApplyAsSetterOverflow uses for an attribute-form setter.
+            if (!TryApplyAsSetterOverflow(instance, property.Value, value.Value, value, context))
+            {
+                throw MarkupException.At($"'{instance.GetType().Name}' doesn't support <Setter> elements.", setterElement, context.SourcePath);
+            }
+        }
+
         private void ApplyChildren(XElement element, object instance, MarkupLoadContext context)
         {
             List<XElement> content = [];
             foreach (XElement child in element.Elements())
             {
-                if (IsPropertyElement(child, instance.GetType(), context, out string? propertyName))
+                if (IsSetterElement(child, instance))
+                {
+                    ApplySetterElement(instance, child, context);
+                }
+                else if (IsPropertyElement(child, instance.GetType(), context, out string? propertyName))
+                {
                     ApplyPropertyElement(instance, propertyName, child, context);
+                }
                 else
+                {
                     content.Add(child);
+                }
             }
 
             if (content.Count > 0)
             {
+                // A root that is itself a dictionary (a ResourceDictionary document, say) takes its children as
+                // its own keyed entries directly - there is no property to go through, unlike <Border.Resources>,
+                // whose value is what TryPopulateDictionaryEntries would otherwise be checking.
+                if (TryPopulateDictionaryEntries(instance, content, instance.GetType().Name, context))
+                    return;
+
                 ApplyContentChildren(element, instance, content, context);
                 return;
             }
@@ -390,23 +746,15 @@ namespace Icy.Markup
             object? current = member.GetValue(instance);
             List<XElement> children = [.. child.Elements()];
 
-            if (current is IDictionary dictionary)
-            {
-                foreach (XElement entry in children)
-                {
-                    XAttribute key = entry.Attribute(MarkupNamespaces.DirectivesNamespace + MarkupDirectives.Key)
-                        ?? throw MarkupException.At($"Entries of '{type.Name}.{propertyName}' need an {MarkupDirectives.Qualified(MarkupDirectives.Key)}.", entry, context.SourcePath);
-                    dictionary[key.Value] = CreateObject(entry, context);
-                }
-
+            if (current != null && TryPopulateDictionaryEntries(current, children, $"{type.Name}.{propertyName}", context))
                 return;
-            }
 
             if (current != null && FindAddMethod(current) is { } addable)
             {
                 foreach (XElement entry in children)
                 {
-                    addable.Add.Invoke(current, [ConvertValue(CreateObject(entry, context), addable.ItemType, entry, context)]);
+                    object? item = ConvertValue(CreateObject(entry, context), addable.ItemType, entry, context);
+                    InvokeAdd(addable, current, item, $"{type.Name}.{propertyName}", entry, context);
                 }
 
                 return;
@@ -433,7 +781,8 @@ namespace Icy.Markup
             {
                 foreach (XElement child in children)
                 {
-                    addable.Add.Invoke(current, [ConvertValue(CreateObject(child, context), addable.ItemType, child, context)]);
+                    object? item = ConvertValue(CreateObject(child, context), addable.ItemType, child, context);
+                    InvokeAdd(addable, current, item, $"{instance.GetType().Name}.{member.Name}", child, context);
                 }
 
                 return;
@@ -575,7 +924,7 @@ namespace Icy.Markup
             var extension = (IMarkupExtension)markup.Activator.CreateInstance(extensionType);
             ApplyExtensionArguments(extension, name, arguments, node, context);
 
-            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, node, context.SourcePath);
+            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, context.ElementStack, node, context.SourcePath);
             return extension.ProvideValue(extensionContext);
         }
 
@@ -640,6 +989,25 @@ namespace Icy.Markup
             /// later.
             /// </remarks>
             public Dictionary<XElement, Type> DataTypes { get; } = [];
+
+            /// <summary>
+            /// Gets or sets the <see cref="Icy.UI.Styles.Style.TargetType"/> of the nearest enclosing
+            /// <see cref="Icy.UI.Styles.Style"/> being constructed, used to resolve an unrecognized attribute on a type
+            /// marked with <see cref="MarkupSetterCollectionAttribute"/> against the right <see cref="PropertyRegistry"/>
+            /// store. <see langword="null"/> outside any style.
+            /// </summary>
+            public Type? SetterTargetType { get; set; }
+
+            /// <summary>
+            /// Gets the <see cref="UIElement"/>s currently under construction, innermost last - what
+            /// <c>{StaticResource}</c> (see <see cref="Markup.Extensions.StaticResourceExtension"/>) walks in
+            /// reverse. Must be a construction-time stack, not <see cref="UIElement.Parent"/>: markup builds
+            /// bottom-up (a child's own attributes/children fully resolve, via <see cref="CreateObject"/>, before
+            /// it's added to any parent's collection - the step that actually sets <see cref="UIElement.Parent"/>),
+            /// so <c>Parent</c> is always <see langword="null"/> for the entire duration of an element's own
+            /// construction.
+            /// </summary>
+            public List<UIElement> ElementStack { get; } = [];
         }
     }
 }

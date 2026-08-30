@@ -20,6 +20,7 @@ namespace Icy.Markup
         private readonly Dictionary<string, Type> extensions = new(StringComparer.Ordinal)
         {
             ["Binding"] = typeof(BindingExtension),
+            ["StaticResource"] = typeof(StaticResourceExtension),
         };
 
         /// <summary>
@@ -49,7 +50,7 @@ namespace Icy.Markup
         /// vocabulary, not a general search path. Custom types come in through a <c>clr-namespace</c> XML namespace
         /// or through <see cref="RegisterShortName{T}"/>.
         /// </remarks>
-        public IList<string> BuiltInNamespaces { get; } = ["Icy.UI", "Icy.UI.Controls"];
+        public IList<string> BuiltInNamespaces { get; } = ["Icy.UI", "Icy.UI.Controls", "Icy.UI.Styles", "Icy.Animations"];
 
         /// <summary>
         /// Gets the custom types that may be written unprefixed, keyed by the name markup writes.
@@ -61,7 +62,8 @@ namespace Icy.Markup
         /// the braces.
         /// </summary>
         /// <remarks>
-        /// Seeded with <c>"Binding"</c> mapping to <see cref="BindingExtension"/>.
+        /// Seeded with <c>"Binding"</c> mapping to <see cref="BindingExtension"/> and <c>"StaticResource"</c>
+        /// mapping to <see cref="StaticResourceExtension"/>.
         /// </remarks>
         public IReadOnlyDictionary<string, Type> Extensions => extensions;
 

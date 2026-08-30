@@ -25,9 +25,13 @@
     <Compile Include="..\Shared Samples\StylesDemo.cs" Link="Samples\StylesDemo.cs" />
     <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="Samples\MarkupDemo.cs" />
     <Compile Include="..\Shared Samples\NavigationDemo.cs" Link="Samples\NavigationDemo.cs" />
+    <Compile Include="..\Shared Samples\MarkupStylesDemo.cs" Link="Samples\MarkupStylesDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\Themes\AccentTheme.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Resources\Fonts\Inter-Italic-VariableFont_opsz,wght.ttf">

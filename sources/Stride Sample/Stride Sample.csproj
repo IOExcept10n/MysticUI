@@ -20,9 +20,13 @@
     <Compile Include="..\Shared Samples\StylesDemo.cs" Link="StylesDemo.cs" />
     <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="MarkupDemo.cs" />
     <Compile Include="..\Shared Samples\NavigationDemo.cs" Link="NavigationDemo.cs" />
+    <Compile Include="..\Shared Samples\MarkupStylesDemo.cs" Link="MarkupStylesDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\Themes\AccentTheme.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

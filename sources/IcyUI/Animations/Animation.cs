@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
+using Icy.Data;
 using Icy.Data.Markup;
 
 namespace Icy.Animations
@@ -26,6 +27,7 @@ namespace Icy.Animations
     public class Animation
     {
         private readonly IPropertyReference property;
+        private readonly IReadOnlyList<AnimationKeyframe> keyframes;
         private TimeSpan elapsed;
         private int completedPasses;
         private bool reversed;
@@ -34,6 +36,15 @@ namespace Icy.Animations
         /// Initializes a new instance of the <see cref="Animation"/> class for <paramref name="timeline"/> applied
         /// to <paramref name="target"/>.
         /// </summary>
+        /// <remarks>
+        /// Converts and caches <paramref name="timeline"/>'s keyframe values exactly once here, against the target
+        /// property's real type - it does not read <see cref="Animations.Timeline.Keyframes"/> live on every tick.
+        /// Consequently, mutating a shared <see cref="Animations.Timeline"/> (e.g. calling
+        /// <see cref="Animations.Timeline.AddKeyframe(float, object?)"/>) after an <see cref="Animation"/> has
+        /// already been constructed from it - running or not - no longer affects that instance, which keeps its own
+        /// frozen, converted copy. This matches <see cref="Animations.Timeline"/> being "a reusable description,
+        /// not a running animation" (see its own remarks).
+        /// </remarks>
         /// <param name="target">
         /// The object to animate. Must have a property named <see cref="Animations.Timeline.TargetProperty"/>
         /// registered with <see cref="PropertyRegistry"/> (e.g. via <see cref="Data.Markup.Attributes.RegisterReferenceAttribute"/>).
@@ -67,6 +78,12 @@ namespace Icy.Animations
             Target = target;
             Timeline = timeline;
             property = reference;
+
+            // Markup-authored keyframes arrive as raw strings; hand-authored ones are already the right CLR type, in
+            // which case this is a no-op (see PropertyRegistry.TypeConverter's remarks). Converted once here, and
+            // cached per-Animation-instance rather than mutating the (possibly shared/reused) Timeline resource.
+            ITypeConverter converter = PropertyRegistry.For(target).TypeConverter;
+            keyframes = [.. timeline.Keyframes.Select(k => new AnimationKeyframe(k.Offset, converter.Convert(k.Value, reference.PropertyType)))];
         }
 
         /// <summary>
@@ -186,7 +203,6 @@ namespace Icy.Animations
 
         private object? Evaluate(float easedTime)
         {
-            IReadOnlyList<AnimationKeyframe> keyframes = Timeline.Keyframes;
             if (keyframes.Count == 0)
                 return null;
             if (keyframes.Count == 1)

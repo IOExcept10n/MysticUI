@@ -8,6 +8,7 @@ using System.Numerics;
 using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 using CommunityToolkit.Diagnostics;
+using Icy.Animations;
 using Icy.Configuration;
 using Icy.Data;
 using Icy.Data.Bindings.Attributes;
@@ -39,6 +40,14 @@ namespace Icy.UI
     {
         private readonly Dictionary<VisualStateGroup, VisualState?> activeStates = [];
         private readonly List<VisualStateGroup> stateGroups = [];
+
+        /// <summary>
+        /// Tracks the <see cref="Animations.Animation"/> currently transitioning each property (keyed by property
+        /// name) into a <see cref="Styles.VisualState"/> with <see cref="Styles.VisualState.Duration"/> set, so a
+        /// second state change arriving before the first transition finishes can <see cref="Animations.Animation.Stop"/>
+        /// it before starting a replacement rather than letting the two fight over the same property.
+        /// </summary>
+        private Dictionary<string, Animations.Animation>? activeStateTransitions;
         private Rectangle actualBounds;
         private Canvas? canvas;
         private bool clipToBounds = true;
@@ -69,6 +78,7 @@ namespace Icy.UI
         private float opacity = 1;
         private Thickness padding;
         private UIElement? parent;
+        private ResourceDictionary? resources;
         private Vector2 renderOffset;
         private float renderRotation;
         private Vector2 renderScale = Vector2.One;
@@ -640,6 +650,28 @@ namespace Icy.UI
         public string? Name { get => name; set => SetProperty(ref name, value); }
 
         /// <summary>
+        /// Gets the resources this element declares - <see cref="Styles.Style"/>s, <see cref="Animations.Timeline"/>s,
+        /// or anything else keyed by name for <c>{StaticResource}</c> lookup within this element's subtree.
+        /// </summary>
+        /// <remarks>
+        /// Lazily allocated - reading this on an element with no declared resources never allocates.
+        /// See <see cref="ResourceDictionary"/>'s remarks for how lookup walks the element tree.
+        /// </remarks>
+        [Browsable(false)]
+        [XmlIgnore]
+        [JsonIgnore]
+        public ResourceDictionary Resources => resources ??= [];
+
+        /// <summary>
+        /// Gets a value indicating whether <see cref="Resources"/> has been allocated - reading it never allocates
+        /// on its own, unlike reading <see cref="Resources"/> itself.
+        /// </summary>
+        [Browsable(false)]
+        [XmlIgnore]
+        [JsonIgnore]
+        public bool HasResources => resources != null;
+
+        /// <summary>
         /// Gets or sets the opacity of the <see cref="UIElement"/> instance.
         /// </summary>
         /// <remarks>
@@ -828,6 +860,14 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets the style applied to the <see cref="UIElement"/> instance.
         /// </summary>
+        /// <remarks>
+        /// An implicit (keyless, type-targeted) style applies automatically whenever <see cref="Style"/> is
+        /// <see langword="null"/> at attach (see <see cref="Markup.IImplicitResourceKey"/> and implicit-style
+        /// resolution), so "no style" and "never explicitly set" are the same state - an element that wants to opt
+        /// out of an ambient implicit style needs its own no-op <see cref="Style"/> (e.g. <c>new
+        /// Style(typeof(YourType))</c> with no setters), not <c>Style = null</c>, since <see langword="null"/> is
+        /// exactly the state that triggers implicit-style lookup.
+        /// </remarks>
         [Category("Appearance")]
         [DefaultValue(null)]
         [RegisterReference]
@@ -1452,12 +1492,36 @@ namespace Icy.UI
         /// </remarks>
         protected virtual void OnAttached()
         {
+            if (Style == null && ResolveImplicitStyle() is { } implicitStyle)
+                Style = implicitStyle;
+
             foreach (UIElement child in GetVisualChildren())
             {
                 child.Canvas = Canvas;
             }
 
             Attached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Looks up an implicit (keyless, exact-type-targeted) <see cref="Styles.Style"/> for this element's own
+        /// type, walking <see cref="Parent"/> the same way <c>{StaticResource}</c> does.
+        /// </summary>
+        /// <returns>
+        /// The implicit <see cref="Styles.Style"/> registered for this element's exact type in the nearest
+        /// ancestor's <see cref="Resources"/> (or this element's own), or <see langword="null"/> when none is
+        /// registered anywhere along that chain.
+        /// </returns>
+        private Style? ResolveImplicitStyle()
+        {
+            string key = ResourceDictionary.GetImplicitStyleKey(GetType());
+            for (UIElement? element = this; element != null; element = element.Parent)
+            {
+                if (element.HasResources && element.Resources.TryGetValue(key, out object? value) && value is Style style)
+                    return style;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1784,8 +1848,16 @@ namespace Icy.UI
             IPropertyStore store = GetPropertyStore();
             foreach (KeyValuePair<string, object?> setter in state.Setters)
             {
-                if (store.TryGetProperty(setter.Key, out IPropertyReference? property))
+                if (!store.TryGetProperty(setter.Key, out IPropertyReference? property))
+                    continue;
+
+                if (state.Duration is { } duration && duration > TimeSpan.Zero)
                 {
+                    AnimateStateSetter(property, setter.Key, setter.Value, duration, state.Easing);
+                }
+                else
+                {
+                    StopStateTransition(setter.Key);
                     property.SetTierValue(this, PropertyValuePrecedence.VisualState, setter.Value);
                 }
             }
@@ -1798,11 +1870,56 @@ namespace Icy.UI
             IPropertyStore store = GetPropertyStore();
             foreach (string propertyName in state.Setters.Keys)
             {
+                StopStateTransition(propertyName);
                 if (store.TryGetProperty(propertyName, out IPropertyReference? property))
                 {
                     property.ClearTierValue(this, PropertyValuePrecedence.VisualState);
                 }
             }
+        }
+
+        /// <summary>
+        /// Animates <paramref name="property"/> from its current effective value to <paramref name="targetValue"/> over
+        /// <paramref name="duration"/>, replacing any transition already in flight for the same property name.
+        /// </summary>
+        /// <param name="property">The property to animate.</param>
+        /// <param name="propertyName">The name of <paramref name="property"/>, used to key the in-flight transition tracking.</param>
+        /// <param name="targetValue">The value the transition ends at.</param>
+        /// <param name="duration">How long the transition takes.</param>
+        /// <param name="easing">The easing function to use, or <see langword="null"/> for the default linear easing.</param>
+        /// <remarks>
+        /// Sets the true <see cref="PropertyValuePrecedence.VisualState"/>-tier value immediately (it is what will show
+        /// once the transition ends, and what a later <see cref="RevertStyle"/>/state change reverts against), then
+        /// plays the visible transition on the strictly-higher <see cref="PropertyValuePrecedence.Animation"/> tier,
+        /// clearing that tier's contribution once the transition completes so the VisualState-tier value takes over with
+        /// no visible jump. Resolves the spec's "interrupting/replacing an in-flight transition" open item: at most one
+        /// transition <see cref="Animations.Animation"/> is ever in flight per property name on a given element.
+        /// </remarks>
+        private void AnimateStateSetter(IPropertyReference property, string propertyName, object? targetValue, TimeSpan duration, Animations.EasingFunction? easing)
+        {
+            object? currentValue = property.GetRawValue(this);
+            property.SetTierValue(this, PropertyValuePrecedence.VisualState, targetValue);
+
+            StopStateTransition(propertyName);
+
+            var timeline = Animations.Timeline.FromTo(propertyName, duration, currentValue, targetValue, easing);
+            Animations.Animation animation = this.Animate(timeline);
+            animation.Completed += (_, _) => animation.Stop();
+
+            activeStateTransitions ??= [];
+            activeStateTransitions[propertyName] = animation;
+        }
+
+        /// <summary>
+        /// Stops and forgets the in-flight <see cref="Animations.Animation"/> (if any) transitioning
+        /// <paramref name="propertyName"/> into a <see cref="Styles.VisualState"/>, clearing its contribution to the
+        /// <see cref="PropertyValuePrecedence.Animation"/> tier.
+        /// </summary>
+        /// <param name="propertyName">The name of the property whose in-flight transition should be stopped.</param>
+        private void StopStateTransition(string propertyName)
+        {
+            if (activeStateTransitions != null && activeStateTransitions.Remove(propertyName, out Animations.Animation? existing))
+                existing.Stop();
         }
     }
 }

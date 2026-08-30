@@ -1,0 +1,3 @@
+<ResourceDictionary>
+  <Style x:Key="AccentButtonStyle" TargetType="Button" Background="#FFE0A030" BorderBrush="#FFFFFFFF" BorderThickness="2"/>
+</ResourceDictionary>

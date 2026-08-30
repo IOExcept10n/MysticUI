@@ -13,6 +13,7 @@ namespace Icy.Animations
     /// <see cref="Animation"/> from it (or call <see cref="AnimationExtensions.Animate(UI.UIElement, Timeline)"/>)
     /// to actually play it against a target object.
     /// </remarks>
+    [Markup.ContentProperty(nameof(Keyframes))]
     public class Timeline
     {
         /// <summary>
@@ -74,6 +75,7 @@ namespace Icy.Animations
         /// </summary>
         /// <remarks>
         /// With <see cref="AutoReverse"/> set, each repeat is one forward-then-backward round trip.
+        /// <c>-1</c> in markup - see <see cref="Forever"/>.
         /// </remarks>
         public int RepeatCount
         {

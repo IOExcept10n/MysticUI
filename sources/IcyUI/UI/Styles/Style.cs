@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Data.Markup;
+using Icy.Markup;
 
 namespace Icy.UI.Styles
 {
@@ -9,12 +10,20 @@ namespace Icy.UI.Styles
     /// <see cref="UIElement"/> whose <see cref="UIElement.Style"/> is set to this instance.
     /// </summary>
     /// <param name="targetType">The type of element this style is meant to be applied to.</param>
-    public class Style(Type targetType)
+    [MarkupSetterCollection(nameof(Setters))]
+    public class Style(Type targetType) : IImplicitResourceKey
     {
         /// <summary>
         /// Gets the type of element this style is meant to be applied to.
         /// </summary>
         public Type TargetType { get; } = targetType;
+
+        /// <summary>
+        /// Gets the reserved key this style registers under when placed in a dictionary with no explicit
+        /// <c>x:Key</c> - see <see cref="ResourceDictionary.GetImplicitStyleKey(Type)"/>. Implemented explicitly so
+        /// it stays out of <see cref="Style"/>'s own public surface.
+        /// </summary>
+        string? IImplicitResourceKey.ImplicitResourceKey => ResourceDictionary.GetImplicitStyleKey(TargetType);
 
         /// <summary>
         /// Gets the property values this style sets, keyed by property name.
@@ -43,9 +52,15 @@ namespace Icy.UI.Styles
         /// Applies this style's setters and state groups to <paramref name="control"/>.
         /// </summary>
         /// <param name="control">The element to apply this style to.</param>
-        public void Apply(UIElement control)
+        /// <exception cref="InvalidOperationException">This style's <see cref="BasedOn"/> chain contains a cycle.</exception>
+        public void Apply(UIElement control) => Apply(control, visited: []);
+
+        private void Apply(UIElement control, HashSet<Style> visited)
         {
-            BasedOn?.Apply(control);
+            if (!visited.Add(this))
+                throw new InvalidOperationException($"'{nameof(BasedOn)}' forms a cycle - a style can't (directly or indirectly) be based on itself.");
+
+            BasedOn?.Apply(control, visited);
 
             IPropertyStore store = control.GetPropertyStore();
             foreach (KeyValuePair<string, object?> setter in Setters)
