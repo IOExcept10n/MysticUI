@@ -75,6 +75,18 @@ namespace Icy.UI.Styles
         /// Gets the property values this state sets while active, keyed by property name.
         /// </summary>
         public Dictionary<string, object?> Setters { get; } = [];
+
+        /// <summary>
+        /// Gets or sets how long entering this state takes to animate each setter from the element's current
+        /// effective value to its target, or <see langword="null"/> to snap instantly (the default).
+        /// </summary>
+        public TimeSpan? Duration { get; set; }
+
+        /// <summary>
+        /// Gets or sets the easing function used for the transition when <see cref="Duration"/> is set. Ignored when
+        /// <see cref="Duration"/> is <see langword="null"/>.
+        /// </summary>
+        public Animations.EasingFunction? Easing { get; set; }
     }
 
     /// <summary>
@@ -82,6 +94,7 @@ namespace Icy.UI.Styles
     /// is active on a given element at a time.
     /// </summary>
     /// <param name="name">The name of this group.</param>
+    [ContentProperty(nameof(States))]
     public class VisualStateGroup(string name)
     {
         /// <summary>

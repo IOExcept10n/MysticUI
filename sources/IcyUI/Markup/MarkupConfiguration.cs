@@ -50,7 +50,7 @@ namespace Icy.Markup
         /// vocabulary, not a general search path. Custom types come in through a <c>clr-namespace</c> XML namespace
         /// or through <see cref="RegisterShortName{T}"/>.
         /// </remarks>
-        public IList<string> BuiltInNamespaces { get; } = ["Icy.UI", "Icy.UI.Controls"];
+        public IList<string> BuiltInNamespaces { get; } = ["Icy.UI", "Icy.UI.Controls", "Icy.UI.Styles"];
 
         /// <summary>
         /// Gets the custom types that may be written unprefixed, keyed by the name markup writes.

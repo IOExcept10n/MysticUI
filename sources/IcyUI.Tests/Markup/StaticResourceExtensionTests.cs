@@ -17,7 +17,9 @@ namespace Icy.Tests.Markup
         private static IcyConfiguration CreateConfiguration()
         {
             var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
-            configuration.Types.Markup.RegisterShortName<Style>();
+
+            // Style now lives in the Icy.UI.Styles built-in namespace, so it no longer needs registering here -
+            // doing so would collide with the built-in lookup.
             return configuration;
         }
 
