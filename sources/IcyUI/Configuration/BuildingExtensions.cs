@@ -167,6 +167,7 @@ namespace Icy.Configuration
         public static IReflectionConfigurationBuilder WithTypeConverter(this IReflectionConfigurationBuilder builder, ITypeConverter converter)
         {
             builder.Types.TypeConverter = converter;
+            builder.Types.PropertyRegistry.TypeConverter = converter;
             return builder;
         }
 

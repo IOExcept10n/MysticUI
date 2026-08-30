@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
+using Icy.Data;
 using Icy.Data.Markup;
 
 namespace Icy.Animations
@@ -26,6 +27,7 @@ namespace Icy.Animations
     public class Animation
     {
         private readonly IPropertyReference property;
+        private readonly IReadOnlyList<AnimationKeyframe> keyframes;
         private TimeSpan elapsed;
         private int completedPasses;
         private bool reversed;
@@ -67,6 +69,12 @@ namespace Icy.Animations
             Target = target;
             Timeline = timeline;
             property = reference;
+
+            // Markup-authored keyframes arrive as raw strings; hand-authored ones are already the right CLR type, in
+            // which case this is a no-op (see PropertyRegistry.TypeConverter's remarks). Converted once here, and
+            // cached per-Animation-instance rather than mutating the (possibly shared/reused) Timeline resource.
+            ITypeConverter converter = PropertyRegistry.For(target).TypeConverter;
+            keyframes = [.. timeline.Keyframes.Select(k => new AnimationKeyframe(k.Offset, converter.Convert(k.Value, reference.PropertyType)))];
         }
 
         /// <summary>
@@ -186,7 +194,6 @@ namespace Icy.Animations
 
         private object? Evaluate(float easedTime)
         {
-            IReadOnlyList<AnimationKeyframe> keyframes = Timeline.Keyframes;
             if (keyframes.Count == 0)
                 return null;
             if (keyframes.Count == 1)
