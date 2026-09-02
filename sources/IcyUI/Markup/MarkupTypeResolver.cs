@@ -72,18 +72,29 @@ namespace Icy.Markup
         }
 
         /// <summary>
-        /// Resolves a type named in an attribute <em>value</em>, such as <c>x:Class</c> or <c>x:DataType</c>.
+        /// Resolves a type named in an attribute <em>value</em>, such as <c>TargetType</c>, <c>x:Class</c>, or
+        /// <c>x:DataType</c>.
         /// </summary>
         /// <param name="typeName">
         /// Either a prefix-qualified name (<c>local:PlayerViewModel</c>), resolved through
-        /// <paramref name="scope"/>'s namespace declarations, or a plain CLR name
-        /// (<c>MyGame.UI.PlayerViewModel</c>), resolved through <see cref="IAssemblyResolver.FindType"/>.
+        /// <paramref name="scope"/>'s namespace declarations; an unprefixed name that resolves against
+        /// <paramref name="scope"/>'s default namespace the same way an element tag would (<c>Button</c>, when the
+        /// default namespace is <see cref="MarkupNamespaces.IsBuiltIn(XNamespace)">built-in</see>); or, failing
+        /// that, a plain CLR name (<c>MyGame.UI.PlayerViewModel</c>), resolved through
+        /// <see cref="IAssemblyResolver.FindType"/>.
         /// </param>
         /// <param name="scope">The element the attribute appears on, whose prefixes are in scope.</param>
         /// <param name="node">The node the name appears on, for error positions.</param>
         /// <param name="sourcePath">The markup file's path, for error messages.</param>
         /// <returns>The resolved type.</returns>
         /// <exception cref="MarkupException">The name doesn't resolve to any type.</exception>
+        /// <remarks>
+        /// The built-in/short-name attempt exists so <c>TargetType="Button"</c> resolves the same
+        /// <see cref="Icy.UI.Controls.Button"/> a <c>&lt;Button&gt;</c> tag would, instead of falling straight to
+        /// <see cref="IAssemblyResolver.FindType"/>'s unqualified, load-order-dependent scan of every type in every
+        /// loaded assembly - which a short, common control name can resolve incorrectly once a host (a WinForms-
+        /// backed game window, say) has loaded an unrelated same-named type first.
+        /// </remarks>
         public Type ResolveTypeName(string typeName, XElement scope, IXmlLineInfo? node, string? sourcePath)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
@@ -98,6 +109,10 @@ namespace Icy.Markup
                     ?? throw MarkupException.At($"Undeclared namespace prefix '{prefix}' in '{typeName}'.", node, sourcePath);
                 return Resolve(ns + localName, node, sourcePath);
             }
+
+            XNamespace defaultNamespace = scope.GetDefaultNamespace();
+            if (MarkupNamespaces.IsBuiltIn(defaultNamespace) && TryResolve(defaultNamespace + typeName, out Type? builtInType, out _))
+                return builtInType;
 
             return assemblies.FindType(typeName)
                 ?? throw MarkupException.At($"Unknown type '{typeName}'.", node, sourcePath);
