@@ -68,14 +68,16 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Gets the visible viewport's height (this control's content area, inset by <see cref="Control.BorderThickness"/>).
+        /// Gets the visible viewport's height, i.e. this control's <see cref="Control.ContentBounds"/> height
+        /// (already inset by <see cref="Control.BorderThickness"/> and <see cref="Control.Padding"/>).
         /// </summary>
-        public float ViewportHeight => Math.Max(0, ContentBounds.Height - BorderThickness.Height);
+        public float ViewportHeight => ContentBounds.Height;
 
         /// <summary>
-        /// Gets the visible viewport's width (this control's content area, inset by <see cref="Control.BorderThickness"/>).
+        /// Gets the visible viewport's width, i.e. this control's <see cref="Control.ContentBounds"/> width
+        /// (already inset by <see cref="Control.BorderThickness"/> and <see cref="Control.Padding"/>).
         /// </summary>
-        public float ViewportWidth => Math.Max(0, ContentBounds.Width - BorderThickness.Width);
+        public float ViewportWidth => ContentBounds.Width;
 
         /// <summary>
         /// Gets or sets how far <see cref="ContentControl.Content"/> is scrolled vertically, clamped to
@@ -120,15 +122,20 @@ namespace Icy.UI.Controls
         protected override void ArrangeContent()
         {
             // Chrome must be given room to grow to Content's full natural size along the scrollable axes, not
-            // shrunk to fit ContentBounds the way the standard Arrange()/CalculateOverflow flow would (a child can
+            // shrunk to fit ActualBounds the way the standard Arrange()/CalculateOverflow flow would (a child can
             // never overflow its parent there) - that's the entire point of scrolling. ClipToBounds on this
-            // control (not Chrome) still crops the overflow visually.
+            // control (not Chrome) still crops the overflow visually. Chrome's origin stays at ActualBounds' own
+            // top-left - only ever extended, never moved - so Background/BorderBrush (drawn across Chrome's own
+            // full local bounds) still start exactly where this control's border box starts; Chrome's own
+            // BorderThickness/Padding (see Control.ArrangeContent) then insets Content the normal way once
+            // Chrome itself has room to fit it.
             Size contentDesired = Content?.Measure() ?? Size.Empty;
+            Thickness inset = BorderThickness + Padding;
             Rectangle chromeRect = new(
-                ContentBounds.X,
-                ContentBounds.Y,
-                Math.Max(ContentBounds.Width, contentDesired.Width + BorderThickness.Width),
-                Math.Max(ContentBounds.Height, contentDesired.Height + BorderThickness.Height));
+                ActualBounds.X,
+                ActualBounds.Y,
+                Math.Max(ActualBounds.Width, contentDesired.Width + inset.Width),
+                Math.Max(ActualBounds.Height, contentDesired.Height + inset.Height));
 
             Chrome.InvalidateArrange();
             Chrome.Arrange(chromeRect);

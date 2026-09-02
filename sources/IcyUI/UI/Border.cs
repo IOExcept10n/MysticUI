@@ -100,9 +100,15 @@ namespace Icy.UI
 
         /// <summary>
         /// Gets the area available to <see cref="Child"/>, i.e. <see cref="UIElement.ActualBounds"/> inset by
-        /// <see cref="BorderThickness"/>.
+        /// <see cref="BorderThickness"/> and <see cref="UIElement.Padding"/>.
         /// </summary>
-        public Rectangle ContentBounds => ActualBounds - BorderThickness;
+        /// <remarks>
+        /// <see cref="Background"/>/<see cref="BorderBrush"/> are unaffected by <see cref="UIElement.Padding"/> -
+        /// they're drawn (in <see cref="OnRender"/>) across this <see cref="Border"/>'s full local bounds, not
+        /// <see cref="ContentBounds"/>. Padding only pushes <see cref="Child"/> in from the border, matching the
+        /// standard box model (CSS/WPF): the decoration covers the padding band, only the content is inset by it.
+        /// </remarks>
+        public Rectangle ContentBounds => ActualBounds - BorderThickness - Padding;
 
         /// <inheritdoc/>
         protected override void ArrangeContent()
@@ -114,8 +120,23 @@ namespace Icy.UI
         /// <inheritdoc/>
         protected override Size MeasureContent()
         {
-            Size childSize = Child?.IsVisible == true ? Child.Measure() : Size.Empty;
-            return new Size(childSize.Width + BorderThickness.Width, childSize.Height + BorderThickness.Height);
+            if (Child?.IsVisible != true)
+                return new Size(BorderThickness.Width, BorderThickness.Height);
+
+            // UIElement.Measure()/DesiredSize deliberately excludes the element's own Margin (see its remarks) -
+            // every container that sizes itself to a child's content, not just whatever space it's handed, must
+            // add that child's Margin back in itself, the same way StackPanel/Grid already do at their own
+            // Measure/Arrange call sites. Border used to skip this, so a Margin-bearing Child (e.g. Content set to
+            // a label with a bottom Margin meant for stacking, reused as a Button's content) measured this Border
+            // - and everything sized from it, up through Control/Button - short by exactly that Margin. That
+            // shortfall then compounded at Arrange time: CalculateOverflow's Stretch branch subtracts the child's
+            // own Margin from whatever (too-small) space it's given with no floor at the child's DesiredSize, so
+            // the child rendered visibly smaller than its measured content - e.g. button labels clipped in half.
+            Size childSize = Child.Measure();
+            Thickness childMargin = Child.Margin;
+            return new Size(
+                childSize.Width + childMargin.Width + BorderThickness.Width,
+                childSize.Height + childMargin.Height + BorderThickness.Height);
         }
 
         /// <inheritdoc/>

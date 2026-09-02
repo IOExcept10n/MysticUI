@@ -10,8 +10,9 @@ namespace Icy.UI.Controls
 {
     /// <summary>
     /// Base class for controls that need background/border decoration without reimplementing it - composes an
-    /// internal <see cref="Border"/> (<see cref="Chrome"/>) that fills this control's <see cref="ContentBounds"/>
-    /// and forwards <see cref="Background"/>/<see cref="BorderBrush"/>/<see cref="BorderThickness"/> to it.
+    /// internal <see cref="Border"/> (<see cref="Chrome"/>) that fills this control's entire
+    /// <see cref="UIElement.ActualBounds"/> and forwards <see cref="Background"/>/<see cref="BorderBrush"/>/
+    /// <see cref="BorderThickness"/>/<see cref="Padding"/> to it.
     /// </summary>
     /// <remarks>
     /// <see cref="UIElement"/> itself carries no decoration (per the <see cref="UI.Border"/> extraction) - this
@@ -57,11 +58,40 @@ namespace Icy.UI.Controls
         public Thickness BorderThickness { get => Chrome.BorderThickness; set => Chrome.BorderThickness = value; }
 
         /// <summary>
-        /// Gets the area available to this control's decorated content, i.e. <see cref="UIElement.ActualBounds"/>
-        /// inset by <see cref="UIElement.Padding"/>. This is the area <see cref="Chrome"/> fills; <see cref="Chrome"/>
-        /// further insets its own content by <see cref="BorderThickness"/>.
+        /// Gets or sets the padding of this control, i.e. the amount by which its content is inset from
+        /// <see cref="Chrome"/>'s own bounds (inside <see cref="BorderThickness"/>).
         /// </summary>
-        public Rectangle ContentBounds => ActualBounds - Padding;
+        /// <remarks>
+        /// Hides (rather than overrides - <see cref="UIElement.Padding"/> isn't <see langword="virtual"/>)
+        /// <see cref="UIElement.Padding"/> to forward it to <see cref="Chrome"/>, the same way
+        /// <see cref="Background"/>/<see cref="BorderBrush"/>/<see cref="BorderThickness"/> already do - so
+        /// <see cref="Background"/>/<see cref="BorderBrush"/> (drawn across <see cref="Chrome"/>'s full bounds,
+        /// unaffected by padding - the standard box model) cover this control's whole area including the padding
+        /// band, and only the actual content ends up inset by it. <see cref="UIElement.Measure()"/>'s own generic
+        /// padding step still applies exactly once - to <see cref="Chrome"/>, when <see cref="MeasureContent"/>
+        /// calls <see cref="Chrome"/>'s <see cref="UIElement.Measure()"/> - since this control's own (hidden,
+        /// always-zero) base <see cref="UIElement.Padding"/> field is never written to.
+        /// </remarks>
+        [Category("Layout")]
+        [DefaultValue(typeof(Thickness), "0,0,0,0")]
+        [RegisterReference]
+        [AffectsArrange]
+        [AffectsMeasure]
+        public new Thickness Padding { get => Chrome.Padding; set => Chrome.Padding = value; }
+
+        /// <summary>
+        /// Gets the area available to this control's decorated content, i.e. this control's own
+        /// <see cref="UIElement.ActualBounds"/> inset by <see cref="BorderThickness"/> and <see cref="Padding"/>.
+        /// </summary>
+        /// <remarks>
+        /// Computed from this control's own <see cref="UIElement.ActualBounds"/>, not <see cref="Chrome"/>'s -
+        /// normally the two agree (<see cref="Chrome"/> fills <see cref="UIElement.ActualBounds"/> exactly), but
+        /// a subclass like <see cref="ScrollViewer"/> deliberately arranges <see cref="Chrome"/> larger than this
+        /// control's own bounds (so <see cref="ContentControl.Content"/> can overflow for scrolling) - callers of
+        /// <see cref="ContentBounds"/> mean this control's own visible content area, not however big
+        /// <see cref="Chrome"/> currently happens to be.
+        /// </remarks>
+        public Rectangle ContentBounds => ActualBounds - BorderThickness - Padding;
 
         /// <summary>
         /// Gets the internal <see cref="Border"/> this control composes for its background/border decoration.
@@ -69,7 +99,7 @@ namespace Icy.UI.Controls
         protected Border Chrome { get; } = new();
 
         /// <inheritdoc/>
-        protected override void ArrangeContent() => Chrome.Arrange();
+        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
 
         /// <inheritdoc/>
         protected override IEnumerable<UIElement> GetVisualChildren()
