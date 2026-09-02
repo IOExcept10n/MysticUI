@@ -71,7 +71,7 @@ namespace Icy.SharedSamples
 
             var button = new Button
             {
-                Content = CreateLabel("Dictionary Style", fontFamily),
+                Content = CreateLabel("Dictionary Style", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 0),
                 Style = style,
             };
@@ -90,7 +90,7 @@ namespace Icy.SharedSamples
 
             var button = new Button
             {
-                Content = CreateLabel("Fluent Style<T>", fontFamily),
+                Content = CreateLabel("Fluent Style<T>", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 0),
                 Style = style,
             };
@@ -113,7 +113,7 @@ namespace Icy.SharedSamples
 
             var themedButton = new Button
             {
-                Content = CreateLabel("Hover / Press / Tab to me", fontFamily),
+                Content = CreateLabel("Hover / Press / Tab to me", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 100, 200)),
             };
@@ -129,7 +129,7 @@ namespace Icy.SharedSamples
 
             var themedCheckBox = new CheckBox
             {
-                Content = CreateLabel("Themed CheckBox", fontFamily),
+                Content = CreateLabel("Themed CheckBox", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 0),
                 Margin = new Thickness(10, 0, 0, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 60, 70)),
@@ -160,13 +160,13 @@ namespace Icy.SharedSamples
 
             var primaryButton = new Button
             {
-                Content = CreateLabel("Primary", fontFamily),
+                Content = CreateLabel("Primary", fontFamily, margin: Thickness.Zero),
                 Style = primaryStyle,
                 Margin = new Thickness(0, 0, 10, 0),
             };
             var dangerButton = new Button
             {
-                Content = CreateLabel("Danger", fontFamily),
+                Content = CreateLabel("Danger", fontFamily, margin: Thickness.Zero),
                 Style = dangerStyle,
             };
 
@@ -194,13 +194,16 @@ namespace Icy.SharedSamples
             };
         }
 
-        private static TextBlock CreateLabel(string text, string fontFamily, float fontSize = 16) => new()
+        // Margin defaults to a bottom gap sized for stacking multiple labels as vertical siblings; a label passed
+        // as a Button/CheckBox's own Content (a single, non-stacked child inside that control's own Padding)
+        // should pass Thickness.Zero instead - see ControlsDemo.CreateLabel's matching remark.
+        private static TextBlock CreateLabel(string text, string fontFamily, float fontSize = 16, Thickness? margin = null) => new()
         {
             Text = text,
             FontFamily = fontFamily,
             FontSize = fontSize,
             Foreground = Color.WhiteSmoke,
-            Margin = new Thickness(0, 0, 0, 6),
+            Margin = margin ?? new Thickness(0, 0, 0, 6),
         };
     }
 }

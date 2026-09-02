@@ -79,7 +79,7 @@ namespace Icy.SharedSamples
 
             var button = new Button
             {
-                Content = CreateLabel("Click Me", fontFamily),
+                Content = CreateLabel("Click Me", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 6),
                 Margin = new Thickness(0, 0, 10, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 100, 200)),
@@ -87,7 +87,7 @@ namespace Icy.SharedSamples
 
             var toggle = new ToggleButton
             {
-                Content = CreateLabel("Toggle", fontFamily),
+                Content = CreateLabel("Toggle", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 6),
                 Margin = new Thickness(0, 0, 10, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 80, 80, 90)),
@@ -95,7 +95,7 @@ namespace Icy.SharedSamples
 
             var checkBox = new CheckBox
             {
-                Content = CreateLabel("Check Me", fontFamily),
+                Content = CreateLabel("Check Me", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 6),
                 Background = new SolidColorBrush(Color.FromArgb(255, 80, 80, 90)),
             };
@@ -252,7 +252,7 @@ namespace Icy.SharedSamples
         {
             var closeButton = new Button
             {
-                Content = CreateLabel("Close", fontFamily),
+                Content = CreateLabel("Close", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 6),
                 Margin = new Thickness(0, 12, 0, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 100, 200)),
@@ -260,7 +260,7 @@ namespace Icy.SharedSamples
 
             var okButton = new Button
             {
-                Content = CreateLabel("OK", fontFamily),
+                Content = CreateLabel("OK", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 6),
                 Margin = new Thickness(0, 12, 10, 0),
                 Background = new SolidColorBrush(Color.FromArgb(255, 80, 80, 90)),
@@ -294,7 +294,7 @@ namespace Icy.SharedSamples
 
             var openButton = new Button
             {
-                Content = CreateLabel("Open Window", fontFamily),
+                Content = CreateLabel("Open Window", fontFamily, margin: Thickness.Zero),
                 Padding = new Thickness(12, 6),
                 Background = new SolidColorBrush(Color.FromArgb(255, 60, 100, 200)),
             };
@@ -322,13 +322,19 @@ namespace Icy.SharedSamples
             };
         }
 
-        private static TextBlock CreateLabel(string text, string fontFamily, float fontSize = 16) => new()
+        // Margin defaults to a bottom gap sized for stacking multiple labels as vertical siblings (e.g.
+        // content.Children.Add(CreateLabel(...))); a label passed as a Button/ToggleButton/CheckBox's own Content
+        // (a single, non-stacked child inside that control's own Padding) should pass Thickness.Zero instead - the
+        // control's Padding already provides symmetric breathing room, and a non-zero Margin there just shows up
+        // as extra, asymmetric empty space under the label once Arrange positions a Stretch-aligned child correctly
+        // (see UIElementTests.Arrange_StretchWithAutoSizeAndMargin_PositionsRightAfterMargin_NotCentered).
+        private static TextBlock CreateLabel(string text, string fontFamily, float fontSize = 16, Thickness? margin = null) => new()
         {
             Text = text,
             FontFamily = fontFamily,
             FontSize = fontSize,
             Foreground = Color.WhiteSmoke,
-            Margin = new Thickness(0, 0, 0, 6),
+            Margin = margin ?? new Thickness(0, 0, 0, 6),
         };
 
         private static Border CreateSwatch(Color color, string label, string fontFamily) => new()
