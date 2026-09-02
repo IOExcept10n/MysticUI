@@ -1726,14 +1726,25 @@ namespace Icy.UI
             int availableWidth = containerBounds.Width - effectiveSize.Width;
             int availableHeight = containerBounds.Height - effectiveSize.Height;
 
+            // A Stretch axis with an explicit Width/Height behaves like Center (the standard box-model convention:
+            // a fixed-size element on a Stretch axis centers within the slack space) - but when Width/Height is
+            // NaN, CalculateOverflow's own Stretch branch already sized effectiveSize to fill containerBounds
+            // *minus effectiveMargin* exactly, leaving no genuine slack to distribute; "available/2" at that point
+            // just recomputes effectiveMargin itself (containerBounds.Size - effectiveSize.Size == effectiveMargin,
+            // by construction), so centering on it pushed the element roughly half a margin further in than
+            // intended - visibly wrong for any nonzero margin on the stretched axis (a stacked TextBlock with a
+            // bottom Margin, say, rendering low enough to be overlapped by the next sibling). Falls through to the
+            // same margin.Top/Left position Top/Left alignment already uses.
             int x = containerBounds.X + HorizontalAlignment switch
             {
+                HorizontalAlignment.Stretch when float.IsNaN(Width) => effectiveMargin.Left,
                 HorizontalAlignment.Center or HorizontalAlignment.Stretch => (availableWidth / 2) + effectiveMargin.Left,
                 HorizontalAlignment.Right => availableWidth - effectiveMargin.Right,
                 _ => effectiveMargin.Left,
             };
             int y = containerBounds.Y + VerticalAlignment switch
             {
+                VerticalAlignment.Stretch when float.IsNaN(Height) => effectiveMargin.Top,
                 VerticalAlignment.Center or VerticalAlignment.Stretch => (availableHeight / 2) + effectiveMargin.Top,
                 VerticalAlignment.Bottom => availableHeight - effectiveMargin.Bottom,
                 _ => effectiveMargin.Top,

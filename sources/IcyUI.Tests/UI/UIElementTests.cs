@@ -140,6 +140,30 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
+        public void Arrange_StretchWithAutoSizeAndMargin_PositionsRightAfterMargin_NotCentered()
+        {
+            // Regression: CalculateLocation grouped Stretch with Center, positioning at "(available/2) + margin"
+            // for both. That's correct for Stretch with an explicit Width/Height (no auto-stretch, genuine slack
+            // to center within - standard box-model behavior), but wrong once Width/Height is NaN and
+            // CalculateOverflow's own Stretch branch already sized the element to containerBounds minus Margin
+            // exactly - "available" degenerates to Margin itself at that point, so centering on it re-adds roughly
+            // half the margin on top of the real one. Manifested as, e.g., a stacked TextBlock with a bottom
+            // Margin rendering low enough for the next sibling to overlap it.
+            var element = new TestElement
+            {
+                ContentSize = new Size(50, 20),
+                Margin = new Thickness(0, 10, 0, 5),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+            };
+
+            element.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(10, element.ActualBounds.Y);
+            Assert.Equal(100, element.ActualBounds.Bottom + 5); // Bottom edge, plus Margin.Bottom, reaches the container's edge.
+        }
+
+        [Fact]
         public void Arrange_WithMargins_RespectsMargins()
         {
             // Arrange
