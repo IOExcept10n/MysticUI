@@ -17,6 +17,10 @@ namespace Icy.Markup
     /// <param name="elementStack">The elements currently under construction, innermost last.</param>
     /// <param name="node">The extension's position in the source document, for error reporting.</param>
     /// <param name="sourcePath">The document's path, for error reporting.</param>
+    /// <param name="templatedControl">
+    /// The control a <see cref="Icy.UI.Styles.ControlTemplate"/>'s content is being built for, when this context
+    /// belongs to template content - <see langword="null"/> for an ordinary document.
+    /// </param>
     public sealed class MarkupExtensionContext(
         object target,
         MarkupMember member,
@@ -24,7 +28,8 @@ namespace Icy.Markup
         MarkupNameScope names,
         IReadOnlyList<UIElement> elementStack,
         IXmlLineInfo? node,
-        string? sourcePath)
+        string? sourcePath,
+        UIElement? templatedControl = null)
     {
         /// <summary>
         /// Gets the object whose property the extension is resolving a value for.
@@ -62,5 +67,17 @@ namespace Icy.Markup
         /// Gets the document's path, for error reporting.
         /// </summary>
         public string? SourcePath { get; } = sourcePath;
+
+        /// <summary>
+        /// Gets the control a <see cref="Icy.UI.Styles.ControlTemplate"/>'s content is being built for, or
+        /// <see langword="null"/> when this context belongs to an ordinary (non-template) document.
+        /// </summary>
+        /// <remarks>
+        /// This is what <c>{TemplateBinding}</c> (see <see cref="Icy.Markup.Extensions.TemplateBindingExtension"/>)
+        /// reads as its binding source - it has no other way to reach "the control this template decorates," since
+        /// that control is never itself part of <see cref="ElementStack"/> (it isn't being constructed by the same
+        /// document load).
+        /// </remarks>
+        public UIElement? TemplatedControl { get; } = templatedControl;
     }
 }

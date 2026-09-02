@@ -43,7 +43,8 @@ namespace Icy.MonoGameSample
                 new StylesSample(this, uiConfiguration, canvas),
                 new MarkupSample(this, uiConfiguration, canvas),
                 new NavigationSample(this, uiConfiguration, canvas),
-                new MarkupStylesSample(this, uiConfiguration, canvas)
+                new MarkupStylesSample(this, uiConfiguration, canvas),
+                new ControlTemplateSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);

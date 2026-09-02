@@ -21,6 +21,7 @@ namespace Icy.Markup
         {
             ["Binding"] = typeof(BindingExtension),
             ["StaticResource"] = typeof(StaticResourceExtension),
+            ["TemplateBinding"] = typeof(TemplateBindingExtension),
         };
 
         /// <summary>
@@ -62,8 +63,9 @@ namespace Icy.Markup
         /// the braces.
         /// </summary>
         /// <remarks>
-        /// Seeded with <c>"Binding"</c> mapping to <see cref="BindingExtension"/> and <c>"StaticResource"</c>
-        /// mapping to <see cref="StaticResourceExtension"/>.
+        /// Seeded with <c>"Binding"</c> mapping to <see cref="BindingExtension"/>, <c>"StaticResource"</c> mapping
+        /// to <see cref="StaticResourceExtension"/>, and <c>"TemplateBinding"</c> mapping to
+        /// <see cref="TemplateBindingExtension"/>.
         /// </remarks>
         public IReadOnlyDictionary<string, Type> Extensions => extensions;
 

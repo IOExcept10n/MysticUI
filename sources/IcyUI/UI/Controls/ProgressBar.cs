@@ -30,7 +30,12 @@ namespace Icy.UI.Controls
                 VerticalAlignment = VerticalAlignment.Stretch,
                 Background = new SolidColorBrush(Color.DodgerBlue),
             };
-            Chrome.Child = fill;
+
+            // Safe only here, at construction: Chrome is always the default Border until/unless Template is set
+            // later. ProgressBar doesn't override CaptureTemplateState/RestoreTemplateState, so - like Slider -
+            // it isn't template-safe yet; setting Template on a ProgressBar would orphan fill entirely. Named
+            // template parts (a future addition) are what's needed to make this safe.
+            ((Border)Chrome).Child = fill;
         }
 
         /// <summary>

@@ -41,7 +41,13 @@ namespace Icy.UI.Controls
                 VerticalAlignment = VerticalAlignment.Stretch,
                 Background = new SolidColorBrush(Color.White),
             };
-            Chrome.Child = thumb;
+
+            // Safe only here, at construction: Chrome is always the default Border until/unless Template is set
+            // later. Slider doesn't override CaptureTemplateState/RestoreTemplateState, so it isn't template-safe
+            // yet; setting Template on a Slider would orphan the thumb entirely (its own drag logic already
+            // reaches into it directly - see UpdateValueFromPoint). Named template parts (a future addition) are
+            // what's needed to make this safe.
+            ((Border)Chrome).Child = thumb;
         }
 
         /// <summary>

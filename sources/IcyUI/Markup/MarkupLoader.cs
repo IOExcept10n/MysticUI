@@ -147,6 +147,53 @@ namespace Icy.Markup
         }
 
         /// <summary>
+        /// Builds a fresh visual tree from a <see cref="Icy.UI.Styles.ControlTemplate"/>'s already-parsed content,
+        /// for one specific control applying that template.
+        /// </summary>
+        /// <param name="content">
+        /// The template's root element, captured once when the <c>ControlTemplate</c> itself was loaded (see
+        /// <see cref="CreateObject"/>'s <c>ControlTemplate</c> special case) - not re-parsed from text here.
+        /// </param>
+        /// <param name="templatedControl">
+        /// The control this content is being built for. Threaded into every <see cref="MarkupExtensionContext"/>
+        /// this call resolves, so a <c>{TemplateBinding}</c> inside <paramref name="content"/> can reach it.
+        /// </param>
+        /// <param name="sourcePath">The template's source document path, used only to make error messages locatable.</param>
+        /// <returns>The freshly built root element.</returns>
+        /// <exception cref="MarkupException">
+        /// <paramref name="content"/> is malformed, breaks a rule of the language, or its root doesn't build a
+        /// <see cref="UIElement"/>.
+        /// </exception>
+        /// <remarks>
+        /// Called once per control instance that applies a given <see cref="Icy.UI.Styles.ControlTemplate"/> -
+        /// never caches or shares the built tree, since two controls using the same template must each get their
+        /// own independent visual subtree (matching how every other <c>Load</c>/<c>LoadObject</c> overload never
+        /// shares state across calls either).
+        /// </remarks>
+        public UIElement LoadTemplateContent(XElement content, UIElement templatedControl, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(content);
+            ArgumentNullException.ThrowIfNull(templatedControl);
+
+            var context = new MarkupLoadContext(sourcePath, new MarkupNameScope()) { TemplatedControl = templatedControl };
+
+            using (PropertyRegistry.UseScope(registry))
+            {
+                object instance = CreateObject(content, context);
+                if (instance is not UIElement element)
+                {
+                    throw MarkupException.At(
+                        $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
+                        content,
+                        sourcePath);
+                }
+
+                MarkupNameScope.SetScope(element, context.Names);
+                return element;
+            }
+        }
+
+        /// <summary>
         /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
         /// turns out to be - the two families only differ in how they react to that root.
         /// </summary>
@@ -370,6 +417,26 @@ namespace Icy.Markup
             // SetterTargetType touched for it.
             if (instance is ResourceDictionary && element.Attribute("Source") is { } source)
                 return LoadMergedDictionary(source.Value, element, context);
+
+            // A ControlTemplate's content is built fresh per control instance that applies it (see
+            // ControlTemplate.LoadContent), not once here at document-load time - the freshly constructed instance
+            // above only ever captures the raw XElement, and (like the ResourceDictionary Source case above) never
+            // runs its own attribute/child resolution, so it's never pushed onto ElementStack either.
+            if (instance is Icy.UI.Styles.ControlTemplate controlTemplate)
+            {
+                List<XElement> templateChildren = [.. element.Elements()];
+                if (templateChildren.Count != 1)
+                {
+                    throw MarkupException.At(
+                        $"'{nameof(Icy.UI.Styles.ControlTemplate)}' needs exactly one root element, but {templateChildren.Count} were given."
+                            + (templateChildren.Count > 1 ? " Wrap them in a panel." : string.Empty),
+                        element,
+                        context.SourcePath);
+                }
+
+                controlTemplate.SetContent(templateChildren[0], configuration, context.SourcePath);
+                return instance;
+            }
 
             Type? previousSetterTargetType = context.SetterTargetType;
             if (instance is Icy.UI.Styles.Style style)
@@ -924,7 +991,7 @@ namespace Icy.Markup
             var extension = (IMarkupExtension)markup.Activator.CreateInstance(extensionType);
             ApplyExtensionArguments(extension, name, arguments, node, context);
 
-            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, context.ElementStack, node, context.SourcePath);
+            var extensionContext = new MarkupExtensionContext(instance, member, configuration, context.Names, context.ElementStack, node, context.SourcePath, context.TemplatedControl);
             return extension.ProvideValue(extensionContext);
         }
 
@@ -1008,6 +1075,13 @@ namespace Icy.Markup
             /// construction.
             /// </summary>
             public List<UIElement> ElementStack { get; } = [];
+
+            /// <summary>
+            /// Gets the control a <see cref="Icy.UI.Styles.ControlTemplate"/>'s content is being built for -
+            /// <see langword="null"/> for an ordinary document. Set once, by <see cref="LoadTemplateContent"/>,
+            /// and threaded into every <see cref="MarkupExtensionContext"/> this load resolves.
+            /// </summary>
+            public UIElement? TemplatedControl { get; init; }
         }
     }
 }

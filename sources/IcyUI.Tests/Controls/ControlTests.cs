@@ -1,14 +1,29 @@
 using System.Drawing;
+using System.Linq;
+using Icy.Assets;
+using Icy.Configuration;
+using Icy.Markup;
 using Icy.Rendering.Brushes;
+using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
 {
     public class ControlTests
     {
+        private static UIElement GetChrome(Control control) =>
+            (UIElement)typeof(Control).GetProperty("Chrome", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
+
+        private static ControlTemplate LoadTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (ControlTemplate)loader.LoadObject(markup);
+        }
         [Fact]
         public void Background_ForwardsToInternalChrome()
         {
@@ -98,10 +113,120 @@ namespace Icy.Tests.Controls
 
             control.Arrange(new Rectangle(0, 0, 50, 50));
 
-            var chromeProperty = typeof(Control).GetProperty("Chrome", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            var chrome = (Border)chromeProperty.GetValue(control)!;
+            var chrome = GetChrome(control);
 
             Assert.Equal(control.ActualBounds, chrome.ActualBounds);
+        }
+
+        [Fact]
+        public void Template_Set_ReplacesChromeWithTemplateContent()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+            var control = new Control();
+
+            control.Template = template;
+
+            Assert.IsType<Image>(GetChrome(control));
+        }
+
+        [Fact]
+        public void Template_SetThenCleared_RestoresDefaultBorderChrome()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+            var control = new Control { Template = template };
+
+            control.Template = null;
+
+            Assert.IsType<Border>(GetChrome(control));
+        }
+
+        [Fact]
+        public void Template_SetAndCleared_PreservesBackgroundBorderBrushBorderThicknessPadding()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Border/></ControlTemplate>""");
+            var background = new SolidColorBrush(Color.Red);
+            var borderBrush = new SolidColorBrush(Color.Blue);
+            var control = new Control
+            {
+                Background = background,
+                BorderBrush = borderBrush,
+                BorderThickness = new Thickness(2, 3, 4, 5),
+                Padding = new Thickness(6, 7, 8, 9),
+            };
+
+            control.Template = template;
+            Assert.Same(background, control.Background);
+            Assert.Same(borderBrush, control.BorderBrush);
+            Assert.Equal(new Thickness(2, 3, 4, 5), control.BorderThickness);
+            Assert.Equal(new Thickness(6, 7, 8, 9), control.Padding);
+
+            control.Template = null;
+            Assert.Same(background, control.Background);
+            Assert.Same(borderBrush, control.BorderBrush);
+            Assert.Equal(new Thickness(2, 3, 4, 5), control.BorderThickness);
+            Assert.Equal(new Thickness(6, 7, 8, 9), control.Padding);
+        }
+
+        [Fact]
+        public void Template_Set_UnbindsOldChromeSubtree()
+        {
+            var firstTemplate = LoadTemplate("""<ControlTemplate TargetType="Control"><Border Background="{TemplateBinding Background}"/></ControlTemplate>""");
+            var secondTemplate = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+            var control = new Control { Template = firstTemplate };
+            var firstChrome = (Border)GetChrome(control);
+
+            control.Template = secondTemplate;
+            control.Background = new SolidColorBrush(Color.Green);
+
+            // The old Chrome's {TemplateBinding} would have updated firstChrome.Background here if it were still
+            // subscribed to this control's PropertyChanged - it must not be, or it leaks for this control's whole
+            // remaining lifetime.
+            Assert.NotEqual(Color.Green.ToArgb(), ((SolidColorBrush)firstChrome.Background).Color.ToArgb());
+        }
+
+        [Fact]
+        public void Template_Set_InvalidatesMeasureAndArrange()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+            var control = new Control();
+            control.Arrange(new Rectangle(0, 0, 50, 50));
+
+            control.Template = template;
+
+            Assert.True((bool)typeof(UIElement).GetProperty("IsMeasureInvalid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!);
+        }
+
+        [Fact]
+        public void Template_SetWhileAttachedToCanvas_NewChromeInheritsCanvas()
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(configuration);
+            var control = new Control();
+            canvas.Add(control);
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+
+            control.Template = template;
+
+            Assert.Same(canvas, GetChrome(control).Canvas);
+        }
+
+        [Fact]
+        public void Template_MismatchedTargetType_Throws()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Button"><Image/></ControlTemplate>""");
+            var control = new Control();
+
+            Assert.Throws<ArgumentException>(() => control.Template = template);
+        }
+
+        [Fact]
+        public void Template_LoadContent_ProducesDistinctChromePerControlInstance()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+            var first = new Control { Template = template };
+            var second = new Control { Template = template };
+
+            Assert.NotSame(GetChrome(first), GetChrome(second));
         }
     }
 }
