@@ -38,6 +38,7 @@
     <!-- The samples' markup is the only place the loader is exercised against a full, realistic document.
          Linking the demo in means a document that stops parsing fails the test run rather than a sample launch. -->
     <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="Markup\MarkupDemo.cs" />
+    <Compile Include="..\Shared Samples\ControlTemplateDemo.cs" Link="Markup\ControlTemplateDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>

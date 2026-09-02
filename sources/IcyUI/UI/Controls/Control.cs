@@ -3,6 +3,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using Icy.Data.Markup.Attributes;
+using Icy.Markup;
 using Icy.Rendering;
 using Icy.Rendering.Brushes;
 using Icy.UI.Styles;
@@ -168,11 +169,14 @@ namespace Icy.UI.Controls
         /// values are preserved across the switch either way.
         /// </para>
         /// <para>
-        /// Only safe for controls that never reach into their own visual tree by name - structural controls like
-        /// <see cref="Slider"/>/<see cref="ScrollViewer"/>/<see cref="TextBox"/> aren't template-safe yet (named
-        /// template parts, letting a control's own code find specific elements a template provides, are a future
-        /// addition); simple decorated controls like <see cref="Button"/>/<see cref="ContentControl"/>/
-        /// <see cref="CheckBox"/>/<see cref="ToggleButton"/> are.
+        /// Simple decorated controls like <see cref="Button"/>/<see cref="ContentControl"/>/<see cref="CheckBox"/>/
+        /// <see cref="ToggleButton"/> are always template-safe. Structural controls whose own code reaches into
+        /// their visual tree by name - such as <see cref="Slider"/> (<c>PART_Thumb</c>) or
+        /// <see cref="ProgressBar"/> (<c>PART_Fill</c>) - are safe too, via named template parts: see
+        /// <see cref="OnApplyTemplate"/>/<see cref="GetTemplateChild{T}(string)"/>. A control that hasn't been
+        /// retrofitted with an <see cref="OnApplyTemplate"/> override yet - currently <see cref="ScrollViewer"/>
+        /// and <see cref="TextBox"/> - still accepts a <see cref="Template"/> without throwing, but its own
+        /// behavior stays wired to its built-in default parts regardless of what the template actually provides.
         /// </para>
         /// </remarks>
         /// <exception cref="ArgumentException">
@@ -259,6 +263,8 @@ namespace Icy.UI.Controls
 
                 if (template == null)
                     RestoreTemplateState(snapshotState);
+
+                OnApplyTemplate();
 
                 InvalidateMeasure();
                 InvalidateArrange();
@@ -353,6 +359,55 @@ namespace Icy.UI.Controls
         /// </list>
         /// </remarks>
         protected virtual void RestoreTemplateState(object? state)
+        {
+        }
+
+        /// <summary>
+        /// Finds a named element inside the <em>current</em> <see cref="Template"/>'s content - a "template part".
+        /// </summary>
+        /// <typeparam name="T">The type the named element is expected to have.</typeparam>
+        /// <param name="name">
+        /// The name to look up, as declared by <c>x:Name</c> on an element inside the template's markup. No
+        /// naming convention is enforced by this method itself, but the established one (mirroring WPF) is a
+        /// <c>PART_</c> prefix, e.g. <c>PART_Thumb</c> - document it on whichever property/field a subclass
+        /// exposes the found element through.
+        /// </param>
+        /// <returns>
+        /// The named element, or <see langword="null"/> when <see cref="Template"/> is <see langword="null"/>,
+        /// the template has no element by that name, or it isn't a <typeparamref name="T"/>.
+        /// </returns>
+        /// <remarks>
+        /// Deliberately does <em>not</em> reuse <see cref="UIElementExtensions.FindControl{T}(UIElement, string)"/>
+        /// - that extension searches from <c>element.GetRoot()</c>, which would walk straight past
+        /// <see cref="Chrome"/> up to whatever document this control itself is attached inside, missing the
+        /// template's own isolated <see cref="MarkupNameScope"/> entirely (or, worse, silently matching an
+        /// unrelated same-named element elsewhere in that outer document). This looks up
+        /// <see cref="MarkupNameScope.GetScope(UIElement)"/> directly on <see cref="Chrome"/> instead, which is
+        /// exactly the root <see cref="Icy.Markup.MarkupLoader.LoadTemplateContent"/> attaches the template's own
+        /// scope to.
+        /// </remarks>
+        protected T? GetTemplateChild<T>(string name)
+            where T : UIElement
+        {
+            ArgumentException.ThrowIfNullOrEmpty(name);
+            return MarkupNameScope.GetScope(Chrome)?.Find(name) as T;
+        }
+
+        /// <summary>
+        /// Called once, every time <see cref="Template"/> changes (in either direction - applied, cleared, or
+        /// switched to a different template), right after <see cref="Chrome"/> and every decoration/content
+        /// property have been fully re-wired for the new state.
+        /// </summary>
+        /// <remarks>
+        /// Does nothing by default. A subclass that reaches into its own visual tree by reference - e.g.
+        /// <see cref="Slider"/> wiring its drag logic directly to its thumb element - overrides this to call
+        /// <see cref="GetTemplateChild{T}(string)"/> and repoint that reference to whatever the new
+        /// <see cref="Template"/> (or, when reverting, the fresh default <see cref="UI.Border"/>) actually
+        /// provides, instead of hardcoding it once at construction. This is what actually makes a control
+        /// "template-safe": until a control overrides this appropriately, applying a custom <see cref="Template"/>
+        /// to it silently orphans whatever elements its own code still holds direct references to.
+        /// </remarks>
+        protected virtual void OnApplyTemplate()
         {
         }
     }

@@ -165,6 +165,35 @@ namespace Icy.Tests.Markup
             Assert.Equal(1, Grid.GetColumn(grid.Children[3]));
         }
 
+        [Fact]
+        public void ControlTemplateDemoMarkup_LoadsAndTemplatedNamedPartsWork()
+        {
+            // Guards the document the MonoGame and Stride samples actually render for ControlTemplateDemo - a typo
+            // there would otherwise only surface when someone launches a sample. Also exercises the step-2 named
+            // template parts (PART_Thumb/PART_Fill) end-to-end, not just that the document parses: both templated
+            // controls must actually have their Control.OnApplyTemplate-wired part sized by real layout, proving
+            // GetTemplateChild found the right element rather than silently falling back to null/the default part.
+            var config = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(config) { IsVisible = true };
+            var loader = new MarkupLoader(config);
+
+            UIElement root = loader.Load(SharedSamples.ControlTemplateDemo.Markup, nameof(SharedSamples.ControlTemplateDemo));
+            canvas.Add(root);
+            canvas.Render();
+
+            var sliders = root.EnumerateSubtree().OfType<Slider>().ToList();
+            Assert.Equal(2, sliders.Count);
+            Assert.NotNull(sliders[1].Template);
+            var templatedThumb = sliders[1].EnumerateVisualSubtree().OfType<Border>().Single(b => b.Name == "PART_Thumb");
+            Assert.True(templatedThumb.ActualBounds.Width > 0);
+
+            var progressBars = root.EnumerateSubtree().OfType<ProgressBar>().ToList();
+            Assert.Equal(2, progressBars.Count);
+            Assert.NotNull(progressBars[1].Template);
+            var templatedFill = progressBars[1].EnumerateVisualSubtree().OfType<Border>().Single(b => b.Name == "PART_Fill");
+            Assert.True(templatedFill.ActualBounds.Width > 0);
+        }
+
         private static UIElement BuildByHand()
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };

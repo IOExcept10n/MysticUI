@@ -8,15 +8,20 @@ using Icy.UI;
 namespace Icy.SharedSamples
 {
     /// <summary>
-    /// A single screen demonstrating <see cref="Icy.UI.Styles.ControlTemplate"/> (Phase 9 M5's first slice): a
-    /// <c>Button</c> restyled with an entirely different visual tree via markup, shown side-by-side with a plain
-    /// untemplated <c>Button</c> for comparison, plus a templated <c>CheckBox</c> whose checked/unchecked
-    /// appearance still comes from an ordinary <c>Style</c>/<c>VisualState</c>.
+    /// A single screen demonstrating <see cref="Icy.UI.Styles.ControlTemplate"/> (Phase 9 M5): a <c>Button</c>
+    /// restyled with an entirely different visual tree via markup, shown side-by-side with a plain untemplated
+    /// <c>Button</c> for comparison; a templated <c>CheckBox</c> whose checked/unchecked appearance still comes
+    /// from an ordinary <c>Style</c>/<c>VisualState</c>; and a templated <c>Slider</c>/<c>ProgressBar</c> pair
+    /// exercising named template parts (<c>PART_Thumb</c>/<c>PART_Fill</c>) - step 2 of the milestone.
     /// </summary>
     /// <remarks>
-    /// The point of the last piece: <c>Style</c>/<c>VisualState</c> need no template-awareness of their own -
-    /// they still only ever set the control's own <c>Background</c>, exactly as on an untemplated control. Only
-    /// the template's content (via <c>{TemplateBinding Background}</c>) knows it's being templated at all.
+    /// The point of the <c>CheckBox</c> piece: <c>Style</c>/<c>VisualState</c> need no template-awareness of
+    /// their own - they still only ever set the control's own <c>Background</c>, exactly as on an untemplated
+    /// control. Only the template's content (via <c>{TemplateBinding Background}</c>) knows it's being templated
+    /// at all. The point of the <c>Slider</c>/<c>ProgressBar</c> piece: dragging the slider and the progress
+    /// fill's width both still work when retemplated, proving <see cref="Icy.UI.Controls.Control.OnApplyTemplate"/>
+    /// correctly repoints their internal element references to the template's own named parts instead of the
+    /// default ones built at construction.
     /// </remarks>
     public static class ControlTemplateDemo
     {
@@ -49,6 +54,18 @@ namespace Icy.SharedSamples
                       </VisualStateGroup>
                     </Style.StateGroups>
                   </Style>
+
+                  <ControlTemplate x:Key="SliderSkin" TargetType="Slider">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="#FF56566A" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                      <Border x:Name="PART_Thumb" Width="20" Background="#FFE0A030" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                    </Border>
+                  </ControlTemplate>
+
+                  <ControlTemplate x:Key="ProgressBarSkin" TargetType="ProgressBar">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="#FF56566A" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                      <Border x:Name="PART_Fill" Background="#FF3CA050" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                    </Border>
+                  </ControlTemplate>
                 </StackPanel.Resources>
 
                 <TextBlock FontSize="18" Foreground="WhiteSmoke" Margin="0,0,0,6">ControlTemplate (Phase 9 M5, step 1)</TextBlock>
@@ -59,7 +76,20 @@ namespace Icy.SharedSamples
                   <Button Template="{StaticResource RoundedButtonSkin}" Padding="12,6" Background="#FFB85C1E" BorderBrush="White" BorderThickness="2">Templated Button</Button>
                 </StackPanel>
 
-                <CheckBox Template="{StaticResource CheckSkin}" Style="{StaticResource CheckedStyle}" Padding="12,6">Templated CheckBox</CheckBox>
+                <CheckBox Template="{StaticResource CheckSkin}" Style="{StaticResource CheckedStyle}" Padding="12,6" Margin="0,0,0,20">Templated CheckBox</CheckBox>
+
+                <TextBlock FontSize="18" Foreground="WhiteSmoke" Margin="0,0,0,6">Named template parts (step 2)</TextBlock>
+                <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,0,0,12">Left: plain Slider/ProgressBar, default thumb/fill. Right: the same controls retemplated via PART_Thumb/PART_Fill - dragging the slider and the progress fill both still work, wired through Control.OnApplyTemplate/GetTemplateChild instead of the hardcoded default element.</TextBlock>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                  <Slider Width="150" Height="20" Minimum="0" Maximum="100" Value="40" Margin="0,0,20,0"/>
+                  <Slider Template="{StaticResource SliderSkin}" Width="150" Height="20" Minimum="0" Maximum="100" Value="70" Background="#FF3A3A44"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                  <ProgressBar Width="150" Height="20" Minimum="0" Maximum="100" Value="40" Margin="0,0,20,0"/>
+                  <ProgressBar Template="{StaticResource ProgressBarSkin}" Width="150" Height="20" Minimum="0" Maximum="100" Value="70" Background="#FF3A3A44"/>
+                </StackPanel>
               </StackPanel>
             </Border>
             """;

@@ -13,16 +13,26 @@ namespace Icy.UI.Controls
     /// <see cref="Minimum"/> and <see cref="Maximum"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Thumb-grab is via <see cref="UIElement.OnDragStarted(Point)"/>/<see cref="UIElement.OnDragPerforming(Point)"/> -
     /// Canvas hit-tests once at drag-start and routes the rest of the sequence to whatever was hit there,
     /// regardless of where the cursor moves next (see <see cref="UI.Canvas"/>'s drag routing), so dragging below/above
     /// the track still works once a drag has started on the slider.
+    /// </para>
+    /// <para>
+    /// Template-safe via a named template part: a <see cref="Control.Template"/> that declares an element named
+    /// <c>PART_Thumb</c> (of any type assignable to <see cref="UI.Border"/>) has its drag logic wired to that
+    /// element instead of the built-in default thumb - see <see cref="OnApplyTemplate"/>. A template that declares
+    /// none still applies (the default thumb keeps working, just detached from what's visually shown - dragging
+    /// silently does nothing until the template provides a real <c>PART_Thumb</c>).
+    /// </para>
     /// </remarks>
     public class Slider : Control
     {
         private const int ThumbSize = 16;
 
-        private readonly Border thumb;
+        private readonly Border defaultThumb;
+        private Border thumb;
         private float maximum = 100;
         private float minimum;
         private bool isDragging;
@@ -34,7 +44,7 @@ namespace Icy.UI.Controls
         public Slider()
         {
             IsFocusable = true;
-            thumb = new Border
+            defaultThumb = thumb = new Border
             {
                 Width = ThumbSize,
                 HorizontalAlignment = HorizontalAlignment.Left,
@@ -42,11 +52,8 @@ namespace Icy.UI.Controls
                 Background = new SolidColorBrush(Color.White),
             };
 
-            // Safe only here, at construction: Chrome is always the default Border until/unless Template is set
-            // later. Slider doesn't override CaptureTemplateState/RestoreTemplateState, so it isn't template-safe
-            // yet; setting Template on a Slider would orphan the thumb entirely (its own drag logic already
-            // reaches into it directly - see UpdateValueFromPoint). Named template parts (a future addition) are
-            // what's needed to make this safe.
+            // Safe here, at construction: Chrome is always the default Border until/unless Template is set later,
+            // in which case OnApplyTemplate re-wires (or re-attaches) thumb appropriately.
             ((Border)Chrome).Child = thumb;
         }
 
@@ -163,6 +170,28 @@ namespace Icy.UI.Controls
             // applies during Arrange, not Measure - an empty thumb Border would otherwise measure to zero height,
             // collapsing the whole slider to nothing whenever a caller doesn't set an explicit Height.
             return new(120, ThumbSize);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Repoints <c>thumb</c> - the element <see cref="ArrangeContent"/>/<see cref="UpdateValueFromPoint"/>
+        /// already manipulate by reference - to whichever <see cref="UI.Border"/> is actually live right now:
+        /// <see cref="Control.Template"/>'s own <c>PART_Thumb</c> when one is set and provides it, or the built-in
+        /// <c>defaultThumb</c> (re-attached to the fresh default Chrome) otherwise.
+        /// </remarks>
+        protected override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            if (Template != null && GetTemplateChild<Border>("PART_Thumb") is { } part)
+            {
+                thumb = part;
+                return;
+            }
+
+            thumb = defaultThumb;
+            if (Template == null)
+                ((Border)Chrome).Child = thumb;
         }
 
         private void ClampValueToRange()

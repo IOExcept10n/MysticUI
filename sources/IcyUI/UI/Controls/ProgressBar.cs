@@ -12,9 +12,16 @@ namespace Icy.UI.Controls
     /// track (this control's inherited <see cref="Control.Background"/>/<see cref="Control.BorderBrush"/>) with a
     /// <see cref="FillBrush"/>-colored fill growing from the left.
     /// </summary>
+    /// <remarks>
+    /// Template-safe via a named template part: a <see cref="Control.Template"/> that declares an element named
+    /// <c>PART_Fill</c> (of any type assignable to <see cref="UI.Border"/>) has its fill logic wired to that
+    /// element instead of the built-in default fill - see <see cref="OnApplyTemplate"/>. A template that declares
+    /// none still applies (the default fill keeps working, just detached from what's visually shown).
+    /// </remarks>
     public class ProgressBar : Control
     {
-        private readonly Border fill;
+        private readonly Border defaultFill;
+        private Border fill;
         private float maximum = 100;
         private float minimum;
         private float progressValue;
@@ -24,17 +31,15 @@ namespace Icy.UI.Controls
         /// </summary>
         public ProgressBar()
         {
-            fill = new Border
+            defaultFill = fill = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Stretch,
                 Background = new SolidColorBrush(Color.DodgerBlue),
             };
 
-            // Safe only here, at construction: Chrome is always the default Border until/unless Template is set
-            // later. ProgressBar doesn't override CaptureTemplateState/RestoreTemplateState, so - like Slider -
-            // it isn't template-safe yet; setting Template on a ProgressBar would orphan fill entirely. Named
-            // template parts (a future addition) are what's needed to make this safe.
+            // Safe here, at construction: Chrome is always the default Border until/unless Template is set later,
+            // in which case OnApplyTemplate re-wires (or re-attaches) fill appropriately.
             ((Border)Chrome).Child = fill;
         }
 
@@ -129,6 +134,28 @@ namespace Icy.UI.Controls
             // A progress bar's fill width is a function of its own final size, not the other way around, so
             // there's no meaningful content-derived natural size here - default to a reasonable fixed footprint.
             return new(120, 16);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Repoints <c>fill</c> - the element <see cref="ArrangeContent"/>/<see cref="FillBrush"/> already
+        /// manipulate by reference - to whichever <see cref="UI.Border"/> is actually live right now:
+        /// <see cref="Control.Template"/>'s own <c>PART_Fill</c> when one is set and provides it, or the built-in
+        /// <c>defaultFill</c> (re-attached to the fresh default Chrome) otherwise.
+        /// </remarks>
+        protected override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            if (Template != null && GetTemplateChild<Border>("PART_Fill") is { } part)
+            {
+                fill = part;
+                return;
+            }
+
+            fill = defaultFill;
+            if (Template == null)
+                ((Border)Chrome).Child = fill;
         }
 
         private void ClampValueToRange()

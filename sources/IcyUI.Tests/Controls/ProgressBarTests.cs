@@ -1,13 +1,24 @@
 using System.Drawing;
 using System.Linq;
+using Icy.Assets;
+using Icy.Configuration;
+using Icy.Markup;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
 {
     public class ProgressBarTests
     {
+        private static ControlTemplate LoadTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new Icy.Tests.Input.FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new Icy.Tests.Rendering.FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (ControlTemplate)loader.LoadObject(markup);
+        }
+
         [Fact]
         public void Value_ClampsToMinMaxRange()
         {
@@ -60,6 +71,76 @@ namespace Icy.Tests.Controls
 
             var fill = (Border)progressBar.EnumerateVisualSubtree().Last();
             Assert.Equal(0, fill.ActualBounds.Width);
+        }
+
+        [Fact]
+        public void Template_WithPartFill_ArrangeSizesTheTemplatesOwnFill()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="ProgressBar">
+                  <Border>
+                    <Border x:Name="PART_Fill" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var progressBar = new ProgressBar { Template = template, Minimum = 0, Maximum = 100, Value = 50 };
+
+            progressBar.Arrange(new Rectangle(0, 0, 200, 20));
+
+            var templatedFill = progressBar.EnumerateVisualSubtree().OfType<Border>().Single(b => b.Name == "PART_Fill");
+            Assert.Equal(100, templatedFill.Width);
+        }
+
+        [Fact]
+        public void Template_WithPartFill_ValueChangeUpdatesTheTemplatesOwnFill()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="ProgressBar">
+                  <Border>
+                    <Border x:Name="PART_Fill" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var progressBar = new ProgressBar { Template = template, Minimum = 0, Maximum = 100, Value = 50 };
+            progressBar.Arrange(new Rectangle(0, 0, 200, 20));
+
+            progressBar.Value = 25;
+            progressBar.Arrange(new Rectangle(0, 0, 200, 20));
+
+            var templatedFill = progressBar.EnumerateVisualSubtree().OfType<Border>().Single(b => b.Name == "PART_Fill");
+            Assert.Equal(50, templatedFill.Width);
+        }
+
+        [Fact]
+        public void Template_WithoutPartFill_StillArrangesWithoutThrowing()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="ProgressBar"><Border/></ControlTemplate>""");
+            var progressBar = new ProgressBar { Template = template, Minimum = 0, Maximum = 100, Value = 50 };
+
+            progressBar.Arrange(new Rectangle(0, 0, 200, 20));
+        }
+
+        [Fact]
+        public void Template_ClearedAfterBeingSet_RestoresDefaultFillBehavior()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="ProgressBar">
+                  <Border>
+                    <Border x:Name="PART_Fill" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var progressBar = new ProgressBar { Template = template, Minimum = 0, Maximum = 100, Value = 50 };
+            progressBar.Arrange(new Rectangle(0, 0, 200, 20));
+
+            progressBar.Template = null;
+            progressBar.Arrange(new Rectangle(0, 0, 200, 20));
+
+            var fill = (Border)progressBar.EnumerateVisualSubtree().Last();
+            Assert.Equal(100, fill.ActualBounds.Width);
         }
     }
 }

@@ -24,6 +24,21 @@ namespace Icy.Tests.Controls
             var loader = new MarkupLoader(configuration);
             return (ControlTemplate)loader.LoadObject(markup);
         }
+
+        private sealed class TestControl : Control
+        {
+            public int OnApplyTemplateCallCount { get; private set; }
+
+            public T? FindTemplateChild<T>(string name)
+                where T : UIElement => GetTemplateChild<T>(name);
+
+            protected override void OnApplyTemplate()
+            {
+                base.OnApplyTemplate();
+                OnApplyTemplateCallCount++;
+            }
+        }
+
         [Fact]
         public void Background_ForwardsToInternalChrome()
         {
@@ -227,6 +242,72 @@ namespace Icy.Tests.Controls
             var second = new Control { Template = template };
 
             Assert.NotSame(GetChrome(first), GetChrome(second));
+        }
+
+        [Fact]
+        public void GetTemplateChild_FindsNamedElementInsideTheCurrentTemplate()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Border><Image x:Name="PART_Icon"/></Border></ControlTemplate>""");
+            var control = new TestControl { Template = template };
+
+            Assert.NotNull(control.FindTemplateChild<Image>("PART_Icon"));
+        }
+
+        [Fact]
+        public void GetTemplateChild_UnknownName_ReturnsNull()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Border><Image x:Name="PART_Icon"/></Border></ControlTemplate>""");
+            var control = new TestControl { Template = template };
+
+            Assert.Null(control.FindTemplateChild<Image>("PART_DoesNotExist"));
+        }
+
+        [Fact]
+        public void GetTemplateChild_WrongType_ReturnsNull()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Border><Image x:Name="PART_Icon"/></Border></ControlTemplate>""");
+            var control = new TestControl { Template = template };
+
+            Assert.Null(control.FindTemplateChild<Border>("PART_Icon"));
+        }
+
+        [Fact]
+        public void GetTemplateChild_NoTemplateApplied_ReturnsNull()
+        {
+            var control = new TestControl();
+
+            Assert.Null(control.FindTemplateChild<UIElement>("PART_Anything"));
+        }
+
+        [Fact]
+        public void GetTemplateChild_DoesNotSearchOutsideTheTemplatesOwnScope()
+        {
+            // Regression guard for the reason this doesn't just reuse FindControl<T>: an element named the same
+            // as a template part, but declared in the OUTER document (not inside this control's own template),
+            // must not be found - FindControl<T> would find it (it searches from element.GetRoot()), but
+            // GetTemplateChild must not, since it's scoped to Chrome's own isolated MarkupNameScope only.
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            var outerDocument = loader.Load("""<StackPanel><Image x:Name="PART_Icon"/></StackPanel>""");
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Border/></ControlTemplate>""");
+            var control = new TestControl { Template = template };
+            ((Panel)outerDocument).Children.Add(control);
+
+            Assert.Null(control.FindTemplateChild<Image>("PART_Icon"));
+        }
+
+        [Fact]
+        public void OnApplyTemplate_CalledExactlyOncePerSwap_BothDirections()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");
+            var control = new TestControl();
+            Assert.Equal(0, control.OnApplyTemplateCallCount);
+
+            control.Template = template;
+            Assert.Equal(1, control.OnApplyTemplateCallCount);
+
+            control.Template = null;
+            Assert.Equal(2, control.OnApplyTemplateCallCount);
         }
     }
 }

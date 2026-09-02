@@ -2,10 +2,12 @@ using System.Drawing;
 using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Markup;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
@@ -19,6 +21,13 @@ namespace Icy.Tests.Controls
             var assets = new AssetConfiguration(AssetContext.ApplicationContext);
             var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
             return (new Canvas(config), input);
+        }
+
+        private static ControlTemplate LoadTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (ControlTemplate)loader.LoadObject(markup);
         }
 
         [Fact]
@@ -143,6 +152,91 @@ namespace Icy.Tests.Controls
             Assert.Equal(0, slider.Value);
 
             input.Events.Drag.RaiseDragEnded(new Point(-500, -500));
+        }
+
+        [Fact]
+        public void Template_WithPartThumb_ArrangePositionsTheTemplatesOwnThumb()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="Slider">
+                  <Border>
+                    <Border x:Name="PART_Thumb" Width="16" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var slider = new Slider { Template = template, Width = 200, Height = 20, Minimum = 0, Maximum = 100, Value = 50 };
+
+            slider.Arrange(new Rectangle(0, 0, 200, 20));
+
+            var templatedThumb = slider.EnumerateVisualSubtree().OfType<Border>().Single(b => b.Width == 16);
+            // roaming = ContentBounds.Width(200) - BorderThickness.Width(0) - ThumbSize(16) = 184; at 50%, margin = 92.
+            Assert.Equal(92, templatedThumb.Margin.Left);
+        }
+
+        [Fact]
+        public void Template_WithPartThumb_DragUpdatesValueAndTheTemplatesOwnThumb()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="Slider">
+                  <Border>
+                    <Border x:Name="PART_Thumb" Width="16" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var slider = new Slider
+            {
+                Template = template,
+                Width = 200,
+                Height = 20,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Minimum = 0,
+                Maximum = 100,
+            };
+            canvas.Add(slider);
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(100, 10));
+            canvas.Render();
+
+            Assert.Equal(50, slider.Value);
+            var templatedThumb = slider.EnumerateVisualSubtree().OfType<Border>().Single(b => b.Width == 16);
+            Assert.Equal(92, templatedThumb.Margin.Left);
+        }
+
+        [Fact]
+        public void Template_WithoutPartThumb_StillArrangesWithoutThrowing()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Slider"><Border/></ControlTemplate>""");
+            var slider = new Slider { Template = template, Width = 200, Height = 20, Minimum = 0, Maximum = 100, Value = 50 };
+
+            slider.Arrange(new Rectangle(0, 0, 200, 20));
+        }
+
+        [Fact]
+        public void Template_ClearedAfterBeingSet_RestoresDefaultThumbBehavior()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="Slider">
+                  <Border>
+                    <Border x:Name="PART_Thumb" Width="16" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var slider = new Slider { Template = template, Width = 200, Height = 20, Minimum = 0, Maximum = 100, Value = 50 };
+            slider.Arrange(new Rectangle(0, 0, 200, 20));
+
+            slider.Template = null;
+            slider.Arrange(new Rectangle(0, 0, 200, 20));
+
+            var thumb = (Border)slider.EnumerateVisualSubtree().Last();
+            Assert.Equal(92, thumb.Margin.Left);
         }
     }
 }
