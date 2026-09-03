@@ -9,6 +9,7 @@ using Icy.Data;
 using Icy.Data.Bindings;
 using Icy.Data.Markup;
 using Icy.Input;
+using Icy.Input.DragDrop;
 using Icy.Rendering;
 using Icy.Rendering.Brushes;
 using Icy.UI.Styles;
@@ -27,9 +28,11 @@ namespace Icy.UI
     {
         private readonly Diagnostics.DebugHudHost debugHudHost;
         private readonly Stopwatch frameTime = new();
+        private readonly List<UIElement> overlayElements = [];
         private readonly List<UIElement> rootElements = [];
         private readonly Dictionary<UIElement, UIElement?> scopeReturnFocus = [];
         private IBrush? background;
+        private DragDropSession? dragDropSession;
         private UIElement? hoveredElement;
         private bool inputRoutingInitialized;
         private Transform2D inverseTransform;
@@ -84,6 +87,25 @@ namespace Icy.UI
         /// an application can add further shared resources here directly.
         /// </remarks>
         public ResourceDictionary Resources { get; } = new();
+
+        /// <summary>
+        /// Gets the ordered list of elements drawn last, every frame, directly in screen space - unclipped,
+        /// ignoring this canvas's own pan/rotate/scale transform (see <see cref="Offset"/>/<see cref="Rotation"/>/
+        /// <see cref="Scale"/>). The last entry draws on top.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately minimal - no z-ordering beyond insertion order, no adorner/anchoring system. An entry
+        /// positions itself via its own <see cref="UIElement.Margin"/>/<see cref="UIElement.HorizontalAlignment"/>/
+        /// <see cref="UIElement.VerticalAlignment"/> against the full viewport, arranged the same way
+        /// <see cref="Diagnostics.DebugHudHost"/>'s own screen-space HUD already is. Not part of
+        /// <see cref="HitTest(Point)"/>/focus traversal or <see cref="Add(UIElement)"/>'s root-element list - an
+        /// overlay (a <see cref="DragDropSession.Preview"/>, a future <c>Dialog</c>'s backdrop, a future
+        /// <c>ComboBox</c>'s dropdown) sits visually above everything without competing for normal hit-testing/tab
+        /// order; a caller wires that up itself if it needs any. Use <see cref="AddOverlay(UIElement)"/>/
+        /// <see cref="RemoveOverlay(UIElement)"/> to change it, not direct list mutation - those also wire
+        /// <see cref="UIElement.Canvas"/>.
+        /// </remarks>
+        public IReadOnlyList<UIElement> Overlays => overlayElements;
 
         /// <summary>
         /// Gets or sets a value indicating whether a <c>Debug.Visualization</c> override on an individual element
@@ -210,6 +232,32 @@ namespace Icy.UI
         {
             rootElements.Add(element);
             element.Canvas = this;
+        }
+
+        /// <summary>
+        /// Adds an element to <see cref="Overlays"/> and wires its <see cref="UIElement.Canvas"/>.
+        /// </summary>
+        /// <param name="element">The element to add.</param>
+        public void AddOverlay(UIElement element)
+        {
+            overlayElements.Add(element);
+            element.Canvas = this;
+        }
+
+        /// <summary>
+        /// Removes an element from <see cref="Overlays"/> and clears its <see cref="UIElement.Canvas"/>.
+        /// </summary>
+        /// <param name="element">The element to remove.</param>
+        /// <returns><see langword="true"/> if the element was found and removed; otherwise, <see langword="false"/>.</returns>
+        public bool RemoveOverlay(UIElement element)
+        {
+            if (overlayElements.Remove(element))
+            {
+                element.Canvas = null;
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -400,6 +448,13 @@ namespace Icy.UI
             base.OnPropertyChanging(e);
         }
 
+        private static void PositionOverlayAtScreenPoint(UIElement overlay, Point screenPoint)
+        {
+            overlay.HorizontalAlignment = HorizontalAlignment.Left;
+            overlay.VerticalAlignment = VerticalAlignment.Top;
+            overlay.Margin = new Thickness(screenPoint.X, screenPoint.Y, 0, 0);
+        }
+
         /// <summary>
         /// Enumerates <paramref name="element"/> followed by every ancestor up to the root, via <see cref="UIElement.Parent"/>.
         /// </summary>
@@ -448,12 +503,30 @@ namespace Icy.UI
             foreach (UIElement element in SelfAndAncestors(draggedElement))
                 element.OnDragEnded(e.Data);
             draggedElement = null;
+
+            if (dragDropSession is { } session)
+            {
+                session.ScreenPoint = e.Data;
+                if (session.CurrentTarget is { } target && target.CanDrop(session))
+                    target.OnDrop(session);
+                if (session.Preview != null)
+                    RemoveOverlay(session.Preview);
+                dragDropSession = null;
+            }
         }
 
         private void OnDragPerforming(object? sender, GenericEventArgs<Point> e)
         {
             foreach (UIElement element in SelfAndAncestors(draggedElement))
                 element.OnDragPerforming(e.Data);
+
+            if (dragDropSession is { } session)
+            {
+                session.ScreenPoint = e.Data;
+                if (session.Preview != null)
+                    PositionOverlayAtScreenPoint(session.Preview, e.Data);
+                UpdateDragDropTarget(session, e.Data);
+            }
         }
 
         private void OnDragStarted(object? sender, AcceptableEventArgs<Point> e)
@@ -461,6 +534,47 @@ namespace Icy.UI
             draggedElement = HitTest(e.Data);
             foreach (UIElement element in SelfAndAncestors(draggedElement))
                 element.OnDragStarted(e.Data);
+
+            foreach (UIElement element in SelfAndAncestors(draggedElement))
+            {
+                if (element is IDragSource source && source.TryBeginDrag(e.Data, out object? payload, out UIElement? preview))
+                {
+                    // TryBeginDrag's own contract requires a non-null payload on a true return.
+                    dragDropSession = new DragDropSession(element, payload!, e.Data) { Preview = preview };
+                    if (preview != null)
+                    {
+                        AddOverlay(preview);
+                        PositionOverlayAtScreenPoint(preview, e.Data);
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        private void UpdateDragDropTarget(DragDropSession session, Point screenPoint)
+        {
+            UIElement? hit = HitTest(screenPoint);
+            IDropTarget? newTarget = null;
+            foreach (UIElement element in SelfAndAncestors(hit))
+            {
+                if (element is IDropTarget candidate && candidate.CanDrop(session))
+                {
+                    newTarget = candidate;
+                    break;
+                }
+            }
+
+            if (newTarget != session.CurrentTarget)
+            {
+                session.CurrentTarget?.OnDragLeave(session);
+                session.CurrentTarget = newTarget;
+                newTarget?.OnDragEnter(session);
+            }
+            else
+            {
+                newTarget?.OnDragOver(session);
+            }
         }
 
         private void OnTouchDown(object? sender, GenericEventArgs<Point> e)
@@ -528,6 +642,17 @@ namespace Icy.UI
                 element.Draw(context);
             }
 
+            if (overlayElements.Count > 0)
+            {
+                // Screen-space, not part of the scene these elements' HorizontalAlignment/VerticalAlignment/Margin
+                // were resolved against in UpdateLayout - reset both, mirroring DebugHudHost.Render's own reset for
+                // the same reason (context.Transform still holds this canvas's own pan/rotate/scale here).
+                context.Transform = Transform2D.Identity;
+                context.Options.Scissor = new Rectangle(Point.Empty, context.ViewportSize);
+                foreach (UIElement overlay in overlayElements)
+                    overlay.Draw(context);
+            }
+
             if (ActiveDebugTools.Count > 0)
                 debugHudHost.Render(context, frameTime.Elapsed);
 
@@ -584,6 +709,13 @@ namespace Icy.UI
         {
             foreach (var element in rootElements)
                 element.Arrange();
+
+            if (overlayElements.Count > 0)
+            {
+                var viewport = new Rectangle(Point.Empty, Configuration.RenderContext.ViewportSize);
+                foreach (UIElement overlay in overlayElements)
+                    overlay.Arrange(viewport);
+            }
         }
 
         private void UpdateTransform()
