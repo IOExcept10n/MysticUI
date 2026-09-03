@@ -18,12 +18,17 @@ namespace Icy.Configuration
         /// <param name="assets">Configuration of the assets system used by library in this application.</param>
         /// <param name="renderContext">The rendering service instance used by library in this application.</param>
         /// <param name="types">An instance of the reflection-related services used in library.</param>
-        public IcyConfiguration(IInputSystem input, AssetConfiguration assets, IRenderContext renderContext, ReflectionConfiguration types)
+        /// <param name="theme">
+        /// The default-theme configuration used by the library. Defaults to an empty <see cref="ThemeConfiguration"/>
+        /// (no theme applied) when omitted.
+        /// </param>
+        public IcyConfiguration(IInputSystem input, AssetConfiguration assets, IRenderContext renderContext, ReflectionConfiguration types, ThemeConfiguration? theme = null)
         {
             Input = input;
             Assets = assets;
             RenderContext = renderContext;
             Types = types;
+            Theme = theme ?? new();
             Fonts = new(this);
         }
 
@@ -51,5 +56,10 @@ namespace Icy.Configuration
         /// Gets the services for the reflection purposes.
         /// </summary>
         public ReflectionConfiguration Types { get; }
+
+        /// <summary>
+        /// Gets the default-theme configuration used by the library.
+        /// </summary>
+        public ThemeConfiguration Theme { get; }
     }
 }

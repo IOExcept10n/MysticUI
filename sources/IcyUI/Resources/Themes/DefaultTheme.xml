@@ -1,0 +1,112 @@
+<!-- Wrapped in a throwaway Border (never attached to anything - UseDefaultTheme discards it and keeps only
+     its .Resources) rather than loaded as a bare <ResourceDictionary> document root: {StaticResource} resolves
+     via the loader's UIElement ElementStack only, so a Style entry referencing a sibling ControlTemplate entry
+     (Template="{StaticResource ...}") needs a real UIElement ancestor on that stack while its own Resources are
+     being populated - a standalone ResourceDictionary document has none. -->
+<Border>
+  <Border.Resources>
+  <!-- Button -->
+  <ControlTemplate x:Key="IcyDefaultButtonTemplate" TargetType="Button">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+      <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="Button" Template="{StaticResource IcyDefaultButtonTemplate}"
+         Background="#FF3A3A44" BorderBrush="#FF56566A" BorderThickness="1" Padding="12,6">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" Background="#FF46465A"/>
+        <VisualState Name="Pressed" State="Pressed" Background="#FF2E2E38"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- ToggleButton -->
+  <ControlTemplate x:Key="IcyDefaultToggleButtonTemplate" TargetType="ToggleButton">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+      <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="ToggleButton" Template="{StaticResource IcyDefaultToggleButtonTemplate}"
+         Background="#FF3A3A44" BorderBrush="#FF56566A" BorderThickness="1" Padding="12,6">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" Background="#FF46465A"/>
+        <VisualState Name="Pressed" State="Pressed" Background="#FF2E2E38"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+      <VisualStateGroup Name="CheckStates">
+        <VisualState Name="Checked" State="Checked" Background="#FF3C78D8"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- CheckBox -->
+  <ControlTemplate x:Key="IcyDefaultCheckBoxTemplate" TargetType="CheckBox">
+    <StackPanel Orientation="Horizontal">
+      <Border Width="16" Height="16" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Margin="0,0,8,0">
+        <Icon Kind="Checkmark" Stroke="{TemplateBinding CheckBrush}" StrokeThickness="2"/>
+      </Border>
+      <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center"/>
+    </StackPanel>
+  </ControlTemplate>
+
+  <Style TargetType="CheckBox" Template="{StaticResource IcyDefaultCheckBoxTemplate}"
+         Background="#FF3A3A44" BorderBrush="#FF56566A" BorderThickness="1" CheckBrush="Transparent">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" BorderBrush="#FF6A6A80"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+      <VisualStateGroup Name="CheckStates">
+        <VisualState Name="Checked" State="Checked" Background="#FF3C78D8" CheckBrush="White"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- Slider -->
+  <ControlTemplate x:Key="IcyDefaultSliderTemplate" TargetType="Slider">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+      <Border x:Name="PART_Thumb" Width="16" HorizontalAlignment="Left" VerticalAlignment="Stretch" Background="{TemplateBinding ThumbBrush}"/>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="Slider" Template="{StaticResource IcyDefaultSliderTemplate}"
+         Background="#FF3A3A44" BorderBrush="#FF56566A" BorderThickness="1" ThumbBrush="White">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" ThumbBrush="#FFE0E0E0"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- ProgressBar -->
+  <ControlTemplate x:Key="IcyDefaultProgressBarTemplate" TargetType="ProgressBar">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+      <Border x:Name="PART_Fill" HorizontalAlignment="Left" VerticalAlignment="Stretch" Background="{TemplateBinding FillBrush}"/>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="ProgressBar" Template="{StaticResource IcyDefaultProgressBarTemplate}"
+         Background="#FF3A3A44" BorderBrush="#FF56566A" BorderThickness="1" FillBrush="#FF3C78D8"/>
+
+  <!-- TextBox, ScrollViewer, Window: Style-only (Border-level decoration through Control's existing dual-path
+       forwarding) - neither is template-safe yet (see Control.Template's own remarks), so no ControlTemplate is
+       applied to them here; a future named-template-parts retrofit can add one without touching these entries. -->
+  <Style TargetType="TextBox" Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="6,4">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <Style TargetType="ScrollViewer" Background="Transparent" BorderBrush="#FF56566A" BorderThickness="0"/>
+
+  <Style TargetType="Window" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
+  </Border.Resources>
+</Border>

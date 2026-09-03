@@ -16,6 +16,8 @@ namespace Icy.Configuration
     /// </summary>
     public static class BuildingExtensions
     {
+        private const string DefaultThemeResourceName = "Icy.Resources.Themes.DefaultTheme.xml";
+
         /// <summary>
         /// Sets the localizer for the asset configuration.
         /// </summary>
@@ -246,6 +248,55 @@ namespace Icy.Configuration
             return builder
                 .AddImporter<UI.UIElement>(new MarkupImporter(configuration))
                 .AddImporter<UI.ResourceDictionary>(new ResourceDictionaryImporter(configuration));
+        }
+
+        /// <summary>
+        /// Configures the default-theme facet - the <see cref="UI.ResourceDictionary"/> a <see cref="UI.Canvas"/>
+        /// exposes to every element attached to it (see <see cref="UI.Canvas.Resources"/>).
+        /// </summary>
+        /// <param name="builder">The theme configuration builder instance.</param>
+        /// <param name="configure">The configuration action applied to <see cref="ReflectionConfiguration"/>-sibling <see cref="ThemeConfiguration"/>.</param>
+        /// <returns>The current theme configuration builder instance for fluent configuration.</returns>
+        /// <example>
+        /// <code language="csharp">
+        /// builder.ConfigureTheme(t => t.Theme = myCustomThemeDictionary);
+        /// </code>
+        /// </example>
+        public static IThemeConfigurationBuilder ConfigureTheme(this IThemeConfigurationBuilder builder, Action<ThemeConfiguration> configure)
+        {
+            ArgumentNullException.ThrowIfNull(configure);
+            configure(builder.Theme);
+            return builder;
+        }
+
+        /// <summary>
+        /// Loads IcyUI's own bundled default theme and assigns it to <see cref="IcyConfiguration.Theme"/>'s
+        /// <see cref="ThemeConfiguration.Theme"/> property, so a <see cref="UI.Canvas"/> built against
+        /// <paramref name="configuration"/> gives every Tier-1 control (<see cref="UI.Controls.Button"/>,
+        /// <see cref="UI.Controls.CheckBox"/>, etc.) a real default look with no further setup.
+        /// </summary>
+        /// <param name="configuration">The built configuration to load the theme through and assign it to.</param>
+        /// <returns><paramref name="configuration"/>, for fluent chaining.</returns>
+        /// <exception cref="InvalidOperationException">The bundled default-theme resource is missing.</exception>
+        /// <remarks>
+        /// Unlike every other facet configured through <see cref="IcyConfigurationBuilder"/>, this must run
+        /// <em>after</em> <see cref="IConfigurationBuilder.Build"/> - loading the theme markup needs a fully-built
+        /// <see cref="IcyConfiguration"/> (a real <see cref="Markup.MarkupLoader"/>, type resolution, and property
+        /// registration), the same reason <see cref="AddMarkupSupport(IAssetConfigurationBuilder, IcyConfiguration)"/>
+        /// is itself a post-build call.
+        /// </remarks>
+        public static IcyConfiguration UseDefaultTheme(this IcyConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            using Stream stream = typeof(BuildingExtensions).Assembly.GetManifestResourceStream(DefaultThemeResourceName)
+                ?? throw new InvalidOperationException($"The bundled default theme resource '{DefaultThemeResourceName}' is missing.");
+            var loader = new MarkupLoader(configuration);
+
+            // Loaded as a throwaway UIElement (see DefaultTheme.xml's own remarks on why it isn't a bare
+            // <ResourceDictionary> document) purely to reach its .Resources - the element itself is discarded.
+            UI.UIElement host = loader.Load(stream, "DefaultTheme.xml");
+            configuration.Theme.Theme = host.Resources;
+            return configuration;
         }
 
         /// <summary>

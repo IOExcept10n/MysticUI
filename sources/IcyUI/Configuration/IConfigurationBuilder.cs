@@ -83,5 +83,18 @@ namespace Icy.Configuration
         /// such as setting up assemblies resolving, types conversion and other related settings.
         /// </remarks>
         IReflectionConfigurationBuilder ConfigureTypes();
+
+        /// <summary>
+        /// Sets the theme configuration to be used by the library.
+        /// </summary>
+        /// <param name="themeConfiguration">The theme configuration instance.</param>
+        /// <returns>The current builder instance for fluent configuration.</returns>
+        IThemeConfigurationBuilder ConfigureTheme(ThemeConfiguration themeConfiguration);
+
+        /// <summary>
+        /// Configures the default theme settings with additional settings.
+        /// </summary>
+        /// <returns>An instance of <see cref="IThemeConfigurationBuilder"/> to further configure the default theme.</returns>
+        IThemeConfigurationBuilder ConfigureTheme();
     }
 }

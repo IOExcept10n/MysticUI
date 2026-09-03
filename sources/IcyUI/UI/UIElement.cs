@@ -1505,12 +1505,14 @@ namespace Icy.UI
 
         /// <summary>
         /// Looks up an implicit (keyless, exact-type-targeted) <see cref="Styles.Style"/> for this element's own
-        /// type, walking <see cref="Parent"/> the same way <c>{StaticResource}</c> does.
+        /// type, walking <see cref="Parent"/> the same way <c>{StaticResource}</c> does, then falling back to
+        /// <see cref="Canvas.Resources"/> once the ancestor chain is exhausted.
         /// </summary>
         /// <returns>
         /// The implicit <see cref="Styles.Style"/> registered for this element's exact type in the nearest
-        /// ancestor's <see cref="Resources"/> (or this element's own), or <see langword="null"/> when none is
-        /// registered anywhere along that chain.
+        /// ancestor's <see cref="Resources"/> (or this element's own), or in <see cref="Canvas.Resources"/> (e.g. a
+        /// theme configured via <see cref="Icy.Configuration.ThemeConfiguration"/>) when no ancestor has one -
+        /// <see langword="null"/> when none is registered anywhere along that chain either.
         /// </returns>
         private Style? ResolveImplicitStyle()
         {
@@ -1520,6 +1522,9 @@ namespace Icy.UI
                 if (element.HasResources && element.Resources.TryGetValue(key, out object? value) && value is Style style)
                     return style;
             }
+
+            if (Canvas != null && Canvas.Resources.TryGetValue(key, out object? canvasValue) && canvasValue is Style canvasStyle)
+                return canvasStyle;
 
             return null;
         }

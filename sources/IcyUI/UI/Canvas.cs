@@ -53,6 +53,8 @@ namespace Icy.UI
         {
             Configuration = config;
             debugHudHost = new(this);
+            if (config.Theme.Theme != null)
+                Resources.MergedDictionaries.Add(config.Theme.Theme);
         }
 
         /// <summary>
@@ -67,6 +69,21 @@ namespace Icy.UI
         /// freely mix overlay and panel names.
         /// </remarks>
         public ISet<string> ActiveDebugTools { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Gets the canvas-wide resource dictionary - the root of the resource chain every attached
+        /// <see cref="UIElement"/> can reach, one level above its own outermost ancestor's <see cref="UIElement.Resources"/>.
+        /// </summary>
+        /// <remarks>
+        /// Only consulted for implicit (keyless, per-type) <see cref="Styles.Style"/> resolution, as the final
+        /// fallback once an element's own ancestor-<see cref="UIElement.Parent"/> chain is exhausted -
+        /// <c>{StaticResource}</c> resolves entirely at markup-load time against the document's own root, so it
+        /// never reaches this far. Populated with <see cref="Icy.Configuration.ThemeConfiguration.Theme"/>
+        /// automatically at construction when set (see
+        /// <see cref="Icy.Configuration.BuildingExtensions.UseDefaultTheme(Icy.Configuration.IcyConfiguration)"/>);
+        /// an application can add further shared resources here directly.
+        /// </remarks>
+        public ResourceDictionary Resources { get; } = new();
 
         /// <summary>
         /// Gets or sets a value indicating whether a <c>Debug.Visualization</c> override on an individual element

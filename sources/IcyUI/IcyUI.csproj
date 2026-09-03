@@ -31,4 +31,7 @@
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Themes\DefaultTheme.xml" />
+  </ItemGroup>
 </Project>

@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using CommunityToolkit.Mvvm.Input;
+using Icy.Configuration;
 using Icy.Input.Devices;
 using Icy.Rendering.Brushes;
 using Icy.SharedSamples;
@@ -58,6 +59,7 @@ namespace Icy.StrideSample
 
             IcyUISceneRenderer overlay = this.UseIcyUI();
             var configuration = this.GetIcyConfiguration();
+            configuration.UseDefaultTheme();
             canvas = new Canvas(configuration)
             {
                 Background = new SolidColorBrush(Color.FromArgb(255, 25, 25, 30)),

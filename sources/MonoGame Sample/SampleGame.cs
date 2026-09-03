@@ -33,6 +33,7 @@ namespace Icy.MonoGameSample
             this.UseIcyUI();
 
             uiConfiguration = this.GetIcyConfiguration();
+            uiConfiguration.UseDefaultTheme();
             canvas = new(uiConfiguration);
 
             samplesRunner.Prepare([

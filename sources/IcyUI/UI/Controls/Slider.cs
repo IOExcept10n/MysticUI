@@ -63,6 +63,19 @@ namespace Icy.UI.Controls
         public event EventHandler? ValueChanged;
 
         /// <summary>
+        /// Gets or sets the brush used to paint the thumb - the currently-live one (the default built-in thumb, or
+        /// a <see cref="Control.Template"/>'s own <c>PART_Thumb</c> once <see cref="OnApplyTemplate"/> has repointed
+        /// <c>thumb</c> to it).
+        /// </summary>
+        [Category("Appearance")]
+        [RegisterReference]
+        public IBrush ThumbBrush
+        {
+            get => thumb.Background;
+            set => thumb.Background = value;
+        }
+
+        /// <summary>
         /// Gets or sets the value <see cref="Value"/> can reach at the right end of the track.
         /// </summary>
         [Category("Behavior")]

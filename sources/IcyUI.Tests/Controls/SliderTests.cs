@@ -31,6 +31,20 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void ThumbBrush_DefaultsToWhiteAndIsSettable()
+        {
+            var slider = new Slider();
+
+            var defaultBrush = Assert.IsType<Icy.Rendering.Brushes.SolidColorBrush>(slider.ThumbBrush);
+            Assert.Equal(Color.White.ToArgb(), defaultBrush.Color.ToArgb());
+
+            var newBrush = new Icy.Rendering.Brushes.SolidColorBrush(Color.Red);
+            slider.ThumbBrush = newBrush;
+
+            Assert.Same(newBrush, slider.ThumbBrush);
+        }
+
+        [Fact]
         public void Value_ClampsToMinMaxRange()
         {
             var slider = new Slider { Minimum = 0, Maximum = 100 };

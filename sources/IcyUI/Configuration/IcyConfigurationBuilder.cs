@@ -16,7 +16,8 @@ namespace Icy.Configuration
         IAssetConfigurationBuilder,
         IInputConfigurationBuilder,
         IRenderingConfigurationBuilder,
-        IReflectionConfigurationBuilder
+        IReflectionConfigurationBuilder,
+        IThemeConfigurationBuilder
     {
         /// <inheritdoc/>
         [NotNull]
@@ -35,13 +36,18 @@ namespace Icy.Configuration
         public ReflectionConfiguration? Types { get; private set; }
 
         /// <inheritdoc/>
+        [NotNull]
+        public ThemeConfiguration? Theme { get; private set; }
+
+        /// <inheritdoc/>
         public IcyConfiguration Build()
         {
             Guard.IsNotNull(InputSystem);
             Guard.IsNotNull(RenderContext);
             ConfigureTypes();
             ConfigureAssets();
-            return new IcyConfiguration(InputSystem, Assets, RenderContext, Types);
+            ConfigureTheme();
+            return new IcyConfiguration(InputSystem, Assets, RenderContext, Types, Theme);
         }
 
         /// <inheritdoc/>
@@ -97,6 +103,20 @@ namespace Icy.Configuration
         public IReflectionConfigurationBuilder ConfigureTypes()
         {
             Types ??= new ReflectionConfiguration();
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public IThemeConfigurationBuilder ConfigureTheme(ThemeConfiguration themeConfiguration)
+        {
+            Theme = themeConfiguration;
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public IThemeConfigurationBuilder ConfigureTheme()
+        {
+            Theme ??= new ThemeConfiguration();
             return this;
         }
     }
