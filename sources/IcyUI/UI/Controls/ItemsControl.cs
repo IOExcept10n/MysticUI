@@ -162,6 +162,14 @@ namespace Icy.UI.Controls
         private float AverageHeight => knownCount > 0 ? sumOfKnownHeights / knownCount : DefaultEstimatedItemHeight;
 
         /// <summary>
+        /// Gets the offset-from-anchor distance beyond which a walk (spec §5's "small delta" path) is abandoned in
+        /// favor of a direct landing-index estimate (the "big jump" path) - a scrollbar-thumb drag lands far from
+        /// the current anchor almost every time, where a step-by-step walk would visit most of the collection just
+        /// to get there.
+        /// </summary>
+        private float BigJumpThreshold => Math.Max(viewportHeight * 3f, 1f);
+
+        /// <summary>
         /// Records <paramref name="newHeight"/> as <paramref name="index"/>'s real measured height, folding the
         /// change into <see cref="ExtentHeight"/>'s running totals - see the Phase 2 design spec §5/§6.
         /// </summary>
@@ -296,15 +304,29 @@ namespace Icy.UI.Controls
             RealizeRange(anchorIndex, anchorOffset);
         }
 
-        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
+        /// <inheritdoc/>
+        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
 
-        /// <summary>
-        /// Gets the offset-from-anchor distance beyond which a walk (spec §5's "small delta" path) is abandoned in
-        /// favor of a direct landing-index estimate (the "big jump" path) - a scrollbar-thumb drag lands far from
-        /// the current anchor almost every time, where a step-by-step walk would visit most of the collection just
-        /// to get there.
-        /// </summary>
-        private float BigJumpThreshold => Math.Max(viewportHeight * 3f, 1f);
+        /// <inheritdoc/>
+        protected override IEnumerable<UIElement> GetVisualChildren()
+        {
+            yield return Chrome;
+            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
+                yield return realizedContainers[index];
+        }
+
+        /// <inheritdoc/>
+        protected override Size MeasureContent() => new((int)ExtentWidth, (int)ExtentHeight);
+
+        /// <inheritdoc/>
+        protected override void OnRender(IRenderContext context)
+        {
+            Chrome.Draw(context);
+            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
+                realizedContainers[index].Draw(context);
+        }
+
+        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
 
         /// <summary>
         /// Finds the item whose slot contains the current <c>verticalOffset</c> - via a short walk from the last
@@ -375,28 +397,6 @@ namespace Icy.UI.Controls
                 if (!stillRealized.Contains(realizedIndex))
                     Derealize(realizedIndex);
             }
-        }
-
-        /// <inheritdoc/>
-        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
-
-        /// <inheritdoc/>
-        protected override IEnumerable<UIElement> GetVisualChildren()
-        {
-            yield return Chrome;
-            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
-                yield return realizedContainers[index];
-        }
-
-        /// <inheritdoc/>
-        protected override Size MeasureContent() => new((int)ExtentWidth, (int)ExtentHeight);
-
-        /// <inheritdoc/>
-        protected override void OnRender(IRenderContext context)
-        {
-            Chrome.Draw(context);
-            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
-                realizedContainers[index].Draw(context);
         }
 
         private void ResetItems()
