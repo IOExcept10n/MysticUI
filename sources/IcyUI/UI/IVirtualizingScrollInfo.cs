@@ -9,11 +9,22 @@ namespace Icy.UI
     /// </summary>
     /// <remarks>
     /// Mirrors WPF's <c>ScrollViewer</c> → <c>IScrollInfo</c> → <c>VirtualizingStackPanel</c> delegation. IcyUI has
-    /// no separate virtualizing-panel type - <see cref="Controls.ItemsControl"/> implements this interface
+    /// no separate virtualizing-panel type - <c>ItemsControl</c> implements this interface
     /// directly, since nothing else in the roadmap needs virtualized layout independent of an items list.
     /// </remarks>
     public interface IVirtualizingScrollInfo
     {
+        /// <summary>
+        /// Occurs when this content needs its host <see cref="Controls.ScrollViewer"/> to adjust
+        /// <see cref="Controls.ScrollViewer.VerticalOffset"/> by a specific amount, so on-screen content doesn't
+        /// visibly jump when something already realized (and positioned above the current viewport) changes size.
+        /// </summary>
+        /// <remarks>
+        /// The event's <see langword="float"/> payload is the delta to apply
+        /// (<c>VerticalOffset += delta</c>), not an absolute new value.
+        /// </remarks>
+        event EventHandler<float>? VerticalOffsetCorrectionRequested;
+
         /// <summary>
         /// Gets this content's full natural width, estimated or exact depending on how much of it has actually
         /// been measured so far.
@@ -25,17 +36,6 @@ namespace Icy.UI
         /// been measured so far.
         /// </summary>
         float ExtentHeight { get; }
-
-        /// <summary>
-        /// Occurs when this content needs its host <see cref="Controls.ScrollViewer"/> to adjust
-        /// <see cref="Controls.ScrollViewer.VerticalOffset"/> by a specific amount, so on-screen content doesn't
-        /// visibly jump when something already realized (and positioned above the current viewport) changes size.
-        /// </summary>
-        /// <remarks>
-        /// The event's <see langword="float"/> payload is the delta to apply
-        /// (<c>VerticalOffset += delta</c>), not an absolute new value.
-        /// </remarks>
-        event EventHandler<float>? VerticalOffsetCorrectionRequested;
 
         /// <summary>
         /// Called by the host <see cref="Controls.ScrollViewer"/> whenever the offset or viewport size it's
