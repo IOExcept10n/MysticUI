@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Numerics;
 using Icy.Data.Markup.Attributes;
 using Icy.Input.Events;
+using Icy.UI;
 
 namespace Icy.UI.Controls
 {
@@ -22,6 +23,7 @@ namespace Icy.UI.Controls
     {
         private float horizontalOffset;
         private float verticalOffset;
+        private IVirtualizingScrollInfo? subscribedVirtualizingContent;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ScrollViewer"/> class.
@@ -37,14 +39,18 @@ namespace Icy.UI.Controls
         public event EventHandler? ScrollChanged;
 
         /// <summary>
-        /// Gets <see cref="ContentControl.Content"/>'s full natural height, regardless of how much of it is currently visible.
+        /// Gets <see cref="ContentControl.Content"/>'s full natural height, regardless of how much of it is
+        /// currently visible - or, when <see cref="ContentControl.Content"/> implements
+        /// <see cref="IVirtualizingScrollInfo"/>, its own reported estimate instead of a full measure.
         /// </summary>
-        public float ExtentHeight => Content?.Measure().Height ?? 0;
+        public float ExtentHeight => Content is IVirtualizingScrollInfo virtualizing ? virtualizing.ExtentHeight : Content?.Measure().Height ?? 0;
 
         /// <summary>
-        /// Gets <see cref="ContentControl.Content"/>'s full natural width, regardless of how much of it is currently visible.
+        /// Gets <see cref="ContentControl.Content"/>'s full natural width, regardless of how much of it is
+        /// currently visible - or, when <see cref="ContentControl.Content"/> implements
+        /// <see cref="IVirtualizingScrollInfo"/>, its own reported estimate instead of a full measure.
         /// </summary>
-        public float ExtentWidth => Content?.Measure().Width ?? 0;
+        public float ExtentWidth => Content is IVirtualizingScrollInfo virtualizing ? virtualizing.ExtentWidth : Content?.Measure().Width ?? 0;
 
         /// <summary>
         /// Gets or sets how far <see cref="ContentControl.Content"/> is scrolled horizontally, clamped to
@@ -121,6 +127,30 @@ namespace Icy.UI.Controls
         /// <inheritdoc/>
         protected override void ArrangeContent()
         {
+            EnsureVirtualizingSubscription();
+
+            if (Content is IVirtualizingScrollInfo virtualizingContent)
+            {
+                // Virtualizing content lays itself out within the viewport directly (each realized item
+                // positions itself via its own OnViewportChanged call) - it must never be grown to its own full
+                // extent the way the non-virtualizing branch below does, or virtualization is defeated entirely.
+                //
+                // Chrome.Arrange must run BEFORE OnViewportChanged, not after: it's what cascades down and sets
+                // Content's own ActualBounds/ContentBounds for this frame (Chrome is a Border whose Child is
+                // Content - Border.ArrangeContent arranges its Child during this call). OnViewportChanged's
+                // realize walk reads Content's ContentBounds to position each realized container - calling it
+                // first would position everything against last frame's (or, on the very first layout pass ever,
+                // a still-default/empty) bounds instead of this frame's real ones.
+                HorizontalOffset = horizontalOffset;
+                VerticalOffset = verticalOffset;
+
+                Chrome.InvalidateArrange();
+                Chrome.Arrange(ActualBounds);
+
+                virtualizingContent.OnViewportChanged(HorizontalOffset, VerticalOffset, ViewportWidth, ViewportHeight);
+                return;
+            }
+
             // Chrome must be given room to grow to Content's full natural size along the scrollable axes, not
             // shrunk to fit ActualBounds the way the standard Arrange()/CalculateOverflow flow would (a child can
             // never overflow its parent there) - that's the entire point of scrolling. ClipToBounds on this
@@ -147,8 +177,37 @@ namespace Icy.UI.Controls
 
         private void UpdateContentOffset()
         {
+            EnsureVirtualizingSubscription();
+
+            if (Content is IVirtualizingScrollInfo virtualizingContent)
+            {
+                virtualizingContent.OnViewportChanged(HorizontalOffset, VerticalOffset, ViewportWidth, ViewportHeight);
+                return;
+            }
+
             if (Content != null)
                 Content.LayoutOffset = new Vector2(-HorizontalOffset, -VerticalOffset);
         }
+
+        /// <summary>
+        /// Keeps this control subscribed to whatever <see cref="ContentControl.Content"/> currently implements
+        /// <see cref="IVirtualizingScrollInfo"/>, so a <see cref="IVirtualizingScrollInfo.VerticalOffsetCorrectionRequested"/>
+        /// it raises actually reaches <see cref="VerticalOffset"/> - the value the scrollbar/user read.
+        /// </summary>
+        private void EnsureVirtualizingSubscription()
+        {
+            if (ReferenceEquals(subscribedVirtualizingContent, Content))
+                return;
+
+            if (subscribedVirtualizingContent != null)
+                subscribedVirtualizingContent.VerticalOffsetCorrectionRequested -= OnVerticalOffsetCorrectionRequested;
+
+            subscribedVirtualizingContent = Content as IVirtualizingScrollInfo;
+
+            if (subscribedVirtualizingContent != null)
+                subscribedVirtualizingContent.VerticalOffsetCorrectionRequested += OnVerticalOffsetCorrectionRequested;
+        }
+
+        private void OnVerticalOffsetCorrectionRequested(object? sender, float delta) => VerticalOffset += delta;
     }
 }

@@ -216,5 +216,85 @@ namespace Icy.Tests.Controls
             Assert.Equal(0, scrollViewer.ExtentHeight);
             Assert.Equal(0, scrollViewer.ExtentWidth);
         }
+
+        [Fact]
+        public void ExtentHeight_VirtualizingContent_ReadsItsEstimateNotAFullMeasure()
+        {
+            var content = new FakeVirtualizingContent { ExtentHeight = 12345f, ExtentWidth = 10f };
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = content };
+
+            Assert.Equal(12345f, scrollViewer.ExtentHeight);
+        }
+
+        [Fact]
+        public void ArrangeContent_VirtualizingContent_NeverGrowsChromeBeyondActualBounds()
+        {
+            var content = new FakeVirtualizingContent { ExtentHeight = 40000f, ExtentWidth = 10f };
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = content };
+
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(100, content.ActualBounds.Height);
+        }
+
+        [Fact]
+        public void ArrangeContent_VirtualizingContent_CallsOnViewportChangedWithCurrentOffsetAndViewport()
+        {
+            var content = new FakeVirtualizingContent { ExtentHeight = 40000f, ExtentWidth = 10f };
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = content };
+
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+            scrollViewer.VerticalOffset = 500;
+
+            Assert.Equal(500f, content.LastVerticalOffset);
+            Assert.Equal(100f, content.LastViewportHeight);
+        }
+
+        [Fact]
+        public void VerticalOffsetCorrectionRequested_FromContent_AdjustsScrollViewersVerticalOffset()
+        {
+            var content = new FakeVirtualizingContent { ExtentHeight = 40000f, ExtentWidth = 10f };
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = content };
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+            scrollViewer.VerticalOffset = 500;
+
+            content.RaiseCorrection(30f);
+
+            Assert.Equal(530f, scrollViewer.VerticalOffset);
+        }
+
+        [Fact]
+        public void NonVirtualizingContent_StillGetsFullMeasureAndArrangeBehavior()
+        {
+            // Regression: the non-virtualizing branch must be untouched by this change.
+            var content = new UIElement { Width = 100, Height = 500 };
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = content };
+
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(500, content.ActualBounds.Height);
+            Assert.Equal(500, scrollViewer.ExtentHeight);
+        }
+
+        private sealed class FakeVirtualizingContent : UIElement, IVirtualizingScrollInfo
+        {
+            public float ExtentHeight { get; set; }
+
+            public float ExtentWidth { get; set; }
+
+            public float LastVerticalOffset { get; private set; }
+
+            public float LastViewportHeight { get; private set; }
+
+            public event EventHandler<float>? VerticalOffsetCorrectionRequested;
+
+            public void OnViewportChanged(float horizontalOffset, float verticalOffset, float viewportWidth, float viewportHeight)
+            {
+                LastVerticalOffset = verticalOffset;
+                LastViewportHeight = viewportHeight;
+            }
+
+            public void RaiseCorrection(float delta) => VerticalOffsetCorrectionRequested?.Invoke(this, delta);
+        }
     }
 }
