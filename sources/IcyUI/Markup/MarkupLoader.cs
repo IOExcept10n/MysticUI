@@ -194,6 +194,46 @@ namespace Icy.Markup
         }
 
         /// <summary>
+        /// Builds a fresh visual tree from a <see cref="Icy.UI.Styles.DataTemplate"/>'s already-parsed content.
+        /// </summary>
+        /// <param name="content">
+        /// The template's root element, captured once when the <c>DataTemplate</c> itself was loaded (see
+        /// <see cref="CreateObject"/>'s <c>DataTemplate</c> special case) - not re-parsed from text here.
+        /// </param>
+        /// <param name="sourcePath">The template's source document path, used only to make error messages locatable.</param>
+        /// <returns>The freshly built root element.</returns>
+        /// <exception cref="MarkupException">
+        /// <paramref name="content"/> is malformed, breaks a rule of the language, or its root doesn't build a
+        /// <see cref="UIElement"/>.
+        /// </exception>
+        /// <remarks>
+        /// The <see cref="Icy.UI.Styles.DataTemplate"/> equivalent of <see cref="LoadTemplateContent"/>, minus the
+        /// <c>templatedControl</c> a <c>DataTemplate</c> has no use for - it supports no <c>{TemplateBinding}</c>,
+        /// so nothing in the built content ever needs to reach back to a "templated control".
+        /// </remarks>
+        public UIElement LoadDataTemplateContent(XElement content, string? sourcePath = null)
+        {
+            ArgumentNullException.ThrowIfNull(content);
+
+            var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
+
+            using (PropertyRegistry.UseScope(registry))
+            {
+                object instance = CreateObject(content, context);
+                if (instance is not UIElement element)
+                {
+                    throw MarkupException.At(
+                        $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
+                        content,
+                        sourcePath);
+                }
+
+                MarkupNameScope.SetScope(element, context.Names);
+                return element;
+            }
+        }
+
+        /// <summary>
         /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
         /// turns out to be - the two families only differ in how they react to that root.
         /// </summary>
@@ -435,6 +475,24 @@ namespace Icy.Markup
                 }
 
                 controlTemplate.SetContent(templateChildren[0], configuration, context.SourcePath);
+                return instance;
+            }
+
+            // A DataTemplate's content is built fresh per call to DataTemplate.Build, not once here at
+            // document-load time - same reasoning as the ControlTemplate case just above.
+            if (instance is Icy.UI.Styles.DataTemplate dataTemplate)
+            {
+                List<XElement> dataTemplateChildren = [.. element.Elements()];
+                if (dataTemplateChildren.Count != 1)
+                {
+                    throw MarkupException.At(
+                        $"'{nameof(Icy.UI.Styles.DataTemplate)}' needs exactly one root element, but {dataTemplateChildren.Count} were given."
+                            + (dataTemplateChildren.Count > 1 ? " Wrap them in a panel." : string.Empty),
+                        element,
+                        context.SourcePath);
+                }
+
+                dataTemplate.SetContent(dataTemplateChildren[0], configuration, context.SourcePath);
                 return instance;
             }
 
