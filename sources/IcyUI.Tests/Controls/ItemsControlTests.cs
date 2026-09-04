@@ -1,4 +1,8 @@
 using System.Collections.Generic;
+using Icy.Assets;
+using Icy.Configuration;
+using Icy.Markup;
+using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
 using Icy.UI.Styles;
@@ -139,5 +143,105 @@ namespace Icy.Tests.Controls
             var field = typeof(ItemsControl).GetField("anchorIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
             field.SetValue(control, index);
         }
+
+        [Fact]
+        public void EnsureRealized_BuildsAContainerAndMeasuresIt()
+        {
+            var control = new ItemsControl
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>"""),
+            };
+
+            InvokeEnsureRealized(control, 0);
+
+            var container = GetRealizedContainers(control)[0];
+            Assert.IsType<ItemContainer>(container);
+            Assert.Same(control, container.Parent);
+        }
+
+        [Fact]
+        public void EnsureRealized_CalledTwiceForSameIndex_BuildsOnlyOnce()
+        {
+            int buildCount = 0;
+            var template = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = new List<object> { "a" }, ItemTemplate = template };
+
+            InvokeEnsureRealized(control, 0);
+            ItemContainer first = GetRealizedContainers(control)[0];
+            InvokeEnsureRealized(control, 0);
+            ItemContainer second = GetRealizedContainers(control)[0];
+
+            Assert.Same(first, second);
+        }
+
+        [Fact]
+        public void Derealize_ThenEnsureRealizedAgain_ReusesThePooledContainer()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = new List<object> { "a", "b" }, ItemTemplate = template };
+            InvokeEnsureRealized(control, 0);
+            ItemContainer original = GetRealizedContainers(control)[0];
+
+            InvokeDerealize(control, 0);
+            Assert.Null(original.Parent); // detached once pooled, before anything reuses it
+
+            InvokeEnsureRealized(control, 1);
+
+            Assert.Same(original, GetRealizedContainers(control)[1]);
+        }
+
+        [Fact]
+        public void Derealize_PooledContainer_IsDetachedThenReattachedOnReuse()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = new List<object> { "a", "b" }, ItemTemplate = template };
+            InvokeEnsureRealized(control, 0);
+            ItemContainer original = GetRealizedContainers(control)[0];
+            InvokeDerealize(control, 0);
+
+            InvokeEnsureRealized(control, 1);
+
+            Assert.Same(control, original.Parent);
+        }
+
+        [Fact]
+        public void Derealize_PoolingDisabled_ContainerIsNotPooled()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = new List<object> { "a", "b" }, ItemTemplate = template, PoolingEnabled = false };
+            InvokeEnsureRealized(control, 0);
+            ItemContainer original = GetRealizedContainers(control)[0];
+            InvokeDerealize(control, 0);
+
+            InvokeEnsureRealized(control, 1);
+
+            Assert.NotSame(original, GetRealizedContainers(control)[1]);
+        }
+
+        [Fact]
+        public void EnsureRealized_NoTemplate_Throws()
+        {
+            var control = new ItemsControl { ItemsSource = new List<object> { "a" } };
+
+            var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() => InvokeEnsureRealized(control, 0));
+            Assert.IsType<InvalidOperationException>(ex.InnerException);
+        }
+
+        private static DataTemplate LoadDataTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new Tests.Input.FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (DataTemplate)loader.LoadObject(markup);
+        }
+
+        private static void InvokeEnsureRealized(ItemsControl control, int index) =>
+            typeof(ItemsControl).GetMethod("EnsureRealized", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(control, [index]);
+
+        private static void InvokeDerealize(ItemsControl control, int index) =>
+            typeof(ItemsControl).GetMethod("Derealize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(control, [index]);
+
+        private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
+            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
     }
 }

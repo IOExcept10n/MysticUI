@@ -197,6 +197,88 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Resolves the <see cref="DataTemplate"/> to use for <paramref name="item"/> -
+        /// <see cref="ItemTemplateSelector"/> first, falling back to <see cref="ItemTemplate"/>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Neither resolves a template for this item.</exception>
+        private DataTemplate ResolveTemplate(object item)
+        {
+            DataTemplate? resolved = ItemTemplateSelector?.Invoke(item) ?? ItemTemplate;
+            return resolved ?? throw new InvalidOperationException(
+                $"'{nameof(ItemsControl)}' has no '{nameof(ItemTemplate)}' or '{nameof(ItemTemplateSelector)}' to build item '{item}' from.");
+        }
+
+        /// <summary>
+        /// Gets a container for <paramref name="item"/> built with <paramref name="template"/> - popped from
+        /// <paramref name="template"/>'s pool and rebound when <see cref="PoolingEnabled"/> and one's available,
+        /// otherwise built fresh via <see cref="DataTemplate.Build(object)"/>.
+        /// </summary>
+        private ItemContainer RentContainer(DataTemplate template, object item)
+        {
+            if (PoolingEnabled && pools.TryGetValue(template, out Stack<ItemContainer>? pool) && pool.Count > 0)
+            {
+                ItemContainer pooled = pool.Pop();
+                if (pooled.Content != null)
+                    pooled.Content.DataContext = item;
+                pooled.InvalidateMeasure();
+                containerTemplates[pooled] = template;
+                return pooled;
+            }
+
+            var container = new ItemContainer { Content = template.Build(item) };
+            containerTemplates[container] = template;
+            return container;
+        }
+
+        /// <summary>
+        /// Realizes <paramref name="index"/> if it isn't already, wiring it into the visual tree, measuring it,
+        /// and folding its real height into the height cache (see <see cref="RecordHeight(int, float)"/>).
+        /// </summary>
+        private void EnsureRealized(int index)
+        {
+            if (realizedContainers.ContainsKey(index))
+                return;
+
+            object item = items[index];
+            DataTemplate template = ResolveTemplate(item);
+            ItemContainer container = RentContainer(template, item);
+
+            container.Parent = this;
+            container.Canvas = Canvas;
+            realizedContainers[index] = container;
+
+            float measuredHeight = container.Measure().Height;
+            RecordHeight(index, measuredHeight);
+        }
+
+        /// <summary>
+        /// De-realizes <paramref name="index"/> if it's currently realized - remeasures it one last time (folding
+        /// any final size change into the height cache, see the Phase 2 design spec §6), detaches it, and returns
+        /// it to its template's pool when <see cref="PoolingEnabled"/>.
+        /// </summary>
+        private void Derealize(int index)
+        {
+            if (!realizedContainers.Remove(index, out ItemContainer? container))
+                return;
+
+            float finalHeight = container.Measure().Height;
+            if (knownHeights[index] != finalHeight)
+                RecordHeight(index, finalHeight);
+
+            container.Parent = null;
+            container.Canvas = null;
+
+            if (PoolingEnabled && containerTemplates.TryGetValue(container, out DataTemplate? template))
+            {
+                if (!pools.TryGetValue(template, out Stack<ItemContainer>? pool))
+                    pools[template] = pool = new Stack<ItemContainer>();
+                pool.Push(container);
+            }
+
+            containerTemplates.Remove(container);
+        }
+
         /// <inheritdoc/>
         public virtual void OnViewportChanged(float newHorizontalOffset, float newVerticalOffset, float newViewportWidth, float newViewportHeight)
         {
