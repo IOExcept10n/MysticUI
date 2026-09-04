@@ -50,19 +50,16 @@ namespace Icy.UI.Controls
         private float viewportWidth;
         private float viewportHeight;
 
-        // Read by the anchoring logic landing in Tasks 5-7 (kept up to date here so it's ready when that logic
-        // starts consuming it); not yet read by anything in this skeleton.
-#pragma warning disable CS0414
+        // anchorIndex is read by RecordHeight's above-viewport correction (Task 5); anchorOffset is still
+        // write-only, kept up to date here so it's ready when the anchoring logic landing in Tasks 6-7 starts
+        // consuming it.
         private int anchorIndex;
+#pragma warning disable CS0414
         private float anchorOffset;
 #pragma warning restore CS0414
 
-        // Required by IVirtualizingScrollInfo; not yet raised until the above-viewport anchoring logic that needs
-        // it lands in a later realization task (5-7).
-#pragma warning disable CS0067
         /// <inheritdoc/>
         public event EventHandler<float>? VerticalOffsetCorrectionRequested;
-#pragma warning restore CS0067
 
         /// <summary>
         /// Gets or sets the estimated height given to an item that hasn't been realized/measured yet - used only
