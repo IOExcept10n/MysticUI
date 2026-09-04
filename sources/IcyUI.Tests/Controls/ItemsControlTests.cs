@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
@@ -338,5 +339,88 @@ namespace Icy.Tests.Controls
 
         private static int GetAnchorIndex(ItemsControl control) =>
             (int)typeof(ItemsControl).GetField("anchorIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
+
+        [Fact]
+        public void CollectionChanged_Add_InsertsAtCorrectPositionAndReallocatesLaterIndexes()
+        {
+            var source = new ObservableCollection<object> { "a", "b", "c" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+            InvokeEnsureRealized(control, 2); // realize "c" at index 2
+
+            source.Insert(1, "new");
+
+            var items = GetItems(control);
+            Assert.Equal(new object[] { "a", "new", "b", "c" }, items);
+            // "c"'s old index-2 realization must be gone - it would otherwise silently represent "b" now.
+            Assert.DoesNotContain(2, GetRealizedContainers(control).Keys);
+        }
+
+        [Fact]
+        public void CollectionChanged_Remove_UpdatesRunningHeightTotals()
+        {
+            var source = new ObservableCollection<object> { "a", "b", "c" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            InvokeEnsureRealized(control, 0);
+
+            source.RemoveAt(0);
+
+            Assert.Equal(new object[] { "b", "c" }, GetItems(control));
+            // The removed item's known 40px height must no longer count toward the extent.
+            Assert.Equal(2 * 40f, control.ExtentHeight);
+        }
+
+        [Fact]
+        public void CollectionChanged_Replace_ForgetsTheOldItemsKnownHeight()
+        {
+            var source = new ObservableCollection<object> { "a", "b" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="60"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            InvokeEnsureRealized(control, 0); // "a" measured at 60px
+
+            source[0] = "replaced";
+
+            Assert.Equal("replaced", GetItems(control)[0]);
+            // "a"'s known 60px must be gone (replaced item is unmeasured again) - only "b" is still unknown too,
+            // so both fall back to the 40px default: 40 + 40 = 80.
+            Assert.Equal(80f, control.ExtentHeight);
+        }
+
+        [Fact]
+        public void CollectionChanged_Move_KeepsTheMovedItemsKnownHeightWithIt()
+        {
+            var source = new ObservableCollection<object> { "a", "b", "c" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="70"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            InvokeEnsureRealized(control, 0); // "a" measured at 70px
+
+            source.Move(0, 2);
+
+            Assert.Equal(new object[] { "b", "c", "a" }, GetItems(control));
+            // "a" (still the only known item, at 70px) moved to index 2; the 2 unknown items re-estimate at the
+            // running average of known items (70, the only one there is - not the 40px default, which only
+            // applies while knownCount is zero): 70 + 70 + 70 = 210.
+            Assert.Equal(210f, control.ExtentHeight);
+        }
+
+        [Fact]
+        public void CollectionChanged_Reset_ClearsEverythingLikeReassigningItemsSource()
+        {
+            var source = new ObservableCollection<object> { "a", "b", "c" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            InvokeEnsureRealized(control, 0);
+
+            source.Clear();
+
+            Assert.Empty(GetItems(control));
+            Assert.Empty(GetRealizedContainers(control));
+            Assert.Equal(0, control.ExtentHeight);
+        }
+
+        private static List<object> GetItems(ItemsControl control) =>
+            (List<object>)typeof(ItemsControl).GetField("items", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
     }
 }

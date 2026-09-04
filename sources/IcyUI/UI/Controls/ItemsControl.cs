@@ -444,7 +444,112 @@ namespace Icy.UI.Controls
 
         private void OnSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            // Implemented in Task 8.
+            switch (e.Action)
+            {
+                case NotifyCollectionChangedAction.Add:
+                    InsertItems(e.NewStartingIndex, e.NewItems!);
+                    break;
+
+                case NotifyCollectionChangedAction.Remove:
+                    RemoveItems(e.OldStartingIndex, e.OldItems!.Count);
+                    break;
+
+                case NotifyCollectionChangedAction.Replace:
+                    ReplaceItems(e.OldStartingIndex, e.NewItems!);
+                    break;
+
+                case NotifyCollectionChangedAction.Move:
+                    MoveItems(e.OldStartingIndex, e.NewStartingIndex, e.OldItems!.Count);
+                    break;
+
+                case NotifyCollectionChangedAction.Reset:
+                default:
+                    items.Clear();
+                    if (itemsSource != null)
+                    {
+                        foreach (object item in itemsSource)
+                            items.Add(item);
+                    }
+
+                    ResetRealization();
+                    return;
+            }
+
+            InvalidateMeasure();
+            InvalidateArrange();
+        }
+
+        private void InsertItems(int startIndex, IList newItems)
+        {
+            DerealizeFromIndex(startIndex);
+
+            for (int i = 0; i < newItems.Count; i++)
+            {
+                items.Insert(startIndex + i, newItems[i]!);
+                knownHeights.Insert(startIndex + i, null);
+            }
+        }
+
+        private void RemoveItems(int startIndex, int count)
+        {
+            DerealizeFromIndex(startIndex);
+
+            for (int i = 0; i < count; i++)
+            {
+                if (knownHeights[startIndex] is { } removedHeight)
+                {
+                    sumOfKnownHeights -= removedHeight;
+                    knownCount--;
+                }
+
+                items.RemoveAt(startIndex);
+                knownHeights.RemoveAt(startIndex);
+            }
+        }
+
+        private void ReplaceItems(int startIndex, IList newItems)
+        {
+            // The item object at each of these indexes changed - whatever height was known for the slot described
+            // the OLD item, not this one, so it must be forgotten rather than kept.
+            DerealizeFromIndex(startIndex);
+
+            for (int i = 0; i < newItems.Count; i++)
+            {
+                int index = startIndex + i;
+                items[index] = newItems[i]!;
+
+                if (knownHeights[index] is { } previousHeight)
+                {
+                    sumOfKnownHeights -= previousHeight;
+                    knownCount--;
+                }
+
+                knownHeights[index] = null;
+            }
+        }
+
+        private void MoveItems(int oldStartIndex, int newStartIndex, int count)
+        {
+            DerealizeFromIndex(Math.Min(oldStartIndex, newStartIndex));
+
+            var movedItems = items.GetRange(oldStartIndex, count);
+            var movedHeights = knownHeights.GetRange(oldStartIndex, count);
+            items.RemoveRange(oldStartIndex, count);
+            knownHeights.RemoveRange(oldStartIndex, count);
+
+            items.InsertRange(newStartIndex, movedItems);
+            knownHeights.InsertRange(newStartIndex, movedHeights);
+        }
+
+        /// <summary>
+        /// De-realizes every currently-realized container at or after <paramref name="index"/> - a splice at
+        /// <paramref name="index"/> changes every later index's identity, so their realized containers (keyed by
+        /// index) would otherwise silently start representing the wrong item.
+        /// </summary>
+        private void DerealizeFromIndex(int index)
+        {
+            foreach (int realizedIndex in realizedContainers.Keys.Where(i => i >= index).ToList())
+                Derealize(realizedIndex);
         }
     }
 }
