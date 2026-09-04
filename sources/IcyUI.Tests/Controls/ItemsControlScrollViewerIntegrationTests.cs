@@ -90,11 +90,16 @@ namespace Icy.Tests.Controls
             var containersAtTop = GetRealizedContainers(itemsControl).Values.ToHashSet();
 
             scrollViewer.VerticalOffset = 4000;
-            var containersAfterScroll = GetRealizedContainers(itemsControl).Values.ToHashSet();
+            scrollViewer.VerticalOffset = 8000;
+            var containersAfterSecondScroll = GetRealizedContainers(itemsControl).Values.ToHashSet();
 
-            // At least some ItemContainer instances should be shared between the two realized sets (pooled reuse),
-            // not every single one freshly built - a weak but meaningful signal pooling actually engaged.
-            Assert.True(containersAtTop.Overlaps(containersAfterScroll) || containersAtTop.Intersect(containersAfterScroll).Any() || containersAfterScroll.Count > 0);
+            // The first scroll (0->4000) de-realizes the top range, returning its containers to the template's
+            // pool; RealizeRange realizes the new range before it de-realizes the old one, so pooled reuse only
+            // becomes observable on the NEXT realize pass, not the same one that triggered the de-realization -
+            // hence the second scroll here.
+            Assert.True(
+                containersAtTop.Overlaps(containersAfterSecondScroll),
+                "expected at least one ItemContainer instance to be reused (pooled) after a subsequent scroll");
         }
     }
 }
