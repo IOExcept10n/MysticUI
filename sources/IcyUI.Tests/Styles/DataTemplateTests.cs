@@ -77,15 +77,18 @@ namespace Icy.Tests.Styles
         public void Load_DoesNotEagerlyBuildTheContent()
         {
             // A DataTemplate's content is captured as raw markup (see ControlTemplate's own equivalent
-            // precedent) - loading the document must not itself construct a live UIElement tree, only Build does.
+            // precedent) - loading the document must not itself attempt to construct/resolve the content,
+            // only Build does. Content that's guaranteed to fail construction (an unresolvable type name)
+            // makes this discriminating: if LoadObject eagerly built the content, it would throw HERE; it
+            // doesn't, proving the load is deferred. Build() is where construction actually happens, and it
+            // does throw there for the same underlying reason - confirming the deferred content is real, not
+            // just silently dropped.
             var configuration = CreateConfiguration();
             var loader = new MarkupLoader(configuration);
 
-            var template = (DataTemplate)loader.LoadObject("""<DataTemplate><Button>Never built eagerly</Button></DataTemplate>""");
+            var template = (DataTemplate)loader.LoadObject("""<DataTemplate><ThisTypeDoesNotExistAnywhere/></DataTemplate>""");
 
-            // No exception, and Build still works afterward - proving the captured content is still there.
-            UIElement root = template.Build(new object());
-            Assert.IsType<Button>(root);
+            Assert.Throws<MarkupException>(() => template.Build(new object()));
         }
     }
 }
