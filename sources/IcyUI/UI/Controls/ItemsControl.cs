@@ -50,13 +50,11 @@ namespace Icy.UI.Controls
         private float viewportWidth;
         private float viewportHeight;
 
-        // anchorIndex is read by RecordHeight's above-viewport correction (Task 5); anchorOffset is still
-        // write-only, kept up to date here so it's ready when the anchoring logic landing in Tasks 6-7 starts
-        // consuming it.
+        // anchorIndex/anchorOffset track the item at the top of the viewport - anchorIndex is read by
+        // RecordHeight's above-viewport correction (Task 5); both are read and written by LocateViewportStart's
+        // anchor walk (Task 7).
         private int anchorIndex;
-#pragma warning disable CS0414
         private float anchorOffset;
-#pragma warning restore CS0414
 
         /// <inheritdoc/>
         public event EventHandler<float>? VerticalOffsetCorrectionRequested;
@@ -286,6 +284,97 @@ namespace Icy.UI.Controls
             verticalOffset = newVerticalOffset;
             viewportWidth = newViewportWidth;
             viewportHeight = newViewportHeight;
+
+            if (items.Count == 0)
+            {
+                foreach (int index in realizedContainers.Keys.ToList())
+                    Derealize(index);
+                return;
+            }
+
+            (anchorIndex, anchorOffset) = LocateViewportStart();
+            RealizeRange(anchorIndex, anchorOffset);
+        }
+
+        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
+
+        /// <summary>
+        /// Gets the offset-from-anchor distance beyond which a walk (spec §5's "small delta" path) is abandoned in
+        /// favor of a direct landing-index estimate (the "big jump" path) - a scrollbar-thumb drag lands far from
+        /// the current anchor almost every time, where a step-by-step walk would visit most of the collection just
+        /// to get there.
+        /// </summary>
+        private float BigJumpThreshold => Math.Max(viewportHeight * 3f, 1f);
+
+        /// <summary>
+        /// Finds the item whose slot contains the current <c>verticalOffset</c> - via a short walk from the last
+        /// anchor for a small scroll delta, or a direct estimate for a big jump (spec §5).
+        /// </summary>
+        private (int Index, float Offset) LocateViewportStart()
+        {
+            float distanceFromAnchor = Math.Abs(verticalOffset - anchorOffset);
+            if (realizedContainers.Count == 0 || distanceFromAnchor > BigJumpThreshold)
+            {
+                float average = AverageHeight;
+                int estimatedIndex = average > 0 ? (int)(verticalOffset / average) : 0;
+                estimatedIndex = Math.Clamp(estimatedIndex, 0, items.Count - 1);
+                return (estimatedIndex, estimatedIndex * average);
+            }
+
+            int index = Math.Clamp(anchorIndex, 0, items.Count - 1);
+            float offset = anchorOffset;
+            while (offset > verticalOffset && index > 0)
+            {
+                index--;
+                offset -= HeightOrEstimate(index);
+            }
+
+            while (index < items.Count - 1 && offset + HeightOrEstimate(index) <= verticalOffset)
+            {
+                offset += HeightOrEstimate(index);
+                index++;
+            }
+
+            return (index, offset);
+        }
+
+        /// <summary>
+        /// Realizes every item whose slot overlaps the viewport (plus a forward-only scroll-ahead buffer),
+        /// starting the walk at <paramref name="firstIndex"/>/<paramref name="firstOffset"/>; positions each
+        /// realized container, and de-realizes anything realized but no longer in range.
+        /// </summary>
+        private void RealizeRange(int firstIndex, float firstOffset)
+        {
+            const float ScrollAheadBuffer = 100f;
+            float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
+
+            var stillRealized = new HashSet<int>();
+            int index = firstIndex;
+            float offset = firstOffset;
+            while (index < items.Count && offset < rangeEnd)
+            {
+                EnsureRealized(index);
+                float height = HeightOrEstimate(index); // may just have become known, via EnsureRealized above
+                stillRealized.Add(index);
+
+                ItemContainer container = realizedContainers[index];
+                var targetRect = new Rectangle(
+                    ContentBounds.X,
+                    ContentBounds.Y + (int)(offset - verticalOffset),
+                    ContentBounds.Width,
+                    (int)height);
+                container.InvalidateArrange();
+                container.Arrange(targetRect);
+
+                offset += height;
+                index++;
+            }
+
+            foreach (int realizedIndex in realizedContainers.Keys.ToList())
+            {
+                if (!stillRealized.Contains(realizedIndex))
+                    Derealize(realizedIndex);
+            }
         }
 
         /// <inheritdoc/>

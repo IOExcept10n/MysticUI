@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Markup;
@@ -57,7 +58,11 @@ namespace Icy.Tests.Controls
         [Fact]
         public void ExtentWidth_EqualsCurrentViewportWidth()
         {
-            var control = new ItemsControl { ItemsSource = new List<object> { 1, 2, 3 } };
+            var control = new ItemsControl
+            {
+                ItemsSource = new List<object> { 1, 2, 3 },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="10"/></DataTemplate>"""),
+            };
 
             ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 250, 100);
 
@@ -242,5 +247,96 @@ namespace Icy.Tests.Controls
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
             (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
+
+        [Fact]
+        public void OnViewportChanged_AtTop_RealizesOnlyItemsInTheViewportPlusBuffer()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 1000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+
+            // Viewport 400px + 100px scroll-ahead buffer, ~40px/item -> ~12-13 items, nowhere near 1000.
+            var realized = GetRealizedContainers(control);
+            Assert.True(realized.Count < 20, $"expected far fewer than 1000 realized, got {realized.Count}");
+            Assert.Contains(0, realized.Keys);
+        }
+
+        [Fact]
+        public void OnViewportChanged_ScrollingDown_DerealizesItemsThatScrolledOut()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 1000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+            Assert.Contains(0, GetRealizedContainers(control).Keys);
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 2000, 300, 400);
+
+            Assert.DoesNotContain(0, GetRealizedContainers(control).Keys);
+        }
+
+        [Fact]
+        public void OnViewportChanged_BigJump_LandsNearTheEstimatedIndexWithoutWalkingEverything()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 1000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+
+            // 1000 * 40 = 40000 extent; jump to the middle.
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 20000, 300, 400);
+
+            var realized = GetRealizedContainers(control).Keys;
+            Assert.All(realized, index => Assert.InRange(index, 480, 520));
+        }
+
+        [Fact]
+        public void OnViewportChanged_SmallScroll_ReusesTheAnchorWalkNotAFullRescan()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 1000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 2000, 300, 400); // anchor near index 50
+            int anchorBefore = GetAnchorIndex(control);
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 2040, 300, 400); // one item's worth of scroll
+
+            int anchorAfter = GetAnchorIndex(control);
+            Assert.InRange(Math.Abs(anchorAfter - anchorBefore), 0, 3);
+        }
+
+        [Fact]
+        public void OnViewportChanged_ExtentHeightNarrowsAsRealItemsAreMeasured()
+        {
+            // Items report a real height (52) different from the 40px default estimate - after realizing the
+            // first handful, ExtentHeight should reflect that, not stay at the naive 1000*40 estimate.
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="52"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 1000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+
+            Assert.True(control.ExtentHeight > 1000 * 40f, "expected the estimate to move toward the real 52px height, not stay at the 40px default");
+        }
+
+        private static int GetAnchorIndex(ItemsControl control) =>
+            (int)typeof(ItemsControl).GetField("anchorIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
     }
 }
