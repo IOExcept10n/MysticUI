@@ -166,6 +166,40 @@ namespace Icy.UI.Controls
 
         private float AverageHeight => knownCount > 0 ? sumOfKnownHeights / knownCount : DefaultEstimatedItemHeight;
 
+        /// <summary>
+        /// Records <paramref name="newHeight"/> as <paramref name="index"/>'s real measured height, folding the
+        /// change into <see cref="ExtentHeight"/>'s running totals - see the Phase 2 design spec §5/§6.
+        /// </summary>
+        private void RecordHeight(int index, float newHeight)
+        {
+            float? previous = knownHeights[index];
+            if (previous == null)
+            {
+                sumOfKnownHeights += newHeight;
+                knownCount++;
+                knownHeights[index] = newHeight;
+                return;
+            }
+
+            float delta = newHeight - previous.Value;
+            if (delta == 0)
+                return;
+
+            sumOfKnownHeights += delta;
+            knownHeights[index] = newHeight;
+
+            // §6: an already-realized item resizing above the current top-visible index (anchorIndex) would
+            // otherwise visibly shift everything on screen, since nothing above the viewport is supposed to move
+            // it. Correct by shifting the offset itself by the same exact delta, and tell the host ScrollViewer -
+            // this control's own `verticalOffset` field is a private mirror of what ScrollViewer last reported;
+            // the event is what actually moves ScrollViewer.VerticalOffset (the value the scrollbar/user see).
+            if (index < anchorIndex)
+            {
+                verticalOffset += delta;
+                VerticalOffsetCorrectionRequested?.Invoke(this, delta);
+            }
+        }
+
         /// <inheritdoc/>
         public virtual void OnViewportChanged(float newHorizontalOffset, float newVerticalOffset, float newViewportWidth, float newViewportHeight)
         {
