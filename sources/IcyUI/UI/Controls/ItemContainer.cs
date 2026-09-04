@@ -15,39 +15,5 @@ namespace Icy.UI.Controls
     /// </remarks>
     public class ItemContainer : ContentControl
     {
-        private UIElement? content;
-
-        /// <summary>
-        /// Gets or sets the element displayed as this container's content.
-        /// </summary>
-        /// <remarks>
-        /// Overrides <see cref="ContentControl.Content"/> to parent content directly to this ItemContainer
-        /// rather than to an internal Border - necessary for <c>ItemsControl</c>'s pooling and layout to work correctly.
-        /// </remarks>
-        public new UIElement? Content
-        {
-            get => content;
-            set
-            {
-                if (content == value)
-                    return;
-
-                UIElement? oldContent = content;
-                content = value;
-
-                if (value != null)
-                {
-                    value.Parent = this;
-                }
-
-                if (oldContent != null)
-                {
-                    oldContent.Parent = null;
-                    oldContent.Canvas = null;
-                }
-
-                InvalidateMeasure();
-            }
-        }
     }
 }

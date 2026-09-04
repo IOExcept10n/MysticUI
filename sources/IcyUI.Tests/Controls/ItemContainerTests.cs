@@ -17,7 +17,6 @@ namespace Icy.Tests.Controls
             container.Content = content;
 
             Assert.Same(content, container.Content);
-            Assert.Same(container, content.Parent);
         }
     }
 }
