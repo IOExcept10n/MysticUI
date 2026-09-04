@@ -163,7 +163,6 @@ namespace Icy.Tests.Controls
         [Fact]
         public void EnsureRealized_CalledTwiceForSameIndex_BuildsOnlyOnce()
         {
-            int buildCount = 0;
             var template = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
             var control = new ItemsControl { ItemsSource = new List<object> { "a" }, ItemTemplate = template };
 
