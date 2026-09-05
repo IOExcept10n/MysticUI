@@ -4,9 +4,9 @@ using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
+using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup.Attributes;
 using Icy.Rendering;
-using Icy.UI;
 using Icy.UI.Styles;
 
 namespace Icy.UI.Controls
@@ -26,6 +26,14 @@ namespace Icy.UI.Controls
     /// <para>
     /// Carries no selection state - see <see cref="ItemContainer"/>'s own remarks for why, and where selection is
     /// expected to be added later.
+    /// </para>
+    /// <para>
+    /// Realization only ever happens inside <see cref="OnViewportChanged"/> - nothing here drives that call
+    /// itself. It's the hosting <see cref="ScrollViewer"/> (or any other host implementing the
+    /// <see cref="IVirtualizingScrollInfo"/> delegation pattern) that calls it whenever the offset or viewport
+    /// size changes. Hosting an <see cref="ItemsControl"/> outside such a host - directly inside a <c>Grid</c> or
+    /// <c>StackPanel</c>, say - means <see cref="OnViewportChanged"/> is never called at all, so nothing is ever
+    /// realized and the control silently renders empty.
     /// </para>
     /// </remarks>
     public class ItemsControl : Control, IVirtualizingScrollInfo
@@ -56,6 +64,12 @@ namespace Icy.UI.Controls
         private int anchorIndex;
         private float anchorOffset;
 
+        // Guards OnViewportChanged against reentrancy: RealizeRange's trailing de-realize loop can call Derealize
+        // -> RecordHeight -> VerticalOffsetCorrectionRequested, which a host ScrollViewer handles by setting
+        // VerticalOffset, which calls back into OnViewportChanged while the outer call is still mid-walk. See
+        // OnViewportChanged's own remarks for why the nested call must not re-enter the realize/de-realize logic.
+        private bool isRealizingViewport;
+
         /// <inheritdoc/>
         public event EventHandler<float>? VerticalOffsetCorrectionRequested;
 
@@ -64,6 +78,7 @@ namespace Icy.UI.Controls
         /// before anything in <see cref="ItemsSource"/> has ever been realized; once at least one item has a real
         /// measured height, the running average of known heights is used instead.
         /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">The value being set is not greater than zero.</exception>
         [Category("Layout")]
         [DefaultValue(40f)]
         [RegisterReference]
@@ -72,6 +87,8 @@ namespace Icy.UI.Controls
             get => defaultEstimatedItemHeight;
             set
             {
+                Guard.IsGreaterThan(value, 0f);
+
                 if (SetProperty(ref defaultEstimatedItemHeight, value))
                 {
                     InvalidateMeasure();
@@ -168,6 +185,157 @@ namespace Icy.UI.Controls
         /// to get there.
         /// </summary>
         private float BigJumpThreshold => Math.Max(viewportHeight * 3f, 1f);
+
+        /// <inheritdoc/>
+        public virtual void OnViewportChanged(float newHorizontalOffset, float newVerticalOffset, float newViewportWidth, float newViewportHeight)
+        {
+            horizontalOffset = newHorizontalOffset;
+            verticalOffset = newVerticalOffset;
+            viewportWidth = newViewportWidth;
+            viewportHeight = newViewportHeight;
+
+            // Re-entering while an outer OnViewportChanged call is still realizing/de-realizing (e.g. Derealize ->
+            // RecordHeight -> VerticalOffsetCorrectionRequested -> ScrollViewer.VerticalOffset -> back in here,
+            // see this field's declaration) must still update the offset/viewport bookkeeping above, but must NOT
+            // re-enter the realize walk - the outer call is mid-iteration over realizedContainers/stillRealized
+            // and would otherwise resume with stale assumptions and wrongly de-realize containers the nested call
+            // just legitimately realized.
+            if (isRealizingViewport)
+                return;
+
+            if (items.Count == 0)
+            {
+                foreach (int index in realizedContainers.Keys.ToList())
+                    Derealize(index);
+                return;
+            }
+
+            isRealizingViewport = true;
+            try
+            {
+                (anchorIndex, anchorOffset) = LocateViewportStart();
+                RealizeRange(anchorIndex, anchorOffset);
+            }
+            finally
+            {
+                isRealizingViewport = false;
+            }
+        }
+
+        /// <inheritdoc/>
+        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
+
+        /// <inheritdoc/>
+        protected override IEnumerable<UIElement> GetVisualChildren()
+        {
+            yield return Chrome;
+            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
+                yield return realizedContainers[index];
+        }
+
+        /// <inheritdoc/>
+        protected override Size MeasureContent() => new((int)ExtentWidth, (int)ExtentHeight);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Unsubscribes from <see cref="observedSource"/>'s <see cref="INotifyCollectionChanged.CollectionChanged"/>
+        /// (mirroring the unsubscribe already done in <see cref="ResetItems"/> when <see cref="ItemsSource"/> is
+        /// reassigned) - otherwise a long-lived <see cref="ItemsSource"/> view-model keeps this whole control (and
+        /// its realized <see cref="ItemContainer"/> subtree) alive after whatever hosted it is torn down.
+        /// </remarks>
+        protected override void OnDetached()
+        {
+            base.OnDetached();
+
+            if (observedSource != null)
+                observedSource.CollectionChanged -= OnSourceCollectionChanged;
+        }
+
+        /// <inheritdoc/>
+        protected override void OnRender(IRenderContext context)
+        {
+            Chrome.Draw(context);
+            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
+                realizedContainers[index].Draw(context);
+        }
+
+        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
+
+        /// <summary>
+        /// Finds the item whose slot contains the current <c>verticalOffset</c> - via a short walk from the last
+        /// anchor for a small scroll delta, or a direct estimate for a big jump (spec §5).
+        /// </summary>
+        private (int Index, float Offset) LocateViewportStart()
+        {
+            float distanceFromAnchor = Math.Abs(verticalOffset - anchorOffset);
+            if (realizedContainers.Count == 0 || distanceFromAnchor > BigJumpThreshold)
+            {
+                float average = AverageHeight;
+                int estimatedIndex = average > 0 ? (int)(verticalOffset / average) : 0;
+                estimatedIndex = Math.Clamp(estimatedIndex, 0, items.Count - 1);
+                return (estimatedIndex, estimatedIndex * average);
+            }
+
+            int index = Math.Clamp(anchorIndex, 0, items.Count - 1);
+            float offset = anchorOffset;
+            while (offset > verticalOffset && index > 0)
+            {
+                index--;
+                offset -= Math.Max(HeightOrEstimate(index), 1f);
+            }
+
+            while (index < items.Count - 1 && offset + Math.Max(HeightOrEstimate(index), 1f) <= verticalOffset)
+            {
+                offset += Math.Max(HeightOrEstimate(index), 1f);
+                index++;
+            }
+
+            return (index, offset);
+        }
+
+        /// <summary>
+        /// Realizes every item whose slot overlaps the viewport (plus a forward-only scroll-ahead buffer),
+        /// starting the walk at <paramref name="firstIndex"/>/<paramref name="firstOffset"/>; positions each
+        /// realized container, and de-realizes anything realized but no longer in range.
+        /// </summary>
+        private void RealizeRange(int firstIndex, float firstOffset)
+        {
+            const float ScrollAheadBuffer = 100f;
+            float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
+
+            var stillRealized = new HashSet<int>();
+            int index = firstIndex;
+            float offset = firstOffset;
+            while (index < items.Count && offset < rangeEnd)
+            {
+                EnsureRealized(index);
+
+                // Floored at 1px: a zero-height item (an empty/degenerate template, or nothing known yet with
+                // DefaultEstimatedItemHeight at its own floor) must never stall this walk's forward progress -
+                // offset has to advance every iteration, or the loop realizes the entire collection instead of
+                // just the viewport range.
+                float height = Math.Max(HeightOrEstimate(index), 1f); // may just have become known, via EnsureRealized above
+                stillRealized.Add(index);
+
+                ItemContainer container = realizedContainers[index];
+                var targetRect = new Rectangle(
+                    ContentBounds.X,
+                    ContentBounds.Y + (int)(offset - verticalOffset),
+                    ContentBounds.Width,
+                    (int)height);
+                container.InvalidateArrange();
+                container.Arrange(targetRect);
+
+                offset += height;
+                index++;
+            }
+
+            foreach (int realizedIndex in realizedContainers.Keys.ToList())
+            {
+                if (!stillRealized.Contains(realizedIndex))
+                    Derealize(realizedIndex);
+            }
+        }
 
         /// <summary>
         /// Records <paramref name="newHeight"/> as <paramref name="index"/>'s real measured height, folding the
@@ -285,120 +453,6 @@ namespace Icy.UI.Controls
             containerTemplates.Remove(container);
         }
 
-        /// <inheritdoc/>
-        public virtual void OnViewportChanged(float newHorizontalOffset, float newVerticalOffset, float newViewportWidth, float newViewportHeight)
-        {
-            horizontalOffset = newHorizontalOffset;
-            verticalOffset = newVerticalOffset;
-            viewportWidth = newViewportWidth;
-            viewportHeight = newViewportHeight;
-
-            if (items.Count == 0)
-            {
-                foreach (int index in realizedContainers.Keys.ToList())
-                    Derealize(index);
-                return;
-            }
-
-            (anchorIndex, anchorOffset) = LocateViewportStart();
-            RealizeRange(anchorIndex, anchorOffset);
-        }
-
-        /// <inheritdoc/>
-        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
-
-        /// <inheritdoc/>
-        protected override IEnumerable<UIElement> GetVisualChildren()
-        {
-            yield return Chrome;
-            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
-                yield return realizedContainers[index];
-        }
-
-        /// <inheritdoc/>
-        protected override Size MeasureContent() => new((int)ExtentWidth, (int)ExtentHeight);
-
-        /// <inheritdoc/>
-        protected override void OnRender(IRenderContext context)
-        {
-            Chrome.Draw(context);
-            foreach (int index in realizedContainers.Keys.OrderBy(i => i))
-                realizedContainers[index].Draw(context);
-        }
-
-        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
-
-        /// <summary>
-        /// Finds the item whose slot contains the current <c>verticalOffset</c> - via a short walk from the last
-        /// anchor for a small scroll delta, or a direct estimate for a big jump (spec §5).
-        /// </summary>
-        private (int Index, float Offset) LocateViewportStart()
-        {
-            float distanceFromAnchor = Math.Abs(verticalOffset - anchorOffset);
-            if (realizedContainers.Count == 0 || distanceFromAnchor > BigJumpThreshold)
-            {
-                float average = AverageHeight;
-                int estimatedIndex = average > 0 ? (int)(verticalOffset / average) : 0;
-                estimatedIndex = Math.Clamp(estimatedIndex, 0, items.Count - 1);
-                return (estimatedIndex, estimatedIndex * average);
-            }
-
-            int index = Math.Clamp(anchorIndex, 0, items.Count - 1);
-            float offset = anchorOffset;
-            while (offset > verticalOffset && index > 0)
-            {
-                index--;
-                offset -= HeightOrEstimate(index);
-            }
-
-            while (index < items.Count - 1 && offset + HeightOrEstimate(index) <= verticalOffset)
-            {
-                offset += HeightOrEstimate(index);
-                index++;
-            }
-
-            return (index, offset);
-        }
-
-        /// <summary>
-        /// Realizes every item whose slot overlaps the viewport (plus a forward-only scroll-ahead buffer),
-        /// starting the walk at <paramref name="firstIndex"/>/<paramref name="firstOffset"/>; positions each
-        /// realized container, and de-realizes anything realized but no longer in range.
-        /// </summary>
-        private void RealizeRange(int firstIndex, float firstOffset)
-        {
-            const float ScrollAheadBuffer = 100f;
-            float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
-
-            var stillRealized = new HashSet<int>();
-            int index = firstIndex;
-            float offset = firstOffset;
-            while (index < items.Count && offset < rangeEnd)
-            {
-                EnsureRealized(index);
-                float height = HeightOrEstimate(index); // may just have become known, via EnsureRealized above
-                stillRealized.Add(index);
-
-                ItemContainer container = realizedContainers[index];
-                var targetRect = new Rectangle(
-                    ContentBounds.X,
-                    ContentBounds.Y + (int)(offset - verticalOffset),
-                    ContentBounds.Width,
-                    (int)height);
-                container.InvalidateArrange();
-                container.Arrange(targetRect);
-
-                offset += height;
-                index++;
-            }
-
-            foreach (int realizedIndex in realizedContainers.Keys.ToList())
-            {
-                if (!stillRealized.Contains(realizedIndex))
-                    Derealize(realizedIndex);
-            }
-        }
-
         private void ResetItems()
         {
             if (observedSource != null)
@@ -442,6 +496,14 @@ namespace Icy.UI.Controls
             InvalidateArrange();
         }
 
+        /// <summary>
+        /// Applies a single <see cref="INotifyCollectionChanged.CollectionChanged"/> notification from
+        /// <see cref="ItemsSource"/> - dispatching to the matching incremental handler for
+        /// <see cref="NotifyCollectionChangedAction.Add"/>/<see cref="NotifyCollectionChangedAction.Remove"/>/
+        /// <see cref="NotifyCollectionChangedAction.Replace"/>/<see cref="NotifyCollectionChangedAction.Move"/>, or
+        /// re-snapshotting <see cref="ItemsSource"/> entirely (like <see cref="ResetItems"/> does) for
+        /// <see cref="NotifyCollectionChangedAction.Reset"/> and any unrecognized action.
+        /// </summary>
         private void OnSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             switch (e.Action)
@@ -479,6 +541,11 @@ namespace Icy.UI.Controls
             InvalidateArrange();
         }
 
+        /// <summary>
+        /// Inserts <paramref name="newItems"/> into <c>items</c> starting at <paramref name="startIndex"/>, with a
+        /// matching run of unknown (<see langword="null"/>) heights - after first de-realizing everything from
+        /// <paramref name="startIndex"/> onward, since it's about to be shifted to a new index.
+        /// </summary>
         private void InsertItems(int startIndex, IList newItems)
         {
             DerealizeFromIndex(startIndex);
@@ -490,6 +557,12 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Removes <paramref name="count"/> items starting at <paramref name="startIndex"/> from <c>items</c>,
+        /// folding any of their known heights out of the running <see cref="ExtentHeight"/> totals - after first
+        /// de-realizing everything from <paramref name="startIndex"/> onward, since it's about to shift down to a
+        /// new index.
+        /// </summary>
         private void RemoveItems(int startIndex, int count)
         {
             DerealizeFromIndex(startIndex);
@@ -507,6 +580,10 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Overwrites <paramref name="newItems"/> in place at <paramref name="startIndex"/>, forgetting each
+        /// replaced slot's known height (it described the old item, not the new one) so it's re-measured fresh.
+        /// </summary>
         private void ReplaceItems(int startIndex, IList newItems)
         {
             // The item object at each of these indexes changed - whatever height was known for the slot described
@@ -528,6 +605,12 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Moves <paramref name="count"/> items (and their known heights, carried along unchanged) from
+        /// <paramref name="oldStartIndex"/> to <paramref name="newStartIndex"/> - after first de-realizing
+        /// everything from the earlier of the two indexes onward, since every index in that span is about to
+        /// identify a different item.
+        /// </summary>
         private void MoveItems(int oldStartIndex, int newStartIndex, int count)
         {
             DerealizeFromIndex(Math.Min(oldStartIndex, newStartIndex));

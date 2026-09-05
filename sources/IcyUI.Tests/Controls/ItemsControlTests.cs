@@ -422,5 +422,49 @@ namespace Icy.Tests.Controls
 
         private static List<object> GetItems(ItemsControl control) =>
             (List<object>)typeof(ItemsControl).GetField("items", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
+
+        [Fact]
+        public void OnViewportChanged_ZeroHeightItems_DoesNotRealizeTheEntireCollection()
+        {
+            // A template that measures to 0px is the degenerate case the Math.Max(..., 1f) floor guards against:
+            // without it, RealizeRange's forward walk never advances `offset` past the viewport, so its loop
+            // condition never trips and it realizes every item in the collection instead of just the viewport.
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="0"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 1000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+
+            // Viewport 400px + 100px scroll-ahead buffer, floored at 1px/item -> ~500 items realized, nowhere
+            // near the full 1000-item collection.
+            var realized = GetRealizedContainers(control);
+            Assert.True(realized.Count < 600, $"expected far fewer than 1000 realized, got {realized.Count}");
+        }
+
+        [Fact]
+        public void OnViewportChanged_NormalCall_LeavesReentrancyGuardClearedForNextCall()
+        {
+            // Task 12's reentrancy guard (isRealizingViewport) must be reset by RealizeRange's surrounding
+            // try/finally even on the ordinary, non-reentrant path - if it were ever left stuck `true` (e.g. a
+            // missing `finally`), every subsequent OnViewportChanged call would silently no-op forever.
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 100).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+
+            var guardField = typeof(ItemsControl).GetField("isRealizingViewport", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            Assert.False((bool)guardField.GetValue(control)!);
+
+            // A second, ordinary call must still realize correctly - proving the guard isn't left stuck set.
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 40, 300, 400);
+            Assert.Contains(1, GetRealizedContainers(control).Keys);
+        }
     }
 }

@@ -5,7 +5,6 @@ using System.Drawing;
 using System.Numerics;
 using Icy.Data.Markup.Attributes;
 using Icy.Input.Events;
-using Icy.UI;
 
 namespace Icy.UI.Controls
 {

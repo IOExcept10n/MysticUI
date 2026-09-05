@@ -3,11 +3,11 @@
 namespace Icy.UI.Controls
 {
     /// <summary>
-    /// The minimal container <c>ItemsControl</c> wraps each realized data item's built visual tree in.
+    /// The minimal container <see cref="ItemsControl"/> wraps each realized data item's built visual tree in.
     /// </summary>
     /// <remarks>
     /// A bare <see cref="ContentControl"/> with no selection state - exists as its own type only so
-    /// <c>ItemsControl</c>'s pooling (keyed per <c>DataTemplate</c>) and theming
+    /// <see cref="ItemsControl"/>'s pooling (keyed per <see cref="Styles.DataTemplate"/>) and theming
     /// (<c>&lt;Style TargetType="ItemContainer"&gt;</c>) have something distinct from a generic
     /// <see cref="ContentControl"/> to target. A future <c>Selector</c>/<c>ListBox</c> introduces a real
     /// <c>ListBoxItem</c> with selection state on top of this mechanism, rather than adding selection here - see

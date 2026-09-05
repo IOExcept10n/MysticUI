@@ -9,7 +9,7 @@ namespace Icy.UI
     /// </summary>
     /// <remarks>
     /// Mirrors WPF's <c>ScrollViewer</c> → <c>IScrollInfo</c> → <c>VirtualizingStackPanel</c> delegation. IcyUI has
-    /// no separate virtualizing-panel type - <c>ItemsControl</c> implements this interface
+    /// no separate virtualizing-panel type - <see cref="Controls.ItemsControl"/> implements this interface
     /// directly, since nothing else in the roadmap needs virtualized layout independent of an items list.
     /// </remarks>
     public interface IVirtualizingScrollInfo

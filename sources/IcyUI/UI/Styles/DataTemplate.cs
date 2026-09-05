@@ -8,7 +8,7 @@ namespace Icy.UI.Styles
 {
     /// <summary>
     /// Builds a visual tree from markup content for an arbitrary data object - the templating mechanism
-    /// <c>ItemsControl</c> uses to turn each bound item into a realized element.
+    /// <see cref="Controls.ItemsControl"/> uses to turn each bound item into a realized element.
     /// </summary>
     /// <remarks>
     /// <para>
