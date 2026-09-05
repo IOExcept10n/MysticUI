@@ -4,6 +4,7 @@ using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Markup;
+using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
@@ -465,6 +466,57 @@ namespace Icy.Tests.Controls
             // A second, ordinary call must still realize correctly - proving the guard isn't left stuck set.
             ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 40, 300, 400);
             Assert.Contains(1, GetRealizedContainers(control).Keys);
+        }
+
+        [Fact]
+        public void OnAttached_AfterDetachReattach_PicksUpMutationsMadeWhileDetached()
+        {
+            // Simulates a KeepAlive Page's ItemsControl: the SAME instance is detached (navigate away) and later
+            // re-attached (navigate back) without ItemsSource ever being reassigned in between.
+            var source = new ObservableCollection<object> { "a", "b" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            var canvas = CreateCanvas();
+            canvas.Add(control);
+
+            canvas.Remove(control); // detach - OnDetached unsubscribes from CollectionChanged
+            Assert.Null(control.Canvas);
+
+            source.Add("c"); // mutated while detached and unobserved
+
+            canvas.Add(control); // re-attach the same instance
+
+            // Without OnAttached re-running ResetItems, `items` would still be stuck at ["a", "b"].
+            Assert.Equal(new object[] { "a", "b", "c" }, GetItems(control));
+            Assert.Equal(3 * 40f, control.ExtentHeight);
+        }
+
+        [Fact]
+        public void OnAttached_AfterDetachReattach_ResubscribesToCollectionChangedWithoutReassigningItemsSource()
+        {
+            // Narrower than the test above: proves the CollectionChanged subscription itself is restored on
+            // re-attach, by mutating only AFTER re-attaching (no mutation while detached, no ItemsSource
+            // reassignment anywhere) - this is the exact regression the missing OnAttached override caused.
+            var source = new ObservableCollection<object> { "a", "b" };
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new ItemsControl { ItemsSource = source, ItemTemplate = template };
+            var canvas = CreateCanvas();
+            canvas.Add(control);
+            canvas.Remove(control);
+            canvas.Add(control);
+
+            source.Add("c"); // mutated post-reattach - only observed if OnAttached re-subscribed
+
+            Assert.Equal(new object[] { "a", "b", "c" }, GetItems(control));
+        }
+
+        private static Canvas CreateCanvas()
+        {
+            var input = new FakeInputSystem();
+            var renderContext = new FakeRenderContext();
+            var assets = new AssetConfiguration(AssetContext.ApplicationContext);
+            var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
+            return new Canvas(config);
         }
     }
 }
