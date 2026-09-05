@@ -253,10 +253,9 @@ namespace Icy.UI.Controls
         /// silently missing every mutation of its bound collection made while it was off-screen. Re-running
         /// <see cref="ResetItems"/> (rather than only re-subscribing) also re-enumerates <see cref="ItemsSource"/>
         /// fresh, picking up any mutations that happened while detached and unobserved, and clears
-        /// <see cref="realizedContainers"/> via <see cref="ResetRealization"/> so every container gets a clean
-        /// re-realize pass with its <see cref="UIElement.Canvas"/> correctly re-wired - <see cref="EnsureRealized"/>
-        /// short-circuits on an index it still considers realized and would otherwise never re-assign
-        /// <see cref="UIElement.Canvas"/> to the ones <see cref="OnDetached"/> nulled out.
+        /// <see cref="realizedContainers"/> via <see cref="ResetRealization"/> so the height cache and anchor no
+        /// longer describe a collection that may have changed shape while unobserved - every container gets a
+        /// clean re-realize pass on the next viewport update rather than trusting stale bookkeeping.
         /// </para>
         /// </remarks>
         protected override void OnAttached()
