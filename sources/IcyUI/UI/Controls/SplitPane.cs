@@ -71,6 +71,11 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
+        /// Occurs when <see cref="SplitterPosition"/> changes.
+        /// </summary>
+        public event EventHandler? SplitterPositionChanged;
+
+        /// <summary>
         /// Gets or sets the axis <see cref="First"/>/<see cref="Second"/> are split along.
         /// </summary>
         /// <remarks>
@@ -258,10 +263,35 @@ namespace Icy.UI.Controls
             set => dividerVisual.Background = value;
         }
 
-        /// <summary>
-        /// Occurs when <see cref="SplitterPosition"/> changes.
-        /// </summary>
-        public event EventHandler? SplitterPositionChanged;
+        /// <inheritdoc/>
+        protected internal override void OnDragEnded(Point screenPoint)
+        {
+            base.OnDragEnded(screenPoint);
+            isDragging = false;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragPerforming(Point screenPoint)
+        {
+            base.OnDragPerforming(screenPoint);
+            if (isDragging)
+                UpdatePositionFromPoint(screenPoint);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Only starts tracking the drag when <paramref name="screenPoint"/> actually landed on the divider band -
+        /// <see cref="UI.Canvas"/> bubbles a drag gesture to every ancestor of whatever was hit, so without this
+        /// check a press anywhere inside <see cref="First"/>/<see cref="Second"/> (including a nested
+        /// <see cref="SplitPane"/>'s own divider) would resize this <see cref="SplitPane"/> too.
+        /// </remarks>
+        protected internal override void OnDragStarted(Point screenPoint)
+        {
+            base.OnDragStarted(screenPoint);
+            isDragging = IsPointOnDivider(screenPoint);
+            if (isDragging)
+                UpdatePositionFromPoint(screenPoint);
+        }
 
         /// <inheritdoc/>
         protected override IEnumerable<UIElement> GetVisualChildren()
@@ -279,29 +309,6 @@ namespace Icy.UI.Controls
             Chrome.Draw(context);
             First?.Draw(context);
             Second?.Draw(context);
-        }
-
-        /// <inheritdoc/>
-        protected internal override void OnDragEnded(Point screenPoint)
-        {
-            base.OnDragEnded(screenPoint);
-            isDragging = false;
-        }
-
-        /// <inheritdoc/>
-        protected internal override void OnDragPerforming(Point screenPoint)
-        {
-            base.OnDragPerforming(screenPoint);
-            if (isDragging)
-                UpdatePositionFromPoint(screenPoint);
-        }
-
-        /// <inheritdoc/>
-        protected internal override void OnDragStarted(Point screenPoint)
-        {
-            base.OnDragStarted(screenPoint);
-            isDragging = true;
-            UpdatePositionFromPoint(screenPoint);
         }
 
         /// <inheritdoc/>
@@ -334,6 +341,50 @@ namespace Icy.UI.Controls
             ApplyDividerOrientation();
         }
 
+        /// <inheritdoc/>
+        protected override void ArrangeContent()
+        {
+            Rectangle content = ContentBounds;
+            bool horizontal = Orientation == Orientation.Horizontal;
+            float available = horizontal ? content.Width : content.Height;
+            int dividerOffset = ResolveDividerOffset(available);
+
+            if (horizontal)
+            {
+                First?.Arrange(new Rectangle(content.X, content.Y, dividerOffset, content.Height));
+                divider.Margin = new Thickness(dividerOffset, 0, 0, 0);
+                Second?.Arrange(new Rectangle(
+                    content.X + dividerOffset + (int)DividerSize,
+                    content.Y,
+                    Math.Max(0, content.Width - dividerOffset - (int)DividerSize),
+                    content.Height));
+            }
+            else
+            {
+                First?.Arrange(new Rectangle(content.X, content.Y, content.Width, dividerOffset));
+                divider.Margin = new Thickness(0, dividerOffset, 0, 0);
+                Second?.Arrange(new Rectangle(
+                    content.X,
+                    content.Y + dividerOffset + (int)DividerSize,
+                    content.Width,
+                    Math.Max(0, content.Height - dividerOffset - (int)DividerSize)));
+            }
+
+            Chrome.Arrange(ActualBounds);
+        }
+
+        /// <inheritdoc/>
+        protected override Size MeasureContent()
+        {
+            Size firstSize = First?.Measure() ?? Size.Empty;
+            Size secondSize = Second?.Measure() ?? Size.Empty;
+            bool horizontal = Orientation == Orientation.Horizontal;
+
+            return horizontal
+                ? new Size((int)(firstSize.Width + secondSize.Width + DividerSize), Math.Max(firstSize.Height, secondSize.Height))
+                : new Size(Math.Max(firstSize.Width, secondSize.Width), (int)(firstSize.Height + secondSize.Height + DividerSize));
+        }
+
         private void UpdatePositionFromPoint(Point screenPoint)
         {
             Vector2 local = PointToLocal(screenPoint);
@@ -349,8 +400,26 @@ namespace Icy.UI.Controls
             if (maxRatio < minRatio)
                 (minRatio, maxRatio) = ((minRatio + maxRatio) / 2f, (minRatio + maxRatio) / 2f);
 
-            float rawRatio = (localAxis - inset) / roaming;
+            // Centers the divider under the grab point (matches Slider.UpdateValueFromPoint's own
+            // ThumbSize/2f offset) rather than snapping so the divider's leading edge aligns with the pointer.
+            float rawRatio = (localAxis - inset - (DividerSize / 2f)) / roaming;
             SplitterPosition = float.Clamp(rawRatio, minRatio, maxRatio);
+        }
+
+        /// <summary>
+        /// Determines whether <paramref name="screenPoint"/> falls within the divider's grabbable band.
+        /// </summary>
+        /// <param name="screenPoint">The point to test, in screen space.</param>
+        /// <returns><see langword="true"/> when the point lands on the divider band; otherwise, <see langword="false"/>.</returns>
+        private bool IsPointOnDivider(Point screenPoint)
+        {
+            Vector2 local = PointToLocal(screenPoint);
+            bool horizontal = Orientation == Orientation.Horizontal;
+            float inset = horizontal ? Padding.Left + BorderThickness.Left : Padding.Top + BorderThickness.Top;
+            float axis = (horizontal ? local.X : local.Y) - inset;
+            Rectangle content = ContentBounds;
+            float dividerOffset = ResolveDividerOffset(horizontal ? content.Width : content.Height);
+            return axis >= dividerOffset && axis <= dividerOffset + DividerSize;
         }
 
         private void ApplyDividerOrientation()
@@ -371,46 +440,6 @@ namespace Icy.UI.Controls
             }
         }
 
-        /// <inheritdoc/>
-        protected override void ArrangeContent()
-        {
-            Rectangle content = ContentBounds;
-            bool horizontal = Orientation == Orientation.Horizontal;
-            float available = horizontal ? content.Width : content.Height;
-            int dividerOffset = ResolveDividerOffset(available);
-
-            if (horizontal)
-            {
-                First?.Arrange(new Rectangle(content.X, content.Y, dividerOffset, content.Height));
-                divider.Margin = new Thickness(dividerOffset, 0, 0, 0);
-                Second?.Arrange(new Rectangle(
-                    content.X + dividerOffset + (int)DividerSize, content.Y,
-                    Math.Max(0, content.Width - dividerOffset - (int)DividerSize), content.Height));
-            }
-            else
-            {
-                First?.Arrange(new Rectangle(content.X, content.Y, content.Width, dividerOffset));
-                divider.Margin = new Thickness(0, dividerOffset, 0, 0);
-                Second?.Arrange(new Rectangle(
-                    content.X, content.Y + dividerOffset + (int)DividerSize,
-                    content.Width, Math.Max(0, content.Height - dividerOffset - (int)DividerSize)));
-            }
-
-            Chrome.Arrange(ActualBounds);
-        }
-
-        /// <inheritdoc/>
-        protected override Size MeasureContent()
-        {
-            Size firstSize = First?.Measure() ?? Size.Empty;
-            Size secondSize = Second?.Measure() ?? Size.Empty;
-            bool horizontal = Orientation == Orientation.Horizontal;
-
-            return horizontal
-                ? new Size((int)(firstSize.Width + secondSize.Width + DividerSize), Math.Max(firstSize.Height, secondSize.Height))
-                : new Size(Math.Max(firstSize.Width, secondSize.Width), (int)(firstSize.Height + secondSize.Height + DividerSize));
-        }
-
         /// <summary>
         /// Computes the divider's pixel offset from the start of <paramref name="available"/>, applying
         /// <see cref="SplitterPosition"/> and clamping to <see cref="MinFirstSize"/>/<see cref="MinSecondSize"/>.
@@ -429,7 +458,7 @@ namespace Icy.UI.Controls
             float maxPos = roaming - MinSecondSize;
 
             float pos = maxPos >= minPos ? float.Clamp(rawPos, minPos, maxPos) : (minPos + maxPos) / 2f;
-            return (int)Math.Max(0, pos);
+            return (int)float.Clamp(pos, 0, roaming);
         }
     }
 }

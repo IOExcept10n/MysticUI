@@ -97,9 +97,7 @@
   <!-- SplitPane -->
   <ControlTemplate x:Key="IcyDefaultSplitPaneTemplate" TargetType="SplitPane">
     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-      <Border x:Name="PART_Divider" Background="Transparent">
-        <Border Background="{TemplateBinding DividerBrush}" HorizontalAlignment="Center" Width="2"/>
-      </Border>
+      <Border x:Name="PART_Divider" Background="{TemplateBinding DividerBrush}"/>
     </Border>
   </ControlTemplate>
 
