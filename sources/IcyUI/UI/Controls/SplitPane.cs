@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Numerics;
 using Icy.Data.Markup.Attributes;
 using Icy.Rendering.Brushes;
 
@@ -44,6 +45,7 @@ namespace Icy.UI.Controls
         private float minFirstSize;
         private float minSecondSize;
         private float dividerSize = DefaultDividerSize;
+        private bool isDragging;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SplitPane"/> class.
@@ -277,6 +279,48 @@ namespace Icy.UI.Controls
             Chrome.Draw(context);
             First?.Draw(context);
             Second?.Draw(context);
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragEnded(Point screenPoint)
+        {
+            base.OnDragEnded(screenPoint);
+            isDragging = false;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragPerforming(Point screenPoint)
+        {
+            base.OnDragPerforming(screenPoint);
+            if (isDragging)
+                UpdatePositionFromPoint(screenPoint);
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragStarted(Point screenPoint)
+        {
+            base.OnDragStarted(screenPoint);
+            isDragging = true;
+            UpdatePositionFromPoint(screenPoint);
+        }
+
+        private void UpdatePositionFromPoint(Point screenPoint)
+        {
+            Vector2 local = PointToLocal(screenPoint);
+            bool horizontal = Orientation == Orientation.Horizontal;
+            float inset = horizontal ? Padding.Left + BorderThickness.Left : Padding.Top + BorderThickness.Top;
+            float localAxis = horizontal ? local.X : local.Y;
+            Rectangle content = ContentBounds;
+            float available = horizontal ? content.Width : content.Height;
+            float roaming = Math.Max(1, available - DividerSize);
+
+            float minRatio = float.Clamp(MinFirstSize / roaming, 0, 1);
+            float maxRatio = float.Clamp(1 - (MinSecondSize / roaming), 0, 1);
+            if (maxRatio < minRatio)
+                (minRatio, maxRatio) = ((minRatio + maxRatio) / 2f, (minRatio + maxRatio) / 2f);
+
+            float rawRatio = (localAxis - inset) / roaming;
+            SplitterPosition = float.Clamp(rawRatio, minRatio, maxRatio);
         }
 
         private void ApplyDividerOrientation()

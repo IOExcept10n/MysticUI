@@ -1,5 +1,9 @@
 using System.Drawing;
 using System.Linq;
+using Icy.Assets;
+using Icy.Configuration;
+using Icy.Tests.Input;
+using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
 using Xunit;
@@ -168,6 +172,121 @@ namespace Icy.Tests.Controls
 
             Assert.Equal(80 + 60 + 6, measured.Width);
             Assert.Equal(40, measured.Height);
+        }
+
+        private static (Canvas Canvas, FakeInputSystem Input) CreateCanvas()
+        {
+            var input = new FakeInputSystem();
+            var renderContext = new FakeRenderContext();
+            var assets = new AssetConfiguration(AssetContext.ApplicationContext);
+            var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
+            return (new Canvas(config), input);
+        }
+
+        [Fact]
+        public void Drag_UpdatesSplitterPositionBasedOnPointerPosition()
+        {
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var pane = new SplitPane
+            {
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                First = new Border(),
+                Second = new Border(),
+            };
+            canvas.Add(pane);
+            canvas.Render();
+
+            // Divider sits at roaming(194)*0.5=97..103 after the first render (SplitterPosition starts at 0.5).
+            input.Events.Drag.RaiseDragStarted(new Point(100, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(150, 50));
+
+            // roaming = 194; ratio = 150/194 (PointToLocal aligns with content origin here since Padding/BorderThickness are 0).
+            Assert.True(pane.SplitterPosition > 0.5f, $"Expected SplitterPosition to increase past 0.5, got {pane.SplitterPosition}");
+        }
+
+        [Fact]
+        public void Drag_BeyondPaneEdge_ClampsToOne()
+        {
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var pane = new SplitPane
+            {
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                First = new Border(),
+                Second = new Border(),
+            };
+            canvas.Add(pane);
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(100, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(1000, 50));
+
+            Assert.Equal(1f, pane.SplitterPosition);
+        }
+
+        [Fact]
+        public void Drag_RespectsMinSecondSize()
+        {
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var pane = new SplitPane
+            {
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                MinSecondSize = 50,
+                First = new Border(),
+                Second = new Border(),
+            };
+            canvas.Add(pane);
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(100, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(1000, 50));
+
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+            Assert.True(pane.Second!.ActualBounds.Width >= 50, $"Second was {pane.Second.ActualBounds.Width}, expected >= 50");
+        }
+
+        [Fact]
+        public void SplitterPositionChanged_FiresOnce_PerActualChange()
+        {
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var pane = new SplitPane
+            {
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                First = new Border(),
+                Second = new Border(),
+            };
+            canvas.Add(pane);
+            canvas.Render();
+            // Drag-start alone already moves SplitterPosition off its 0.5 default (100/194 != 0.5) and would raise the
+            // event once, unobserved - attach the handler only after that settles, so exactly one more move (drag-
+            // performing) isolates exactly one raise, rather than conflating both changes into an ambiguous count.
+            input.Events.Drag.RaiseDragStarted(new Point(100, 50));
+            canvas.Render();
+            int raiseCount = 0;
+            pane.SplitterPositionChanged += (_, _) => raiseCount++;
+
+            input.Events.Drag.RaiseDragPerforming(new Point(150, 50));
+
+            Assert.Equal(1, raiseCount);
         }
     }
 }
