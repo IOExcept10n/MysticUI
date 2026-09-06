@@ -234,6 +234,7 @@ namespace Icy.UI.Controls
             {
                 if (SetProperty(ref dividerSize, value))
                 {
+                    ApplyDividerOrientation();
                     InvalidateMeasure();
                     InvalidateArrange();
                 }

@@ -22,7 +22,7 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void First_Set_WiresParentAndCanvas()
+        public void First_Set_WiresParent()
         {
             var pane = new SplitPane();
             var child = new Border();
@@ -33,7 +33,7 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void Second_Set_WiresParentAndCanvas()
+        public void Second_Set_WiresParent()
         {
             var pane = new SplitPane();
             var child = new Border();
@@ -68,10 +68,20 @@ namespace Icy.Tests.Controls
 
             var subtree = pane.EnumerateVisualSubtree().ToList();
 
-            Assert.Contains(first, subtree);
-            Assert.Contains(second, subtree);
+            int firstIndex = subtree.IndexOf(first);
+            int secondIndex = subtree.IndexOf(second);
+            Assert.True(firstIndex >= 0 && secondIndex >= 0 && firstIndex < secondIndex);
             // The default divider (Chrome's Child) is present too, distinct from First/Second.
             Assert.True(subtree.Count(e => e is Border) >= 4); // Chrome + divider + inner line + First + Second
+        }
+
+        [Fact]
+        public void DividerSize_ChangedAfterConstruction_ResizesTheDivider()
+        {
+            var pane = new SplitPane { DividerSize = 20f };
+
+            var divider = pane.EnumerateVisualSubtree().OfType<Border>().Skip(1).First(); // Chrome, then divider
+            Assert.Equal(20f, divider.Width);
         }
     }
 }
