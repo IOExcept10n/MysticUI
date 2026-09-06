@@ -304,6 +304,36 @@ namespace Icy.UI.Controls
             UpdatePositionFromPoint(screenPoint);
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Repoints <c>divider</c>/<c>dividerVisual</c> - the elements <see cref="ArrangeContent"/>/
+        /// <see cref="UpdatePositionFromPoint"/> already manipulate by reference - to whichever <see cref="UI.Border"/>
+        /// is actually live right now: <see cref="Control.Template"/>'s own <c>PART_Divider</c> when one is set,
+        /// falling back to the built-in default divider otherwise (mirrors <see cref="Slider.OnApplyTemplate"/> exactly).
+        /// A template's <c>PART_Divider</c> with no nested <see cref="UI.Border.Child"/> of its own gets
+        /// <see cref="DividerBrush"/> routed directly onto it instead of a nested line - graceful degradation, matching
+        /// how a template with no <c>PART_Divider</c> at all still applies (just with drag/position wired to nothing
+        /// the template actually shows, exactly as an untemplated-part <see cref="Slider"/> already behaves).
+        /// </remarks>
+        protected override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            if (Template != null && GetTemplateChild<Border>("PART_Divider") is { } part)
+            {
+                divider = part;
+                dividerVisual = part.Child as Border ?? part;
+                ApplyDividerOrientation();
+                return;
+            }
+
+            divider = defaultDivider;
+            dividerVisual = defaultDividerLine;
+            if (Template == null)
+                ((Border)Chrome).Child = divider;
+            ApplyDividerOrientation();
+        }
+
         private void UpdatePositionFromPoint(Point screenPoint)
         {
             Vector2 local = PointToLocal(screenPoint);

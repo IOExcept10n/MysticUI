@@ -2,10 +2,12 @@ using System.Drawing;
 using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Markup;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
@@ -183,6 +185,13 @@ namespace Icy.Tests.Controls
             return (new Canvas(config), input);
         }
 
+        private static ControlTemplate LoadTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (ControlTemplate)loader.LoadObject(markup);
+        }
+
         [Fact]
         public void Drag_UpdatesSplitterPositionBasedOnPointerPosition()
         {
@@ -287,6 +296,112 @@ namespace Icy.Tests.Controls
             input.Events.Drag.RaiseDragPerforming(new Point(150, 50));
 
             Assert.Equal(1, raiseCount);
+        }
+
+        [Fact]
+        public void Template_WithPartDivider_ArrangePositionsTheTemplatesOwnDivider()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="SplitPane">
+                  <Border>
+                    <Border x:Name="PART_Divider" Width="6" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var pane = new SplitPane { Template = template, Width = 200, Height = 100, First = new Border(), Second = new Border() };
+
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+
+            var templatedDivider = pane.EnumerateVisualSubtree().OfType<Border>().Single(b => b.Width == 6);
+            Assert.Equal(97, templatedDivider.Margin.Left); // roaming(194)*0.5 = 97, same math as Task 2's arrange test.
+        }
+
+        [Fact]
+        public void Template_WithPartDivider_DragUpdatesSplitterPositionAndTheTemplatesOwnDivider()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="SplitPane">
+                  <Border>
+                    <Border x:Name="PART_Divider" Width="6" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var pane = new SplitPane
+            {
+                Template = template,
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                First = new Border(),
+                Second = new Border(),
+            };
+            canvas.Add(pane);
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(100, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(150, 50));
+            canvas.Render();
+
+            Assert.True(pane.SplitterPosition > 0.5f);
+            var templatedDivider = pane.EnumerateVisualSubtree().OfType<Border>().Single(b => b.Width == 6);
+            Assert.True(templatedDivider.Margin.Left > 97);
+        }
+
+        [Fact]
+        public void Template_WithoutPartDivider_StillArrangesWithoutThrowing()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="SplitPane"><Border/></ControlTemplate>""");
+            var pane = new SplitPane { Template = template, Width = 200, Height = 100, First = new Border(), Second = new Border() };
+
+            var exception = Record.Exception(() => pane.Arrange(new Rectangle(0, 0, 200, 100)));
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void Template_ClearedAfterBeingSet_RestoresDefaultDividerBehavior()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="SplitPane">
+                  <Border>
+                    <Border x:Name="PART_Divider" Width="6" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var pane = new SplitPane { Template = template, Width = 200, Height = 100, First = new Border(), Second = new Border() };
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+
+            pane.Template = null;
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+
+            // Back on the default divider - DividerBrush must route to a real element actually in the visual tree
+            // (the default inner line), not the orphaned template's PART_Divider.
+            var newBrush = new Icy.Rendering.Brushes.SolidColorBrush(Color.Red);
+            pane.DividerBrush = newBrush;
+
+            Assert.Same(newBrush, pane.DividerBrush);
+            Assert.Contains(pane.EnumerateVisualSubtree().OfType<Border>(), b => ReferenceEquals(b.Background, newBrush));
+        }
+
+        [Fact]
+        public void DividerBrush_DefaultsToWhiteAndIsSettable()
+        {
+            var pane = new SplitPane();
+
+            var defaultBrush = Assert.IsType<Icy.Rendering.Brushes.SolidColorBrush>(pane.DividerBrush);
+            Assert.Equal(Color.White.ToArgb(), defaultBrush.Color.ToArgb());
+
+            var newBrush = new Icy.Rendering.Brushes.SolidColorBrush(Color.Red);
+            pane.DividerBrush = newBrush;
+
+            Assert.Same(newBrush, pane.DividerBrush);
         }
     }
 }
