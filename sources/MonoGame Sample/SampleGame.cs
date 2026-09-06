@@ -46,7 +46,8 @@ namespace Icy.MonoGameSample
                 new NavigationSample(this, uiConfiguration, canvas),
                 new MarkupStylesSample(this, uiConfiguration, canvas),
                 new ControlTemplateSample(this, uiConfiguration, canvas),
-                new ItemsControlSample(this, uiConfiguration, canvas)
+                new ItemsControlSample(this, uiConfiguration, canvas),
+                new SplitPaneSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);
