@@ -206,7 +206,7 @@ namespace Icy.Tests.Controls
             input.Events.Drag.RaiseDragPerforming(new Point(150, 50));
 
             // roaming = 194; ratio = 150/194 (PointToLocal aligns with content origin here since Padding/BorderThickness are 0).
-            Assert.True(pane.SplitterPosition > 0.5f, $"Expected SplitterPosition to increase past 0.5, got {pane.SplitterPosition}");
+            Assert.Equal(150f / 194f, pane.SplitterPosition, 3);
         }
 
         [Fact]
