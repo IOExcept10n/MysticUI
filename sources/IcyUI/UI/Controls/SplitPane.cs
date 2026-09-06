@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using Icy.Data.Markup.Attributes;
@@ -293,6 +295,67 @@ namespace Icy.UI.Controls
                 dividerVisual.Width = horizontal ? DividerLineThickness : float.NaN;
                 dividerVisual.Height = horizontal ? float.NaN : DividerLineThickness;
             }
+        }
+
+        /// <inheritdoc/>
+        protected override void ArrangeContent()
+        {
+            Rectangle content = ContentBounds;
+            bool horizontal = Orientation == Orientation.Horizontal;
+            float available = horizontal ? content.Width : content.Height;
+            int dividerOffset = ResolveDividerOffset(available);
+
+            if (horizontal)
+            {
+                First?.Arrange(new Rectangle(content.X, content.Y, dividerOffset, content.Height));
+                divider.Margin = new Thickness(dividerOffset, 0, 0, 0);
+                Second?.Arrange(new Rectangle(
+                    content.X + dividerOffset + (int)DividerSize, content.Y,
+                    Math.Max(0, content.Width - dividerOffset - (int)DividerSize), content.Height));
+            }
+            else
+            {
+                First?.Arrange(new Rectangle(content.X, content.Y, content.Width, dividerOffset));
+                divider.Margin = new Thickness(0, dividerOffset, 0, 0);
+                Second?.Arrange(new Rectangle(
+                    content.X, content.Y + dividerOffset + (int)DividerSize,
+                    content.Width, Math.Max(0, content.Height - dividerOffset - (int)DividerSize)));
+            }
+
+            Chrome.Arrange(ActualBounds);
+        }
+
+        /// <inheritdoc/>
+        protected override Size MeasureContent()
+        {
+            Size firstSize = First?.Measure() ?? Size.Empty;
+            Size secondSize = Second?.Measure() ?? Size.Empty;
+            bool horizontal = Orientation == Orientation.Horizontal;
+
+            return horizontal
+                ? new Size((int)(firstSize.Width + secondSize.Width + DividerSize), Math.Max(firstSize.Height, secondSize.Height))
+                : new Size(Math.Max(firstSize.Width, secondSize.Width), (int)(firstSize.Height + secondSize.Height + DividerSize));
+        }
+
+        /// <summary>
+        /// Computes the divider's pixel offset from the start of <paramref name="available"/>, applying
+        /// <see cref="SplitterPosition"/> and clamping to <see cref="MinFirstSize"/>/<see cref="MinSecondSize"/>.
+        /// </summary>
+        /// <param name="available">The full content extent along <see cref="Orientation"/>'s axis.</param>
+        /// <returns>
+        /// The pixel offset where <see cref="First"/> ends and the divider begins. Degrades gracefully (splits the
+        /// midpoint of whatever range remains) when <see cref="MinFirstSize"/> + <see cref="MinSecondSize"/> +
+        /// <see cref="DividerSize"/> exceeds <paramref name="available"/>, rather than throwing.
+        /// </returns>
+        private int ResolveDividerOffset(float available)
+        {
+            float roaming = Math.Max(0, available - DividerSize);
+            float rawPos = SplitterPosition * roaming;
+            float minPos = MinFirstSize;
+            float maxPos = roaming - MinSecondSize;
+
+            float pos = maxPos >= minPos ? float.Clamp(rawPos, minPos, maxPos) : (minPos + maxPos) / 2f;
+            return (int)Math.Max(0, pos);
         }
     }
 }

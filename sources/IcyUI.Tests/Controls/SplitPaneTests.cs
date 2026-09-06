@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Linq;
 using Icy.UI;
 using Icy.UI.Controls;
@@ -82,6 +83,91 @@ namespace Icy.Tests.Controls
 
             var divider = pane.EnumerateVisualSubtree().OfType<Border>().Skip(1).First(); // Chrome, then divider
             Assert.Equal(20f, divider.Width);
+        }
+
+        [Fact]
+        public void ArrangeContent_Horizontal_SplitsProportionally()
+        {
+            var pane = new SplitPane { Width = 200, Height = 100, SplitterPosition = 0.5f };
+            var first = new Border();
+            var second = new Border();
+            pane.First = first;
+            pane.Second = second;
+
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+
+            // available = 200, roaming = 200 - DividerSize(6) = 194; firstWidth = 194 * 0.5 = 97.
+            // Second starts after First AND the divider band: 97 + DividerSize(6) = 103.
+            Assert.Equal(97, first.ActualBounds.Width);
+            Assert.Equal(100, first.ActualBounds.Height);
+            Assert.Equal(103, second.ActualBounds.X);
+            Assert.Equal(200 - 97 - 6, second.ActualBounds.Width);
+        }
+
+        [Fact]
+        public void ArrangeContent_Vertical_SplitsAlongHeight()
+        {
+            var pane = new SplitPane { Width = 100, Height = 200, Orientation = Orientation.Vertical, SplitterPosition = 0.25f };
+            var first = new Border();
+            var second = new Border();
+            pane.First = first;
+            pane.Second = second;
+
+            pane.Arrange(new Rectangle(0, 0, 100, 200));
+
+            // roaming = 200 - 6 = 194; firstHeight = 194 * 0.25 = 48 (truncated).
+            Assert.Equal(48, first.ActualBounds.Height);
+            Assert.Equal(100, first.ActualBounds.Width);
+            Assert.Equal(48 + 6, second.ActualBounds.Y);
+        }
+
+        [Fact]
+        public void ArrangeContent_RespectsMinFirstAndMinSecondSize()
+        {
+            var pane = new SplitPane
+            {
+                Width = 200,
+                Height = 100,
+                SplitterPosition = 0.05f, // would put First far below MinFirstSize without clamping
+                MinFirstSize = 50,
+                MinSecondSize = 50,
+            };
+            var first = new Border();
+            var second = new Border();
+            pane.First = first;
+            pane.Second = second;
+
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+
+            Assert.True(first.ActualBounds.Width >= 50, $"First was {first.ActualBounds.Width}, expected >= 50");
+            Assert.True(second.ActualBounds.Width >= 50, $"Second was {second.ActualBounds.Width}, expected >= 50");
+        }
+
+        [Fact]
+        public void ArrangeContent_UndersizedContainer_DegradesWithoutThrowing()
+        {
+            // MinFirstSize + MinSecondSize + DividerSize (50+50+6=106) exceeds the 80px available - must not throw,
+            // and must still produce a stable (if imperfect) split.
+            var pane = new SplitPane { Width = 80, Height = 100, MinFirstSize = 50, MinSecondSize = 50 };
+            pane.First = new Border();
+            pane.Second = new Border();
+
+            var exception = Record.Exception(() => pane.Arrange(new Rectangle(0, 0, 80, 100)));
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void MeasureContent_SumsFirstAndSecondPlusDividerSize()
+        {
+            var pane = new SplitPane { DividerSize = 6 };
+            pane.First = new Border { Width = 80, Height = 40 };
+            pane.Second = new Border { Width = 60, Height = 30 };
+
+            Size measured = pane.Measure();
+
+            Assert.Equal(80 + 60 + 6, measured.Width);
+            Assert.Equal(40, measured.Height);
         }
     }
 }
