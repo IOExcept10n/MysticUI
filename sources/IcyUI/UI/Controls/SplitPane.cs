@@ -349,10 +349,20 @@ namespace Icy.UI.Controls
             float available = horizontal ? content.Width : content.Height;
             int dividerOffset = ResolveDividerOffset(available);
 
+            // First/Second/divider's assigned rect or size may have moved even though nothing about any of them
+            // individually changed (e.g. only SplitterPosition did, or only this pane's own overall size did as a
+            // side effect of an ancestor pane's resize) - force a re-arrange regardless, same as StackPanel/Grid's
+            // own ArrangeContent, since Arrange(rect) no-ops when IsArrangeInvalid is already false from a prior
+            // pass. The divider needs this explicitly too (not just relying on its Margin setter's own
+            // change-detection invalidating it) - a Stretch-sized divider (the cross axis, e.g. a Vertical pane's
+            // full-width divider) can need to resize on a pass where its Margin value happens to stay identical.
             if (horizontal)
             {
+                First?.InvalidateArrange();
                 First?.Arrange(new Rectangle(content.X, content.Y, dividerOffset, content.Height));
+                divider.InvalidateArrange();
                 divider.Margin = new Thickness(dividerOffset, 0, 0, 0);
+                Second?.InvalidateArrange();
                 Second?.Arrange(new Rectangle(
                     content.X + dividerOffset + (int)DividerSize,
                     content.Y,
@@ -361,8 +371,11 @@ namespace Icy.UI.Controls
             }
             else
             {
+                First?.InvalidateArrange();
                 First?.Arrange(new Rectangle(content.X, content.Y, content.Width, dividerOffset));
+                divider.InvalidateArrange();
                 divider.Margin = new Thickness(0, dividerOffset, 0, 0);
+                Second?.InvalidateArrange();
                 Second?.Arrange(new Rectangle(
                     content.X,
                     content.Y + dividerOffset + (int)DividerSize,
@@ -370,6 +383,7 @@ namespace Icy.UI.Controls
                     Math.Max(0, content.Height - dividerOffset - (int)DividerSize)));
             }
 
+            Chrome.InvalidateArrange();
             Chrome.Arrange(ActualBounds);
         }
 

@@ -153,6 +153,31 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void ArrangeContent_SplitterPositionChangedAfterFirstArrange_ReArrangesFirstAndSecond()
+        {
+            // Regression: StackPanel/Grid both force-invalidate a child before re-Arrange-ing it into a slot that
+            // may have moved (see their own ArrangeContent), because Arrange(rect) no-ops when the target's own
+            // IsArrangeInvalid is already false - SplitPane's First/Second never got that treatment, so a
+            // SplitterPosition change after the first render moved the divider but left First/Second's own
+            // ActualBounds stale (only the divider tracked, since Chrome's own Margin-driven invalidation happens
+            // to cascade correctly).
+            var pane = new SplitPane { Width = 200, Height = 100, SplitterPosition = 0.5f };
+            var first = new Border();
+            var second = new Border();
+            pane.First = first;
+            pane.Second = second;
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+            Assert.Equal(97, first.ActualBounds.Width);
+
+            pane.SplitterPosition = 0.75f;
+            pane.Arrange(new Rectangle(0, 0, 200, 100));
+
+            // roaming = 194; firstWidth = 194 * 0.75 = 145 (truncated).
+            Assert.Equal(145, first.ActualBounds.Width);
+            Assert.Equal(145 + 6, second.ActualBounds.X);
+        }
+
+        [Fact]
         public void ArrangeContent_UndersizedContainer_DegradesWithoutThrowing()
         {
             // MinFirstSize + MinSecondSize + DividerSize (50+50+6=106) exceeds the 80px available - must not throw,
@@ -313,6 +338,59 @@ namespace Icy.Tests.Controls
 
             Assert.NotEqual(0.5f, inner.SplitterPosition);
             Assert.Equal(0.5f, outer.SplitterPosition);
+        }
+
+        [Fact]
+        public void Drag_ResizingOuterPane_StretchesTheNestedPanesOwnDividerToTheNewWidth()
+        {
+            // Regression: the inner (Vertical) pane's own divider is Width=NaN/HorizontalAlignment.Stretch, sized
+            // by Chrome's ArrangeContent (Border.ArrangeContent -> Child.Arrange()) each pass. That call only
+            // re-arranges if the divider (Chrome's child) is itself IsArrangeInvalid - which today only happens as
+            // a side effect of `divider.Margin = ...` actually CHANGING value. Resizing the OUTER pane changes the
+            // inner pane's overall width without touching the inner pane's own SplitterPosition/height-axis
+            // dividerOffset, so the inner divider's Margin is set to the exact same value as before - no change,
+            // no cascade, no re-arrange - and the divider's ActualBounds.Width is left stale at the pane's old,
+            // narrower width instead of stretching to the new one.
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="SplitPane">
+                  <Border>
+                    <Border x:Name="PART_Divider"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var inner = new SplitPane
+            {
+                Template = template,
+                Orientation = Orientation.Vertical,
+                First = new Border(),
+                Second = new Border(),
+            };
+            var outer = new SplitPane
+            {
+                Template = template,
+                Orientation = Orientation.Horizontal,
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                First = new Border(),
+                Second = inner,
+            };
+            canvas.Add(outer);
+            canvas.Render();
+
+            // Outer's divider band is x in [97,103] initially; drag it left to grow inner (outer's Second).
+            input.Events.Drag.RaiseDragStarted(new Point(100, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(50, 50));
+            canvas.Render();
+
+            var innerDivider = inner.EnumerateVisualSubtree().OfType<Border>().Skip(1).First(); // Chrome, then divider
+            Assert.NotEqual(97, inner.ActualBounds.Width); // sanity: the resize actually happened
+            Assert.Equal(inner.ActualBounds.Width, innerDivider.ActualBounds.Width);
         }
 
         [Fact]
