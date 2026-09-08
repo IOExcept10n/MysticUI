@@ -111,6 +111,47 @@
     </Style.StateGroups>
   </Style>
 
+  <!-- ExpanderHeader -->
+  <ControlTemplate x:Key="IcyDefaultExpanderHeaderTemplate" TargetType="ExpanderHeader">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+      <StackPanel Orientation="Horizontal">
+        <Icon Kind="ChevronRight" Stroke="White" StrokeThickness="2" RenderRotation="{TemplateBinding ChevronRotation}" Margin="0,0,8,0"/>
+        <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center"/>
+      </StackPanel>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="ExpanderHeader" Template="{StaticResource IcyDefaultExpanderHeaderTemplate}"
+         Background="Transparent" BorderBrush="#FF56566A" BorderThickness="0" Padding="8,6" ChevronRotation="0">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" Background="#FF33333E"/>
+        <VisualState Name="Pressed" State="Pressed" Background="#FF2E2E38"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8" BorderThickness="1"/>
+      </VisualStateGroup>
+      <VisualStateGroup Name="CheckStates">
+        <VisualState Name="Checked" State="Checked" ChevronRotation="90"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- Expander -->
+  <ControlTemplate x:Key="IcyDefaultExpanderTemplate" TargetType="Expander">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+      <ExpanderHeader x:Name="PART_Header"/>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="Expander" Template="{StaticResource IcyDefaultExpanderTemplate}"
+         Background="#FF26262C" BorderBrush="#FF3A3A44" BorderThickness="1">
+    <Style.StateGroups>
+      <VisualStateGroup Name="ExpansionStates">
+        <VisualState Name="Expanded" State="Expanded" ExpansionProgress="1" Duration="0:0:0.2" Easing="EaseOutCubic"/>
+        <VisualState Name="Collapsed" State="Normal" ExpansionProgress="0" Duration="0:0:0.2" Easing="EaseOutCubic"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
   <!-- TextBox, ScrollViewer, Window: Style-only (Border-level decoration through Control's existing dual-path
        forwarding) - neither is template-safe yet (see Control.Template's own remarks), so no ControlTemplate is
        applied to them here; a future named-template-parts retrofit can add one without touching these entries. -->

@@ -1,5 +1,11 @@
 using System.Drawing;
 using System.Linq;
+using Icy.Assets;
+using Icy.Configuration;
+using Icy.Input.Events;
+using Icy.Markup;
+using Icy.Tests.Input;
+using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
 using Icy.UI.Styles;
@@ -208,6 +214,93 @@ namespace Icy.Tests.Controls
 
             Assert.NotEqual(firstHeight, content.ActualBounds.Height);
             Assert.Equal(100, content.ActualBounds.Height);
+        }
+
+        private static ControlTemplate LoadTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (ControlTemplate)loader.LoadObject(markup);
+        }
+
+        [Fact]
+        public void Template_WithPartHeader_UsesTheTemplatesOwnHeaderForClickAndContent()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="Expander">
+                  <Border>
+                    <ExpanderHeader x:Name="PART_Header"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var expander = new Expander { Template = template, Header = new Border() };
+
+            var templatedHeader = expander.EnumerateVisualSubtree().OfType<ExpanderHeader>().Single();
+
+            Assert.Same(expander.Header, templatedHeader.Content);
+        }
+
+        [Fact]
+        public void Template_WithPartHeader_ClickingItTogglesIsExpanded()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="Expander">
+                  <Border>
+                    <ExpanderHeader x:Name="PART_Header" Width="100" Height="30"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var input = new FakeInputSystem();
+            var renderContext = new FakeRenderContext();
+            var assets = new AssetConfiguration(AssetContext.ApplicationContext);
+            var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            var expander = new Expander
+            {
+                Template = template,
+                Width = 100,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(expander);
+            canvas.Render();
+
+            input.Events.Touch.RaiseTap(new TouchInfo(new Point(50, 15), 1));
+
+            Assert.True(expander.IsExpanded);
+        }
+
+        [Fact]
+        public void Template_WithoutPartHeader_StillArrangesWithoutThrowing()
+        {
+            var template = LoadTemplate("""<ControlTemplate TargetType="Expander"><Border/></ControlTemplate>""");
+            var expander = new Expander { Template = template, Width = 200, Height = 100, Content = new Border() };
+
+            var exception = Record.Exception(() => expander.Arrange(new Rectangle(0, 0, 200, 100)));
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void Template_ClearedAfterBeingSet_RestoresDefaultHeaderBehavior()
+        {
+            var template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="Expander">
+                  <Border>
+                    <ExpanderHeader x:Name="PART_Header"/>
+                  </Border>
+                </ControlTemplate>
+                """);
+            var expander = new Expander { Template = template, Header = new Border() };
+
+            expander.Template = null;
+
+            var defaultHeader = expander.EnumerateVisualSubtree().OfType<ExpanderHeader>().Single();
+            Assert.Same(expander.Header, defaultHeader.Content);
         }
     }
 }

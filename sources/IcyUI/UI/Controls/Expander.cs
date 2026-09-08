@@ -224,6 +224,38 @@ namespace Icy.UI.Controls
             Chrome.Arrange(ActualBounds);
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Repoints <c>headerToggle</c> - the element <see cref="ArrangeContent"/>/<see cref="MeasureContent"/>
+        /// already reference - to whichever <see cref="ExpanderHeader"/> is actually live right now:
+        /// <see cref="Control.Template"/>'s own <c>PART_Header</c> when one is set, falling back to the built-in
+        /// default header otherwise (mirrors <see cref="SplitPane.OnApplyTemplate"/> exactly). Re-syncs
+        /// <see cref="Header"/>'s value and <see cref="IsExpanded"/> onto whichever header is now live, since
+        /// <c>headerContent</c> - not <c>headerToggle.Content</c> itself - is this control's own source of truth
+        /// for <see cref="Header"/>.
+        /// </remarks>
+        protected override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            headerToggle.IsCheckedChanged -= HeaderToggle_IsCheckedChanged;
+
+            if (Template != null && GetTemplateChild<ExpanderHeader>("PART_Header") is { } part)
+            {
+                headerToggle = part;
+            }
+            else
+            {
+                headerToggle = defaultHeader;
+                if (Template == null)
+                    ((Border)Chrome).Child = headerToggle;
+            }
+
+            headerToggle.Content = headerContent;
+            headerToggle.IsChecked = IsExpanded;
+            headerToggle.IsCheckedChanged += HeaderToggle_IsCheckedChanged;
+        }
+
         private void HeaderToggle_IsCheckedChanged(object? sender, EventArgs e) => IsExpanded = headerToggle.IsChecked;
     }
 }
