@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Linq;
 using Icy.UI;
 using Icy.UI.Controls;
@@ -117,6 +118,96 @@ namespace Icy.Tests.Controls
             header.ChevronRotation = 90f;
 
             Assert.Equal(90f, header.ChevronRotation);
+        }
+
+        [Fact]
+        public void MeasureContent_ExpansionProgressZero_OnlyCountsTheHeader()
+        {
+            var expander = new Expander { Header = new Border { Width = 40, Height = 20 } };
+            expander.Content = new Border { Width = 100, Height = 100 };
+
+            Size measured = expander.Measure();
+
+            Assert.Equal(20, measured.Height);
+        }
+
+        [Fact]
+        public void MeasureContent_ScalesWithExpansionProgress()
+        {
+            var expander = new Expander { Header = new Border { Width = 40, Height = 20 } };
+            expander.Content = new Border { Width = 100, Height = 100 };
+
+            expander.ExpansionProgress = 0.5f;
+            Size half = expander.Measure();
+
+            Assert.Equal(20 + 50, half.Height); // header + half of content's 100px
+
+            expander.ExpansionProgress = 1f;
+            Size full = expander.Measure();
+
+            Assert.Equal(20 + 100, full.Height); // header + full content
+        }
+
+        [Fact]
+        public void ArrangeContent_ExpansionProgressZero_SkipsContentEntirely()
+        {
+            var expander = new Expander { Width = 200, Height = 300 };
+            var content = new Border { Height = 100 };
+            expander.Content = content;
+
+            expander.Arrange(new Rectangle(0, 0, 200, 300));
+
+            Assert.False(content.IsVisible);
+            Assert.Equal(0, content.ActualBounds.Width);
+            Assert.Equal(0, content.ActualBounds.Height);
+        }
+
+        [Fact]
+        public void ArrangeContent_PartialExpansion_RevealsAProportionalHeight()
+        {
+            // Content is an un-sized wrapper (Height=NaN, Stretch) around a 100px-tall child, not an
+            // explicitly-sized element itself - an explicit Height would keep the child's own ActualBounds at
+            // its full natural size regardless of the smaller Arrange rect (only ClipToBounds would mask the
+            // overflow visually), so this shape is what actually exercises the shrink-via-Arrange behavior,
+            // matching a realistic Expander.Content (e.g. a Border/StackPanel with no fixed Height of its own).
+            var expander = new Expander { Width = 200, Height = 300, ExpansionProgress = 0.5f };
+            var content = new Border { Child = new Border { Height = 100 } };
+            expander.Content = content;
+
+            expander.Arrange(new Rectangle(0, 0, 200, 300));
+
+            Assert.Equal(50, content.ActualBounds.Height);
+        }
+
+        [Fact]
+        public void ArrangeContent_FullExpansion_RevealsTheFullContentHeight()
+        {
+            var expander = new Expander { Width = 200, Height = 300, ExpansionProgress = 1f };
+            var content = new Border { Child = new Border { Height = 100 } };
+            expander.Content = content;
+
+            expander.Arrange(new Rectangle(0, 0, 200, 300));
+
+            Assert.Equal(100, content.ActualBounds.Height);
+        }
+
+        [Fact]
+        public void ArrangeContent_ExpansionProgressChangedAfterFirstArrange_ReArrangesContent()
+        {
+            // Regression, applied proactively (see the SplitPane postmortem in [[project_icyui_tier2_roadmap]]):
+            // Arrange(rect) no-ops when the target's own IsArrangeInvalid is already false, regardless of whether
+            // rect changed - Content must be force-invalidated before every Arrange call, not just the first one.
+            var expander = new Expander { Width = 200, Height = 300, ExpansionProgress = 0.5f };
+            var content = new Border { Child = new Border { Height = 100 } };
+            expander.Content = content;
+            expander.Arrange(new Rectangle(0, 0, 200, 300));
+            int firstHeight = content.ActualBounds.Height;
+
+            expander.ExpansionProgress = 1f;
+            expander.Arrange(new Rectangle(0, 0, 200, 300));
+
+            Assert.NotEqual(firstHeight, content.ActualBounds.Height);
+            Assert.Equal(100, content.ActualBounds.Height);
         }
     }
 }

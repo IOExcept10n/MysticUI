@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using Icy.Data.Markup.Attributes;
 using Icy.Markup;
 using Icy.UI.Styles;
@@ -186,6 +187,41 @@ namespace Icy.UI.Controls
             Chrome.Draw(context);
             if (Content?.IsVisible == true)
                 Content.Draw(context);
+        }
+
+        /// <inheritdoc/>
+        protected override Size MeasureContent()
+        {
+            Size headerSize = headerToggle.Measure();
+            if (Content?.IsVisible != true)
+                return headerSize;
+
+            Size contentSize = Content.Measure();
+            int revealedHeight = (int)(contentSize.Height * ExpansionProgress);
+            return new Size(Math.Max(headerSize.Width, contentSize.Width), headerSize.Height + revealedHeight);
+        }
+
+        /// <inheritdoc/>
+        protected override void ArrangeContent()
+        {
+            Rectangle bounds = ContentBounds;
+            int headerHeight = headerToggle.Measure().Height;
+
+            // Every managed child gets InvalidateArrange() immediately before Arrange() - Arrange(rect) no-ops
+            // when the target's own IsArrangeInvalid is already false, regardless of whether rect changed (see
+            // the SplitPane postmortem in [[project_icyui_tier2_roadmap]]).
+            headerToggle.InvalidateArrange();
+            headerToggle.Arrange(new Rectangle(bounds.X, bounds.Y, bounds.Width, headerHeight));
+
+            if (Content?.IsVisible == true)
+            {
+                int revealedHeight = (int)(Content.Measure().Height * ExpansionProgress);
+                Content.InvalidateArrange();
+                Content.Arrange(new Rectangle(bounds.X, bounds.Y + headerHeight, bounds.Width, revealedHeight));
+            }
+
+            Chrome.InvalidateArrange();
+            Chrome.Arrange(ActualBounds);
         }
 
         private void HeaderToggle_IsCheckedChanged(object? sender, EventArgs e) => IsExpanded = headerToggle.IsChecked;
