@@ -48,6 +48,7 @@ namespace Icy.UI.Controls
             defaultHeader = new ExpanderHeader();
             headerToggle = defaultHeader;
             headerToggle.IsCheckedChanged += HeaderToggle_IsCheckedChanged;
+            headerToggle.VerticalAlignment = VerticalAlignment.Top;
 
             // Safe here, at construction: Chrome is always the default Border until/unless Template is set
             // later, in which case OnApplyTemplate re-wires (or re-attaches) headerToggle appropriately.
@@ -202,19 +203,32 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Deliberately does <em>not</em> call <c>headerToggle.Arrange(...)</c> directly - <c>headerToggle</c>
+        /// is structurally <see cref="Control.Chrome"/>'s own child (both when templated, via the template's
+        /// own <c>PART_Header</c> nested inside its root element, and untemplated, via
+        /// <c>((Border)Chrome).Child</c>), so <see cref="Control.Chrome"/>'s own arrange pass below would
+        /// immediately re-arrange it anyway - and since <see cref="Control.Chrome"/> spans this whole control's
+        /// bounds (header and <see cref="Content"/> combined, not just the header row),
+        /// <c>headerToggle</c>'s default <see cref="UIElement.VerticalAlignment"/>.<see cref="VerticalAlignment.Stretch"/>
+        /// would stretch-fill that entire (and, mid-animation, growing) height instead of staying header-sized.
+        /// Positioning it correctly is therefore purely a matter of alignment: <c>headerToggle.VerticalAlignment</c>
+        /// is set to <see cref="VerticalAlignment.Top"/> once, wherever <c>headerToggle</c> is (re)assigned (the
+        /// constructor, <see cref="OnApplyTemplate"/>) - with that alignment, <see cref="Control.Chrome"/>'s own
+        /// arrange of its child naturally sizes/positions <c>headerToggle</c> to its own natural (measured)
+        /// height at the top, the same way <see cref="SplitPane"/>'s divider positions itself via
+        /// <see cref="UIElement.Margin"/>/alignment rather than a direct <c>Arrange</c> call.
+        /// </remarks>
         protected override void ArrangeContent()
         {
             Rectangle bounds = ContentBounds;
             int headerHeight = headerToggle.Measure().Height;
 
-            // Every managed child gets InvalidateArrange() immediately before Arrange() - Arrange(rect) no-ops
-            // when the target's own IsArrangeInvalid is already false, regardless of whether rect changed (see
-            // the SplitPane postmortem in [[project_icyui_tier2_roadmap]]).
-            headerToggle.InvalidateArrange();
-            headerToggle.Arrange(new Rectangle(bounds.X, bounds.Y, bounds.Width, headerHeight));
-
             if (Content?.IsVisible == true)
             {
+                // Content gets InvalidateArrange() immediately before Arrange() - Arrange(rect) no-ops when the
+                // target's own IsArrangeInvalid is already false, regardless of whether rect changed (see the
+                // SplitPane postmortem in [[project_icyui_tier2_roadmap]]).
                 int revealedHeight = (int)(Content.Measure().Height * ExpansionProgress);
                 Content.InvalidateArrange();
                 Content.Arrange(new Rectangle(bounds.X, bounds.Y + headerHeight, bounds.Width, revealedHeight));
@@ -251,6 +265,7 @@ namespace Icy.UI.Controls
                     ((Border)Chrome).Child = headerToggle;
             }
 
+            headerToggle.VerticalAlignment = VerticalAlignment.Top;
             headerToggle.Content = headerContent;
             headerToggle.IsChecked = IsExpanded;
             headerToggle.IsCheckedChanged += HeaderToggle_IsCheckedChanged;

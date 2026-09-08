@@ -354,5 +354,62 @@ namespace Icy.Tests.Controls
             Assert.Equal(1f, expander.ExpansionProgress);
             Assert.Equal(textBlock.Measure().Height, textBlock.ActualBounds.Height);
         }
+
+        [Fact]
+        public void ThemedExpander_HeaderTextStaysAtTheTop_ThroughoutTheExpandAnimation()
+        {
+            // Regression: headerToggle is structurally Chrome's own child (both templated, via the template's
+            // PART_Header nested inside its root element, and untemplated, via ((Border)Chrome).Child) - an
+            // earlier version of ArrangeContent called headerToggle.Arrange(...) directly to position it at a
+            // fixed header-sized rect, but that positioning was immediately overwritten by the subsequent
+            // Chrome.Arrange(ActualBounds) call, which - since Chrome spans this whole control's bounds, not
+            // just the header row - stretched headerToggle (default VerticalAlignment.Stretch) to fill the
+            // entire, growing Expander height each frame. The header's own ContentPresenter centers its content
+            // vertically, so the header text visibly drifted downward as Content expanded. Fixed by setting
+            // headerToggle.VerticalAlignment = Top (so Chrome's own arrange naturally sizes/positions it to its
+            // natural height at the top) instead of arranging it directly.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build().UseDefaultTheme();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+
+            var headerText = new TextBlock { Text = "Plain-text header" };
+            var textBlock = new TextBlock { Text = "Simple collapsible content, revealed below the header." };
+            var contentBorder = new Border { Padding = new Thickness(10) };
+            contentBorder.Child = textBlock;
+
+            var expander = new Expander
+            {
+                Width = 400,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Header = headerText,
+                Content = contentBorder,
+            };
+            canvas.Add(expander);
+            canvas.Render();
+            int headerYBeforeExpand = headerText.ActualBounds.Y;
+
+            expander.IsExpanded = true;
+            for (int i = 0; i < 6; i++)
+            {
+                Dispatcher.GetCurrentThreadDispatcher().UpdateAnimations(TimeSpan.FromMilliseconds(50));
+                canvas.Render();
+
+                // The header text's own Y position must stay fixed at every single frame of the animation, not
+                // just settle back to the right value once it finishes - the bug this guards against was a
+                // continuous drift proportional to the (still-growing) Expander height.
+                Assert.Equal(headerYBeforeExpand, headerText.ActualBounds.Y);
+            }
+
+            Assert.Equal(1f, expander.ExpansionProgress);
+            Assert.True(expander.ActualBounds.Height > headerText.ActualBounds.Height, "Expander should have grown past just the header's own height once expanded.");
+        }
     }
 }
