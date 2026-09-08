@@ -59,10 +59,20 @@ namespace Icy.UI.Controls
         public Rectangle ContentBounds => ActualBounds - Padding;
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Force-invalidates <see cref="Content"/> before arranging it - same reasoning as
+        /// <see cref="UI.Border.ArrangeContent"/> (<see cref="UIElement.Arrange(Rectangle)"/> no-ops once the
+        /// target's own <c>IsArrangeInvalid</c> is already <see langword="false"/>, regardless of whether the
+        /// rect changed), so <see cref="Content"/> doesn't get stuck at whatever size it happened to receive
+        /// the first time this <see cref="ContentPresenter"/> was arranged.
+        /// </remarks>
         protected override void ArrangeContent()
         {
             if (Content?.IsVisible == true)
+            {
+                Content.InvalidateArrange();
                 Content.Arrange();
+            }
         }
 
         /// <inheritdoc/>
