@@ -1,7 +1,9 @@
 using System.Drawing;
 using System.Linq;
+using Icy.Animations;
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Data.Markup;
 using Icy.Input.Events;
 using Icy.Markup;
 using Icy.Tests.Input;
@@ -301,6 +303,56 @@ namespace Icy.Tests.Controls
 
             var defaultHeader = expander.EnumerateVisualSubtree().OfType<ExpanderHeader>().Single();
             Assert.Same(expander.Header, defaultHeader.Content);
+        }
+
+        [Fact]
+        public void ThemedExpander_AfterFullAnimation_ContentTextReachesItsFullNaturalHeight()
+        {
+            // End-to-end regression (real theme, real font, real animated VisualState transition) for the
+            // Border.ArrangeContent bug found via manual smoke testing: a bare TextBlock (no explicit
+            // Width/Height, no wrapping StackPanel) directly inside Expander.Content got permanently stuck at
+            // whatever tiny size it happened to receive the first animation frame it became visible on, since
+            // Border.ArrangeContent never force-invalidated its Child before re-arranging it into Content's own
+            // (correctly growing) bounds each frame. Fixed in Border.cs; this guards the fix at the level it was
+            // actually observed, on top of the more targeted BorderTests.cs unit test.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build().UseDefaultTheme();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+
+            var textBlock = new TextBlock { Text = "Simple collapsible content, revealed below the header." };
+            var contentBorder = new Border { Padding = new Thickness(10) };
+            contentBorder.Child = textBlock;
+
+            var expander = new Expander
+            {
+                Width = 400,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Header = new TextBlock { Text = "Plain-text header" },
+                Content = contentBorder,
+            };
+            canvas.Add(expander);
+            canvas.Render();
+
+            expander.IsExpanded = true;
+            // Advance well past the theme's 200ms Expanded transition, rendering multiple frames along the way
+            // (not just the final one) - the bug only manifested once the animation had already ticked forward
+            // at least once, permanently freezing the child's first-arranged size.
+            for (int i = 0; i < 5; i++)
+            {
+                Dispatcher.GetCurrentThreadDispatcher().UpdateAnimations(TimeSpan.FromMilliseconds(50));
+                canvas.Render();
+            }
+
+            Assert.Equal(1f, expander.ExpansionProgress);
+            Assert.Equal(textBlock.Measure().Height, textBlock.ActualBounds.Height);
         }
     }
 }

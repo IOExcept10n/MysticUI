@@ -113,8 +113,18 @@ namespace Icy.UI
         /// <inheritdoc/>
         protected override void ArrangeContent()
         {
+            // Child's assigned space may have moved/resized even though nothing about Child itself changed (e.g.
+            // only this Border's own ActualBounds did) - force a re-arrange regardless, same as
+            // StackPanel/Grid's own ArrangeContent, since Arrange(rect) no-ops when IsArrangeInvalid is already
+            // false from a prior pass. Without this, a Stretch-sized Child (no explicit Width/Height of its own)
+            // gets permanently stuck at whatever size it happened to receive the first time it was arranged -
+            // found via Expander's expand/collapse animation, where Border's own size grows frame-by-frame
+            // around an already-arranged Child.
             if (Child?.IsVisible == true)
+            {
+                Child.InvalidateArrange();
                 Child.Arrange();
+            }
         }
 
         /// <inheritdoc/>
