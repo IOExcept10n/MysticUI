@@ -29,6 +29,7 @@
     <Compile Include="..\Shared Samples\ControlTemplateDemo.cs" Link="Samples\ControlTemplateDemo.cs" />
     <Compile Include="..\Shared Samples\ItemsControlDemo.cs" Link="Samples\ItemsControlDemo.cs" />
     <Compile Include="..\Shared Samples\SplitPaneDemo.cs" Link="Samples\SplitPaneDemo.cs" />
+    <Compile Include="..\Shared Samples\ExpanderDemo.cs" Link="Samples\ExpanderDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

@@ -197,10 +197,18 @@ namespace Icy.UI
 
         protected override void ArrangeContent()
         {
+            // Every child gets InvalidateArrange() immediately before Arrange() - Arrange(rect) no-ops when the
+            // target's own IsArrangeInvalid is already false, regardless of whether the target rect changed
+            // (see Border.ArrangeContent's own remarks) - without this, a child gets stuck at whatever size it
+            // happened to receive the first time this Panel was arranged, even after this Panel's own
+            // ActualBounds later changes size around it.
             foreach (var child in Children)
             {
                 if (child.IsVisible)
+                {
+                    child.InvalidateArrange();
                     child.Arrange();
+                }
             }
         }
 

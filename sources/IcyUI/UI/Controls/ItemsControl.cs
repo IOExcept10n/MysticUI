@@ -223,7 +223,16 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
-        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
+        /// <remarks>
+        /// Force-invalidates <see cref="Control.Chrome"/> before arranging it - see
+        /// <see cref="Control.ArrangeContent"/>'s own remarks (this override replaces that base implementation
+        /// entirely, so it needs the same fix independently).
+        /// </remarks>
+        protected override void ArrangeContent()
+        {
+            Chrome.InvalidateArrange();
+            Chrome.Arrange(ActualBounds);
+        }
 
         /// <inheritdoc/>
         protected override IEnumerable<UIElement> GetVisualChildren()

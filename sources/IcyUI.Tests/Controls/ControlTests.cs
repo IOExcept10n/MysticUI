@@ -309,5 +309,27 @@ namespace Icy.Tests.Controls
             control.Template = null;
             Assert.Equal(2, control.OnApplyTemplateCallCount);
         }
+
+        [Fact]
+        public void ArrangeContent_ReArrangedToANewSize_ChromeFollows()
+        {
+            // Regression (same bug class as Border.ArrangeContent - see [[project_icyui_tier2_roadmap]]):
+            // Chrome.Arrange(ActualBounds) no-ops once Chrome's own IsArrangeInvalid is already false, so
+            // without an explicit Chrome.InvalidateArrange() first, Chrome (and therefore every control's own
+            // Background/BorderBrush/Content decoration) gets stuck at whatever size it happened to receive the
+            // first time this control was arranged - even after the control's own ActualBounds later changes
+            // size around it (e.g. a StackPanel/Grid slot resizing across layout passes, or any other
+            // already-arranged element being given a new size on a later pass).
+            var control = new TestControl();
+            control.Arrange(new Rectangle(0, 0, 50, 20));
+            var chrome = GetChrome(control);
+            int firstChromeHeight = chrome.ActualBounds.Height;
+
+            control.InvalidateArrange();
+            control.Arrange(new Rectangle(0, 0, 200, 200));
+
+            Assert.NotEqual(firstChromeHeight, chrome.ActualBounds.Height);
+            Assert.Equal(200, chrome.ActualBounds.Height);
+        }
     }
 }

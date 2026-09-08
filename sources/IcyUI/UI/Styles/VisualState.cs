@@ -44,6 +44,11 @@ namespace Icy.UI.Styles
         /// The element represents an "on"/checked value (e.g. a checked <see cref="Controls.ToggleButton"/>).
         /// </summary>
         Checked = 1 << 5,
+
+        /// <summary>
+        /// The element represents an expanded value (e.g. an expanded <see cref="Controls.Expander"/>).
+        /// </summary>
+        Expanded = 1 << 6,
     }
 
     /// <summary>

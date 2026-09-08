@@ -215,5 +215,29 @@ namespace Icy.Tests.UI
 
             Assert.False(child.ActualBounds.IsEmpty);
         }
+
+        [Fact]
+        public void Arrange_BorderReArrangedToALargerRect_StretchedChildGrowsToo()
+        {
+            // Regression (found via Expander's expand/collapse animation - see the SplitPane postmortem in
+            // [[project_icyui_tier2_roadmap]] for the general pattern): Border.ArrangeContent's
+            // `Child.Arrange()` call is gated by the CHILD's own IsArrangeInvalid, same as every other
+            // UIElement.Arrange(rect) call - it no-ops once the child has already been arranged once, even
+            // though Border itself was force-invalidated and re-arranged into a different-sized rect. A
+            // Stretch-sized child (no explicit Width/Height of its own, like a bare TextBlock or a StackPanel
+            // directly inside a Border) gets permanently stuck at whatever size it happened to receive the
+            // FIRST time it became visible and got arranged - exactly what happens mid-animation, when a
+            // container's own size grows frame-by-frame around an already-arranged child.
+            var child = new ContentElement { ContentSize = new Size(100, 50) };
+            var border = new Border { Child = child };
+            border.Arrange(new Rectangle(0, 0, 30, 20));
+            int firstChildHeight = child.ActualBounds.Height;
+
+            border.InvalidateArrange();
+            border.Arrange(new Rectangle(0, 0, 200, 200));
+
+            Assert.NotEqual(firstChildHeight, child.ActualBounds.Height);
+            Assert.Equal(200, child.ActualBounds.Height);
+        }
     }
 }
