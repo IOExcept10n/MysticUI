@@ -292,7 +292,19 @@ namespace Icy.UI.Controls
         protected UIElement Chrome { get; private set; } = new Border();
 
         /// <inheritdoc/>
-        protected override void ArrangeContent() => Chrome.Arrange(ActualBounds);
+        /// <remarks>
+        /// Force-invalidates <see cref="Chrome"/> before arranging it - same reasoning as
+        /// <see cref="UI.Border.ArrangeContent"/>: <see cref="UIElement.Arrange(Rectangle)"/> no-ops when the
+        /// target's own <c>IsArrangeInvalid</c> is already <see langword="false"/>, regardless of whether the
+        /// rect changed, so without this <see cref="Chrome"/> gets stuck at whatever size it happened to
+        /// receive the first time this control was arranged, even after this control's own
+        /// <see cref="UIElement.ActualBounds"/> later changes size around it.
+        /// </remarks>
+        protected override void ArrangeContent()
+        {
+            Chrome.InvalidateArrange();
+            Chrome.Arrange(ActualBounds);
+        }
 
         /// <inheritdoc/>
         protected override IEnumerable<UIElement> GetVisualChildren()
