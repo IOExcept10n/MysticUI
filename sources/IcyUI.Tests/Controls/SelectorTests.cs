@@ -174,12 +174,13 @@ namespace Icy.Tests.Controls
             {
                 ItemsSource = Enumerable.Range(0, 50).Cast<object>().ToList(),
                 Width = 200,
-                Height = 30,
             };
 
             Size measured = selector.Measure();
 
-            Assert.Equal(30, measured.Height);
+            // Base ItemsControl.MeasureContent would size to 50 * DefaultEstimatedItemHeight (2000px) - this asserts
+            // Selector's own override (chrome-only) is what's actually running, not that base behavior.
+            Assert.True(measured.Height < 2000, $"Expected chrome-only height, got {measured.Height} (looks like full item extent leaked through)");
         }
 
         [Fact]
@@ -243,6 +244,32 @@ namespace Icy.Tests.Controls
             selector.IsOpen = true;
 
             Assert.NotEmpty(GetRealizedContainers(selector));
+        }
+
+        [Fact]
+        public void RealizedItems_KeepDistinctPositions_AcrossARenderPass()
+        {
+            // Regression coverage for the PopupItemsHost fix: a plain Panel hosting the realized items would have
+            // its base Panel.ArrangeContent re-arrange every child to its own full ContentBounds on the very next
+            // layout pass, stomping every SelectorItem back on top of each other.
+            var (canvas, _) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+
+            selector.IsOpen = true;
+            canvas.Render();
+
+            var realizedYs = GetRealizedContainers(selector).Values.Select(c => c.ActualBounds.Y).Distinct().ToList();
+            Assert.True(realizedYs.Count > 1, $"Expected distinct Y positions across realized items, got: [{string.Join(", ", realizedYs)}]");
         }
 
         [Fact]

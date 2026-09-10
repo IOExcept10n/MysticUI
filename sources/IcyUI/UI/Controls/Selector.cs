@@ -59,7 +59,7 @@ namespace Icy.UI.Controls
         /// </summary>
         protected Selector()
         {
-            popupHost = new Panel();
+            popupHost = new PopupItemsHost(this);
             popupScrollViewer = new ScrollViewer { Content = popupHost, ClipToBounds = true };
             popupScrollViewer.ScrollChanged += PopupScrollViewer_ScrollChanged;
             popupRoot = new Border
@@ -276,6 +276,14 @@ namespace Icy.UI.Controls
         protected override void OnRender(Icy.Rendering.IRenderContext context) => Chrome.Draw(context);
 
         /// <inheritdoc/>
+        protected override void OnAttached()
+        {
+            base.OnAttached();
+            if (isOpen)
+                OpenPopup();
+        }
+
+        /// <inheritdoc/>
         protected override void OnDetached()
         {
             // Canvas is already null by the time this runs (see UIElement.Canvas's setter) - RemoveOverlay must go
@@ -283,6 +291,7 @@ namespace Icy.UI.Controls
             openedOnCanvas?.RemoveOverlay(popupRoot);
             openedOnCanvas = null;
             isOpen = false;
+            toggle.IsChecked = false;
             UnsubscribeNavigation();
             base.OnDetached();
         }
@@ -354,7 +363,6 @@ namespace Icy.UI.Controls
                 return;
 
             popupHost.Width = ActualBounds.Width;
-            popupHost.Height = ExtentHeight;
 
             Point topLeft = PointToScreen(Vector2.Zero);
             Point bottomLeft = PointToScreen(new Vector2(0, ActualBounds.Height));
@@ -373,5 +381,58 @@ namespace Icy.UI.Controls
 
         private void PopupScrollViewer_ScrollChanged(object? sender, EventArgs e) =>
             ((IVirtualizingScrollInfo)this).OnViewportChanged(0, popupScrollViewer.VerticalOffset, popupScrollViewer.ViewportWidth, popupScrollViewer.ViewportHeight);
+
+        /// <summary>
+        /// The plain panel realized <see cref="SelectorItem"/>s are parented to inside the popup - implements
+        /// <see cref="IVirtualizingScrollInfo"/> purely as a forwarding shim to the owning <see cref="Selector"/>
+        /// (whose own realize/de-realize/virtualization state this panel never touches itself), so
+        /// <c>PART_PopupScrollViewer</c>'s automatic <see cref="ScrollViewer.ArrangeContent"/> virtualizing delegation
+        /// applies here exactly as it would for any other <see cref="ItemsControl"/>-hosted content.
+        /// </summary>
+        /// <remarks>
+        /// Without this, <see cref="ScrollViewer"/>'s non-virtualizing branch would re-arrange every child to this
+        /// panel's own full content bounds on every layout pass (see <see cref="Panel.ArrangeContent"/>), clobbering
+        /// the explicit per-item positions <see cref="ItemsControl"/>'s own realize walk already set via
+        /// <see cref="RealizationBounds"/>/<see cref="AttachContainer(ItemContainer, int)"/>.
+        /// </remarks>
+        private sealed class PopupItemsHost : Panel, IVirtualizingScrollInfo
+        {
+            private readonly Selector owner;
+
+            public PopupItemsHost(Selector owner)
+            {
+                this.owner = owner;
+            }
+
+            /// <inheritdoc/>
+            public event EventHandler<float>? VerticalOffsetCorrectionRequested
+            {
+                add => ((IVirtualizingScrollInfo)owner).VerticalOffsetCorrectionRequested += value;
+                remove => ((IVirtualizingScrollInfo)owner).VerticalOffsetCorrectionRequested -= value;
+            }
+
+            /// <inheritdoc/>
+            public float ExtentWidth => ((IVirtualizingScrollInfo)owner).ExtentWidth;
+
+            /// <inheritdoc/>
+            public float ExtentHeight => ((IVirtualizingScrollInfo)owner).ExtentHeight;
+
+            /// <inheritdoc/>
+            public void OnViewportChanged(float horizontalOffset, float verticalOffset, float viewportWidth, float viewportHeight) =>
+                ((IVirtualizingScrollInfo)owner).OnViewportChanged(horizontalOffset, verticalOffset, viewportWidth, viewportHeight);
+
+            /// <inheritdoc/>
+            protected override void ArrangeContent()
+            {
+                // Deliberately does nothing - children are positioned entirely by ItemsControl.RealizeRange's own
+                // explicit Arrange(targetRect) calls (via Selector.RealizationBounds/AttachContainer), the same
+                // discipline ItemsControl.ArrangeContent itself follows for its own realized containers. The base
+                // Panel.ArrangeContent would otherwise re-arrange every child to this panel's own full ContentBounds
+                // on every layout pass, destroying that positioning.
+            }
+
+            /// <inheritdoc/>
+            protected override Size MeasureContent() => new((int)ExtentWidth, (int)ExtentHeight);
+        }
     }
 }
