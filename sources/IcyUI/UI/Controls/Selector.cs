@@ -300,6 +300,14 @@ namespace Icy.UI.Controls
             openedOnCanvas = null;
             isOpen = false;
             toggle.IsChecked = false;
+
+            if (subscribedTouch != null)
+            {
+                subscribedTouch.TouchDown -= OnOutsideTouchDown;
+                subscribedTouch.Tap -= OnPopupItemTap;
+                subscribedTouch = null;
+            }
+
             UnsubscribeNavigation();
             base.OnDetached();
         }
@@ -349,6 +357,8 @@ namespace Icy.UI.Controls
         /// Handles a directional focus-navigation press (arrow keys/gamepad stick) while the focus gate is focused -
         /// opens the popup if closed, then moves <see cref="HighlightedIndex"/> by one in the pressed direction.
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="AcceptableEventArgs{Vector2}"/> instance containing the pressed direction.</param>
         protected virtual void OnNavigationFocusChanging(object? sender, AcceptableEventArgs<Vector2> e)
         {
             if (ItemCount == 0)
@@ -369,6 +379,8 @@ namespace Icy.UI.Controls
         /// Handles Enter/gamepad-A while the focus gate is focused - opens the popup if closed; if open with a valid
         /// <see cref="HighlightedIndex"/>, commits it to <see cref="SelectedIndex"/> and closes; otherwise no-ops.
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected virtual void OnNavigationSelectElement(object? sender, EventArgs e)
         {
             if (!IsOpen)
@@ -388,6 +400,8 @@ namespace Icy.UI.Controls
         /// Handles Escape/gamepad-B while the focus gate is focused - closes the popup without changing
         /// <see cref="SelectedIndex"/>.
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected virtual void OnNavigationCloseModal(object? sender, EventArgs e) => IsOpen = false;
 
         private void FocusGate_FocusChanged(object? sender, EventArgs e)

@@ -520,6 +520,46 @@ namespace Icy.Tests.Controls
             Assert.False(selector.IsOpen);
         }
 
+        [Fact]
+        public void Detaching_WhileOpen_UnsubscribesTouchEvents()
+        {
+            // Regression coverage: OnDetached previously inlined ClosePopup's overlay/isOpen/toggle cleanup but
+            // never its touch-event unsubscription, leaking the (now-detached) Selector into the Canvas's touch
+            // event invocation lists for the rest of the Canvas's lifetime.
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+
+            canvas.Remove(selector);
+
+            Assert.False(IsSubscribed(input.Events.Touch, nameof(FakeTouchEvents.TouchDown), selector));
+            Assert.False(IsSubscribed(input.Events.Touch, nameof(FakeTouchEvents.Tap), selector));
+
+            // Also prove it's harmless in practice, not just that the invocation list is clean: raising touch
+            // events post-detach must neither throw nor reopen/otherwise mutate the detached selector.
+            input.Events.Touch.RaiseTouchDown(new Point(5, 5));
+            input.Events.Touch.RaiseTap(new TouchInfo(new Point(5, 5), 1));
+
+            Assert.False(selector.IsOpen);
+        }
+
+        private static bool IsSubscribed(object eventSource, string eventName, object subscriber)
+        {
+            var backingField = eventSource.GetType().GetField(eventName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var multicastDelegate = (MulticastDelegate?)backingField.GetValue(eventSource);
+            return multicastDelegate?.GetInvocationList().Any(d => ReferenceEquals(d.Target, subscriber)) ?? false;
+        }
+
         private static ToggleButton GetToggle(Selector selector) =>
             (ToggleButton)typeof(Selector).GetProperty("Toggle", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(selector)!;
 
