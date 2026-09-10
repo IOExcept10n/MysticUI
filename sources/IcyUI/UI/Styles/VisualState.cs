@@ -49,6 +49,17 @@ namespace Icy.UI.Styles
         /// The element represents an expanded value (e.g. an expanded <see cref="Controls.Expander"/>).
         /// </summary>
         Expanded = 1 << 6,
+
+        /// <summary>
+        /// The element represents the currently selected item in a <see cref="Controls.Selector"/>.
+        /// </summary>
+        Selected = 1 << 7,
+
+        /// <summary>
+        /// The element is the currently keyboard/gamepad-highlighted item in an open <see cref="Controls.Selector"/>
+        /// popup - distinct from <see cref="Selected"/>, which persists after the popup closes.
+        /// </summary>
+        Highlighted = 1 << 8,
     }
 
     /// <summary>
