@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using CommunityToolkit.Diagnostics;
+using Icy.Data;
 using Icy.Data.Bindings;
 using Icy.Data.Markup.Attributes;
 using Icy.Input.Events;
@@ -35,6 +36,7 @@ namespace Icy.UI.Controls
     {
         private const float DefaultMaxDropDownHeight = 200f;
 
+        private readonly Dictionary<SelectorItem, int> containerIndices = [];
         private readonly ToggleButton defaultToggle;
         private readonly Panel popupHost;
         private readonly Border popupRoot;
@@ -52,6 +54,7 @@ namespace Icy.UI.Controls
         private DynamicPropertyPath? selectedValuePath;
         private string? selectedValuePathText;
         private INavigationEvents? subscribedNavigation;
+        private ITouchEvents? subscribedTouch;
         private ToggleButton toggle;
 
         /// <summary>
@@ -253,6 +256,7 @@ namespace Icy.UI.Controls
             var item = (SelectorItem)container;
             item.IsSelected = index == SelectedIndex;
             item.IsHighlighted = index == HighlightedIndex;
+            containerIndices[item] = index;
             popupHost.Children.Add(container);
         }
 
@@ -261,7 +265,11 @@ namespace Icy.UI.Controls
             => new SelectorItem { Content = template.Build(item) };
 
         /// <inheritdoc/>
-        protected override void DetachContainer(ItemContainer container) => popupHost.Children.Remove(container);
+        protected override void DetachContainer(ItemContainer container)
+        {
+            containerIndices.Remove((SelectorItem)container);
+            popupHost.Children.Remove(container);
+        }
 
         /// <inheritdoc/>
         protected override IEnumerable<UIElement> GetVisualChildren()
@@ -297,29 +305,98 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Re-points which element's <see cref="UIElement.FocusChanged"/> is expected to gate keyboard/gamepad
-        /// navigation subscription - <see langword="this"/> by default (wired once, at construction).
+        /// Re-points which element's <see cref="UIElement.FocusChanged"/> gates keyboard/gamepad navigation
+        /// subscription (see <see cref="SubscribeNavigation"/>) - <see langword="this"/> by default (wired once, at
+        /// construction). <see cref="ComboBox"/> calls this again with its own text box, since that's the element that
+        /// actually holds <see cref="UI.Canvas"/> focus for it.
         /// </summary>
         /// <param name="gate">The element whose focus state should drive navigation subscription from now on.</param>
-        /// <remarks>
-        /// This task (properties/composition/popup lifecycle) only establishes the <c>focusGate</c> field slot a
-        /// later task's full keyboard/gamepad navigation wiring builds on - it does not yet subscribe to
-        /// <paramref name="gate"/>'s <see cref="UIElement.FocusChanged"/> or drive
-        /// <see cref="Icy.Input.Events.INavigationEvents"/> subscription from it. See that task for the complete
-        /// behavior <see cref="ComboBox"/> relies on to redirect this to its own text box.
-        /// </remarks>
-        protected void HookFocusGate(UIElement gate) => focusGate = gate;
+        protected void HookFocusGate(UIElement gate)
+        {
+            if (focusGate != null)
+                focusGate.FocusChanged -= FocusGate_FocusChanged;
+            focusGate = gate;
+            focusGate.FocusChanged += FocusGate_FocusChanged;
+        }
+
+        /// <summary>
+        /// Subscribes to <see cref="Icy.Input.Events.INavigationEvents"/> - idempotent, and a no-op while unattached.
+        /// </summary>
+        protected void SubscribeNavigation()
+        {
+            if (Configuration == null || subscribedNavigation != null)
+                return;
+            subscribedNavigation = Configuration.Input.Events.Navigation;
+            subscribedNavigation.FocusChanging += OnNavigationFocusChanging;
+            subscribedNavigation.SelectElement += OnNavigationSelectElement;
+            subscribedNavigation.CloseModal += OnNavigationCloseModal;
+        }
 
         /// <summary>
         /// Unsubscribes from <see cref="Icy.Input.Events.INavigationEvents"/> - idempotent.
         /// </summary>
-        /// <remarks>
-        /// Scaffolding for the same later navigation wiring <see cref="HookFocusGate(UIElement)"/>'s remarks
-        /// describe - nothing in this task ever populates the backing subscription, so this is a safe no-op until
-        /// that wiring is added; kept here (rather than deferred entirely) because <see cref="OnDetached"/> must
-        /// always be able to call it safely regardless of which task last touched this file.
-        /// </remarks>
-        protected void UnsubscribeNavigation() => subscribedNavigation = null;
+        protected void UnsubscribeNavigation()
+        {
+            if (subscribedNavigation == null)
+                return;
+            subscribedNavigation.FocusChanging -= OnNavigationFocusChanging;
+            subscribedNavigation.SelectElement -= OnNavigationSelectElement;
+            subscribedNavigation.CloseModal -= OnNavigationCloseModal;
+            subscribedNavigation = null;
+        }
+
+        /// <summary>
+        /// Handles a directional focus-navigation press (arrow keys/gamepad stick) while the focus gate is focused -
+        /// opens the popup if closed, then moves <see cref="HighlightedIndex"/> by one in the pressed direction.
+        /// </summary>
+        protected virtual void OnNavigationFocusChanging(object? sender, AcceptableEventArgs<Vector2> e)
+        {
+            if (ItemCount == 0)
+                return;
+
+            if (!IsOpen)
+                IsOpen = true;
+
+            int delta = Math.Abs(e.Data.X) > Math.Abs(e.Data.Y)
+                ? (e.Data.X < 0 ? -1 : 1)
+                : (e.Data.Y < 0 ? -1 : 1);
+            int next = HighlightedIndex == -1 ? 0 : HighlightedIndex + delta;
+            HighlightedIndex = Math.Clamp(next, 0, ItemCount - 1);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Handles Enter/gamepad-A while the focus gate is focused - opens the popup if closed; if open with a valid
+        /// <see cref="HighlightedIndex"/>, commits it to <see cref="SelectedIndex"/> and closes; otherwise no-ops.
+        /// </summary>
+        protected virtual void OnNavigationSelectElement(object? sender, EventArgs e)
+        {
+            if (!IsOpen)
+            {
+                IsOpen = true;
+                return;
+            }
+
+            if (HighlightedIndex >= 0)
+            {
+                SelectedIndex = HighlightedIndex;
+                IsOpen = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles Escape/gamepad-B while the focus gate is focused - closes the popup without changing
+        /// <see cref="SelectedIndex"/>.
+        /// </summary>
+        protected virtual void OnNavigationCloseModal(object? sender, EventArgs e) => IsOpen = false;
+
+        private void FocusGate_FocusChanged(object? sender, EventArgs e)
+        {
+            if (focusGate!.IsFocused)
+                SubscribeNavigation();
+            else
+                UnsubscribeNavigation();
+        }
 
         /// <summary>
         /// Resolves <see cref="DisplayMemberPath"/> against <paramref name="item"/>, falling back to
@@ -349,12 +426,50 @@ namespace Icy.UI.Controls
             PositionPopup();
             Canvas.AddOverlay(popupRoot);
             ((IVirtualizingScrollInfo)this).OnViewportChanged(0, popupScrollViewer.VerticalOffset, popupScrollViewer.ViewportWidth, popupScrollViewer.ViewportHeight);
+
+            subscribedTouch = Canvas.Configuration.Input.Events.Touch;
+            subscribedTouch.TouchDown += OnOutsideTouchDown;
+            subscribedTouch.Tap += OnPopupItemTap;
         }
 
         private void ClosePopup()
         {
             openedOnCanvas?.RemoveOverlay(popupRoot);
             openedOnCanvas = null;
+
+            if (subscribedTouch != null)
+            {
+                subscribedTouch.TouchDown -= OnOutsideTouchDown;
+                subscribedTouch.Tap -= OnPopupItemTap;
+                subscribedTouch = null;
+            }
+        }
+
+        private void OnOutsideTouchDown(object? sender, GenericEventArgs<Point> e)
+        {
+            UIElement? hit = openedOnCanvas?.HitTest(e.Data);
+            for (UIElement? current = hit; current != null; current = current.Parent)
+            {
+                if (current == this || current == popupRoot)
+                    return;
+            }
+
+            IsOpen = false;
+        }
+
+        private void OnPopupItemTap(object? sender, GenericEventArgs<Icy.Input.Events.TouchInfo> e)
+        {
+            UIElement? hit = openedOnCanvas?.HitTest(e.Data.LastTouch);
+            for (UIElement? current = hit; current != null; current = current.Parent)
+            {
+                if (current is SelectorItem item && containerIndices.TryGetValue(item, out int index))
+                {
+                    HighlightedIndex = index;
+                    SelectedIndex = index;
+                    IsOpen = false;
+                    return;
+                }
+            }
         }
 
         private void PositionPopup()

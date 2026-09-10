@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Input.Events;
 using Icy.Markup;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
@@ -338,6 +340,184 @@ namespace Icy.Tests.Controls
 
             UIElement popup = canvas.Overlays.Single();
             Assert.True(popup.ActualBounds.Y >= selector.ActualBounds.Bottom);
+        }
+
+        [Fact]
+        public void OutsideTouchDown_WhileOpen_ClosesThePopup()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+
+            input.Events.Touch.RaiseTouchDown(new Point(700, 500));
+
+            Assert.False(selector.IsOpen);
+        }
+
+        [Fact]
+        public void OutsideTouchDown_WhileOpen_StillReachesWhateverItActuallyHit()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector { Width = 100, Height = 30, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            var behind = new UIElement { Width = 50, Height = 50, Margin = new Thickness(400, 400, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(behind);
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+
+            input.Events.Touch.RaiseTouchDown(new Point(410, 410));
+
+            Assert.Equal(ControlState.Pressed, behind.ControlState & ControlState.Pressed);
+        }
+
+        [Fact]
+        public void TouchDown_InsideThePopup_DoesNotClose()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+
+            UIElement popup = canvas.Overlays.Single();
+            Point insidePopup = new(popup.ActualBounds.X + 5, popup.ActualBounds.Y + 5);
+            input.Events.Touch.RaiseTouchDown(insidePopup);
+
+            Assert.True(selector.IsOpen);
+        }
+
+        [Fact]
+        public void FocusChanging_WhileClosed_OpensAndHighlightsTheFirstItem()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                IsFocusable = true,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            canvas.Focus(selector);
+
+            input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
+
+            Assert.True(selector.IsOpen);
+        }
+
+        [Fact]
+        public void SelectElement_WhileClosed_OpensWithoutSelecting()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                IsFocusable = true,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            canvas.Focus(selector);
+
+            input.Events.Navigation.RaiseSelectElement();
+
+            Assert.True(selector.IsOpen);
+            Assert.Equal(-1, selector.SelectedIndex);
+        }
+
+        [Fact]
+        public void SelectElement_OpenWithHighlight_CommitsAndCloses()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                IsFocusable = true,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            canvas.Focus(selector);
+            input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
+
+            input.Events.Navigation.RaiseSelectElement();
+
+            Assert.False(selector.IsOpen);
+            Assert.Equal(0, selector.SelectedIndex);
+        }
+
+        [Fact]
+        public void CloseModal_WhileOpen_ClosesWithoutChangingSelection()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                IsFocusable = true,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            canvas.Focus(selector);
+            selector.SelectedIndex = 1;
+            input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
+
+            input.Events.Navigation.RaiseCloseModal();
+
+            Assert.False(selector.IsOpen);
+            Assert.Equal(1, selector.SelectedIndex);
+        }
+
+        [Fact]
+        public void TappingARealizedItem_SelectsItAndCloses()
+        {
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+            canvas.Render();
+
+            UIElement popup = canvas.Overlays.Single();
+            Point secondItem = new(popup.ActualBounds.X + 5, popup.ActualBounds.Y + 25);
+            input.Events.Touch.RaiseTap(new TouchInfo(secondItem, 1));
+
+            Assert.Equal(1, selector.SelectedIndex);
+            Assert.False(selector.IsOpen);
         }
 
         private static ToggleButton GetToggle(Selector selector) =>
