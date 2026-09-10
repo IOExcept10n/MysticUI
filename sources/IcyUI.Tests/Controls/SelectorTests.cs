@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using Icy.Assets;
@@ -141,6 +142,179 @@ namespace Icy.Tests.Controls
 
             Assert.True(((SelectorItem)GetRealizedContainers(selector)[0]).IsSelected);
         }
+
+        private static (Canvas Canvas, FakeInputSystem Input) CreateCanvas(int viewportWidth = 800, int viewportHeight = 600)
+        {
+            var input = new FakeInputSystem();
+            var renderContext = new FakeRenderContext { ViewportSize = new Size(viewportWidth, viewportHeight) };
+            var assets = new AssetConfiguration(AssetContext.ApplicationContext);
+            var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
+            return (new Canvas(config) { IsInputEnabled = true, IsVisible = true }, input);
+        }
+
+        [Fact]
+        public void GetVisualChildren_NeverIncludesRealizedItems_OnlyChrome()
+        {
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>"""),
+            };
+            InvokeEnsureRealized(selector, 0);
+
+            var children = selector.EnumerateVisualSubtree().ToList();
+
+            Assert.DoesNotContain(children, e => e is SelectorItem);
+        }
+
+        [Fact]
+        public void MeasureContent_IgnoresItemExtentAndSizesToChromeOnly()
+        {
+            var selector = new TestSelector
+            {
+                ItemsSource = Enumerable.Range(0, 50).Cast<object>().ToList(),
+                Width = 200,
+                Height = 30,
+            };
+
+            Size measured = selector.Measure();
+
+            Assert.Equal(30, measured.Height);
+        }
+
+        [Fact]
+        public void IsOpen_SetTrue_AddsThePopupToCanvasOverlays()
+        {
+            var (canvas, _) = CreateCanvas();
+            var selector = new TestSelector { Width = 200, Height = 30, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(selector);
+            canvas.Render();
+
+            selector.IsOpen = true;
+
+            Assert.Single(canvas.Overlays);
+        }
+
+        [Fact]
+        public void IsOpen_SetFalse_RemovesThePopupFromCanvasOverlays()
+        {
+            var (canvas, _) = CreateCanvas();
+            var selector = new TestSelector { Width = 200, Height = 30 };
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+
+            selector.IsOpen = false;
+
+            Assert.Empty(canvas.Overlays);
+        }
+
+        [Fact]
+        public void IsOpen_And_ToggleIsChecked_StaySynchronized()
+        {
+            var (canvas, _) = CreateCanvas();
+            var selector = new TestSelector { Width = 200, Height = 30 };
+            canvas.Add(selector);
+            canvas.Render();
+
+            selector.IsOpen = true;
+            Assert.True(GetToggle(selector).IsChecked);
+
+            GetToggle(selector).IsChecked = false;
+            Assert.False(selector.IsOpen);
+        }
+
+        [Fact]
+        public void Opening_RealizesItemsIntoThePopup()
+        {
+            var (canvas, _) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+
+            selector.IsOpen = true;
+
+            Assert.NotEmpty(GetRealizedContainers(selector));
+        }
+
+        [Fact]
+        public void Closing_DoesNotEagerlyDerealize()
+        {
+            var (canvas, _) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            selector.IsOpen = true;
+            int realizedWhileOpen = GetRealizedContainers(selector).Count;
+
+            selector.IsOpen = false;
+
+            Assert.Equal(realizedWhileOpen, GetRealizedContainers(selector).Count);
+        }
+
+        [Fact]
+        public void OpeningNearViewportBottom_PlacesThePopupAboveInstead()
+        {
+            var (canvas, _) = CreateCanvas(viewportWidth: 800, viewportHeight: 200);
+            var selector = new TestSelector
+            {
+                ItemsSource = Enumerable.Range(0, 20).Cast<object>().ToList(),
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 160, 0, 0),
+            };
+            canvas.Add(selector);
+            canvas.Render();
+
+            selector.IsOpen = true;
+            canvas.Render();
+
+            UIElement popup = canvas.Overlays.Single();
+            Assert.True(popup.ActualBounds.Y < selector.ActualBounds.Y);
+        }
+
+        [Fact]
+        public void OpeningWithRoomBelow_PlacesThePopupBelow()
+        {
+            var (canvas, _) = CreateCanvas(viewportWidth: 800, viewportHeight: 600);
+            var selector = new TestSelector
+            {
+                ItemsSource = Enumerable.Range(0, 5).Cast<object>().ToList(),
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+
+            selector.IsOpen = true;
+            canvas.Render();
+
+            UIElement popup = canvas.Overlays.Single();
+            Assert.True(popup.ActualBounds.Y >= selector.ActualBounds.Bottom);
+        }
+
+        private static ToggleButton GetToggle(Selector selector) =>
+            (ToggleButton)typeof(Selector).GetProperty("Toggle", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(selector)!;
 
         private static DataTemplate LoadDataTemplate(string markup)
         {

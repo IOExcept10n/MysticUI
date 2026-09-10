@@ -263,6 +263,30 @@ namespace Icy.UI.Controls
         /// <inheritdoc/>
         protected override void DetachContainer(ItemContainer container) => popupHost.Children.Remove(container);
 
+        /// <inheritdoc/>
+        protected override IEnumerable<UIElement> GetVisualChildren()
+        {
+            yield return Chrome;
+        }
+
+        /// <inheritdoc/>
+        protected override Size MeasureContent() => Chrome.Measure();
+
+        /// <inheritdoc/>
+        protected override void OnRender(Icy.Rendering.IRenderContext context) => Chrome.Draw(context);
+
+        /// <inheritdoc/>
+        protected override void OnDetached()
+        {
+            // Canvas is already null by the time this runs (see UIElement.Canvas's setter) - RemoveOverlay must go
+            // through the canvas this popup was actually opened on, captured when it was.
+            openedOnCanvas?.RemoveOverlay(popupRoot);
+            openedOnCanvas = null;
+            isOpen = false;
+            UnsubscribeNavigation();
+            base.OnDetached();
+        }
+
         /// <summary>
         /// Re-points which element's <see cref="UIElement.FocusChanged"/> is expected to gate keyboard/gamepad
         /// navigation subscription - <see langword="this"/> by default (wired once, at construction).
