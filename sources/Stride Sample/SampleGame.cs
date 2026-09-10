@@ -19,7 +19,7 @@ namespace Icy.StrideSample
     /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/>,
     /// <see cref="StylesDemo"/>, <see cref="MarkupDemo"/>, <see cref="NavigationDemo"/>,
     /// <see cref="MarkupStylesDemo"/>, <see cref="ControlTemplateDemo"/>, <see cref="ItemsControlDemo"/>,
-    /// <see cref="SplitPaneDemo"/>, and <see cref="ExpanderDemo"/> - the same demos <c>MonoGame Sample</c>'s
+    /// <see cref="SplitPaneDemo"/>, <see cref="ExpanderDemo"/>, and <see cref="SelectorDemo"/> - the same demos <c>MonoGame Sample</c>'s
     /// per-demo samples run - PageUp/PageDown/Shift+Tab
     /// cycles between them (Stride has no multi-sample runner like MonoGame's <c>SamplesRunner</c>, so this just
     /// toggles which demo root is visible).
@@ -43,6 +43,7 @@ namespace Icy.StrideSample
         private UIElement? itemsControlRoot;
         private UIElement? splitPaneRoot;
         private UIElement? expanderRoot;
+        private UIElement? selectorRoot;
         private int selectedDemo;
 
         protected override void BeginRun()
@@ -83,6 +84,7 @@ namespace Icy.StrideSample
             itemsControlRoot = ItemsControlDemo.Build(configuration, "Airfool");
             splitPaneRoot = SplitPaneDemo.Build(configuration, "Airfool");
             expanderRoot = ExpanderDemo.Build(configuration, "Airfool");
+            selectorRoot = SelectorDemo.Build(configuration, "Airfool");
             canvas.Add(controlsRoot);
             canvas.Add(stylesRoot);
             canvas.Add(markupRoot);
@@ -92,11 +94,12 @@ namespace Icy.StrideSample
             canvas.Add(itemsControlRoot);
             canvas.Add(splitPaneRoot);
             canvas.Add(expanderRoot);
+            canvas.Add(selectorRoot);
             UpdateSelectedDemo();
 
             var switchDemo = new RelayCommand(() =>
             {
-                selectedDemo = (selectedDemo + 1) % 9;
+                selectedDemo = (selectedDemo + 1) % 10;
                 UpdateSelectedDemo();
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
@@ -132,6 +135,7 @@ namespace Icy.StrideSample
             itemsControlRoot!.IsVisible = selectedDemo == 6;
             splitPaneRoot!.IsVisible = selectedDemo == 7;
             expanderRoot!.IsVisible = selectedDemo == 8;
+            selectorRoot!.IsVisible = selectedDemo == 9;
         }
     }
 }
