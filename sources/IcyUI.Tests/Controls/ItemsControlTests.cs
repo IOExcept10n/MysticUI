@@ -15,6 +15,49 @@ namespace Icy.Tests.Controls
 {
     public class ItemsControlTests
     {
+        private sealed class TestContainer : ItemContainer { }
+
+        private sealed class CustomContainerItemsControl : ItemsControl
+        {
+            protected override ItemContainer CreateContainer(DataTemplate template, object item)
+                => new TestContainer { Content = template.Build(item) };
+        }
+
+        [Fact]
+        public void CreateContainer_Overridden_RealizesTheSubclassInstead()
+        {
+            var control = new CustomContainerItemsControl
+            {
+                ItemsSource = new List<object> { "a" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>"""),
+            };
+
+            InvokeEnsureRealized(control, 0);
+
+            Assert.IsType<TestContainer>(GetRealizedContainers(control)[0]);
+        }
+
+        [Fact]
+        public void ItemCount_GetItemAt_IndexOfItem_ReflectTheCurrentItemsSource()
+        {
+            var control = new ItemsControl { ItemsSource = new List<object> { "a", "b", "c" } };
+
+            Assert.Equal(3, InvokeGetItemCount(control));
+            Assert.Equal("b", InvokeGetItemAt(control, 1));
+            Assert.Equal(1, InvokeIndexOfItem(control, "b"));
+            Assert.Equal(-1, InvokeIndexOfItem(control, "not in the list"));
+            Assert.Equal(-1, InvokeIndexOfItem(control, null));
+        }
+
+        private static int InvokeGetItemCount(ItemsControl control) =>
+            (int)typeof(ItemsControl).GetProperty("ItemCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
+
+        private static object InvokeGetItemAt(ItemsControl control, int index) =>
+            typeof(ItemsControl).GetMethod("GetItemAt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(control, [index])!;
+
+        private static int InvokeIndexOfItem(ItemsControl control, object? item) =>
+            (int)typeof(ItemsControl).GetMethod("IndexOfItem", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(control, [item])!;
+
         [Fact]
         public void PoolingEnabled_DefaultsToTrue()
         {

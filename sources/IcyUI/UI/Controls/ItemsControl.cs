@@ -40,7 +40,7 @@ namespace Icy.UI.Controls
     {
         private readonly List<object> items = [];
         private readonly List<float?> knownHeights = [];
-        private readonly Dictionary<int, ItemContainer> realizedContainers = [];
+        protected readonly Dictionary<int, ItemContainer> realizedContainers = [];
         private readonly Dictionary<DataTemplate, Stack<ItemContainer>> pools = [];
         private readonly Dictionary<ItemContainer, DataTemplate> containerTemplates = [];
 
@@ -175,6 +175,32 @@ namespace Icy.UI.Controls
                     pools.Clear();
             }
         }
+
+        /// <summary>
+        /// Gets the number of items currently in <see cref="ItemsSource"/>.
+        /// </summary>
+        protected int ItemCount => items.Count;
+
+        /// <summary>
+        /// Gets the item at <paramref name="index"/> in <see cref="ItemsSource"/>.
+        /// </summary>
+        /// <param name="index">A zero-based index within <c>[0, <see cref="ItemCount"/>)</c>.</param>
+        protected object GetItemAt(int index) => items[index];
+
+        /// <summary>
+        /// Gets the index of <paramref name="item"/> within <see cref="ItemsSource"/>.
+        /// </summary>
+        /// <param name="item">The item to search for.</param>
+        /// <returns>The zero-based index of <paramref name="item"/>, or <c>-1</c> if it isn't in the collection (including when <paramref name="item"/> is <see langword="null"/>).</returns>
+        protected int IndexOfItem(object? item) => item == null ? -1 : items.IndexOf(item);
+
+        /// <summary>
+        /// Gets the rectangle realized containers are positioned within - <see cref="Control.ContentBounds"/> by
+        /// default. A subclass that displays realized containers somewhere other than its own content area (e.g. a
+        /// popup) overrides this to redirect positioning, without changing the realize/de-realize/virtualization
+        /// algorithm itself.
+        /// </summary>
+        protected virtual Rectangle RealizationBounds => ContentBounds;
 
         private float AverageHeight => knownCount > 0 ? sumOfKnownHeights / knownCount : DefaultEstimatedItemHeight;
 
@@ -355,10 +381,11 @@ namespace Icy.UI.Controls
                 stillRealized.Add(index);
 
                 ItemContainer container = realizedContainers[index];
+                Rectangle bounds = RealizationBounds;
                 var targetRect = new Rectangle(
-                    ContentBounds.X,
-                    ContentBounds.Y + (int)(offset - verticalOffset),
-                    ContentBounds.Width,
+                    bounds.X,
+                    bounds.Y + (int)(offset - verticalOffset),
+                    bounds.Width,
                     (int)height);
                 container.InvalidateArrange();
                 container.Arrange(targetRect);
@@ -421,6 +448,17 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
+        /// Builds a fresh <see cref="ItemContainer"/> to host <paramref name="item"/>'s built visual tree - the
+        /// default body <see cref="RentContainer(DataTemplate, object)"/> falls back to whenever pooling can't supply
+        /// one. A <see cref="Selector"/> overrides this to realize <see cref="SelectorItem"/>s instead.
+        /// </summary>
+        /// <param name="template">The template to build <paramref name="item"/>'s content with.</param>
+        /// <param name="item">The data item the new container is being realized for.</param>
+        /// <returns>The freshly built container.</returns>
+        protected virtual ItemContainer CreateContainer(DataTemplate template, object item)
+            => new() { Content = template.Build(item) };
+
+        /// <summary>
         /// Gets a container for <paramref name="item"/> built with <paramref name="template"/> - popped from
         /// <paramref name="template"/>'s pool and rebound when <see cref="PoolingEnabled"/> and one's available,
         /// otherwise built fresh via <see cref="DataTemplate.Build(object)"/>.
@@ -437,9 +475,33 @@ namespace Icy.UI.Controls
                 return pooled;
             }
 
-            var container = new ItemContainer { Content = template.Build(item) };
+            ItemContainer container = CreateContainer(template, item);
             containerTemplates[container] = template;
             return container;
+        }
+
+        /// <summary>
+        /// Wires a freshly realized <paramref name="container"/> into the visual tree - <see cref="UIElement.Parent"/>/
+        /// <see cref="UIElement.Canvas"/> point directly at <see langword="this"/> by default. A subclass that hosts
+        /// realized containers elsewhere (e.g. a popup panel) overrides this to redirect them there instead.
+        /// </summary>
+        /// <param name="container">The freshly realized container.</param>
+        /// <param name="index">The item index <paramref name="container"/> was realized for.</param>
+        protected virtual void AttachContainer(ItemContainer container, int index)
+        {
+            container.Parent = this;
+            container.Canvas = Canvas;
+        }
+
+        /// <summary>
+        /// Detaches <paramref name="container"/> from wherever <see cref="AttachContainer(ItemContainer, int)"/> wired
+        /// it - the exact inverse.
+        /// </summary>
+        /// <param name="container">The container being de-realized.</param>
+        protected virtual void DetachContainer(ItemContainer container)
+        {
+            container.Parent = null;
+            container.Canvas = null;
         }
 
         /// <summary>
@@ -455,8 +517,7 @@ namespace Icy.UI.Controls
             DataTemplate template = ResolveTemplate(item);
             ItemContainer container = RentContainer(template, item);
 
-            container.Parent = this;
-            container.Canvas = Canvas;
+            AttachContainer(container, index);
             realizedContainers[index] = container;
 
             float measuredHeight = container.Measure().Height;
@@ -477,8 +538,7 @@ namespace Icy.UI.Controls
             if (knownHeights[index] != finalHeight)
                 RecordHeight(index, finalHeight);
 
-            container.Parent = null;
-            container.Canvas = null;
+            DetachContainer(container);
 
             if (PoolingEnabled && containerTemplates.TryGetValue(container, out DataTemplate? template))
             {
