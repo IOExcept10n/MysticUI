@@ -85,6 +85,30 @@ namespace Icy.Tests.Controls
             Assert.Equal(1, dropdown.SelectedIndex);
         }
 
+        [Fact]
+        public void TextInputEnabledDisabled_OnFocusChange()
+        {
+            var dropdown = new Dropdown { ItemsSource = new List<object> { "Apple", "Banana" }, IsFocusable = true };
+            var input = new FakeInputSystem();
+            var assets = new AssetConfiguration(AssetContext.ApplicationContext);
+            var renderContext = new FakeRenderContext();
+            var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(dropdown);
+            canvas.Render();
+
+            // Before focus, text input should be disabled
+            Assert.False(input.Events.Text.IsTextInputEnabled);
+
+            // After focus, text input should be enabled
+            canvas.Focus(dropdown);
+            Assert.True(input.Events.Text.IsTextInputEnabled);
+
+            // After losing focus, text input should be disabled
+            canvas.Focus(null);
+            Assert.False(input.Events.Text.IsTextInputEnabled);
+        }
+
         private static void SimulateFocused(Dropdown dropdown, FakeInputSystem input)
         {
             var assets = new AssetConfiguration(AssetContext.ApplicationContext);

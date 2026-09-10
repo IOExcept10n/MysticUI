@@ -31,11 +31,13 @@ namespace Icy.UI.Controls
                 {
                     subscribedText = Configuration.Input.Events.Text;
                     subscribedText.TextInput += OnTextInput;
+                    subscribedText.EnableTextInput();
                 }
             }
             else if (subscribedText != null)
             {
                 subscribedText.TextInput -= OnTextInput;
+                subscribedText.DisableTextInput();
                 subscribedText = null;
             }
         }
