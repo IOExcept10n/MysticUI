@@ -47,16 +47,18 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
-        public void Overlay_IsNotHitTestable()
+        public void Overlay_IsHitTestable()
         {
-            // Overlays deliberately don't participate in HitTest/Add's root-element list - a drag-and-drop ghost
-            // sitting under the cursor must never itself become the hit-tested element.
+            // Overlays now participate in HitTest (checked first, before root elements) to support features like
+            // Selector's dropdown popup - they're drawn last (on top) and should be hittable to support pointer/touch.
+            // Overlays still don't participate in Add's root-element list or focus traversal.
             var canvas = CreateCanvas();
             var overlay = new UIElement { Width = 200, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
             canvas.AddOverlay(overlay);
             canvas.Render();
 
-            Assert.Null(canvas.HitTest(new Point(10, 10)));
+            UIElement? hit = canvas.HitTest(new Point(10, 10));
+            Assert.Same(overlay, hit);
         }
 
         [Fact]

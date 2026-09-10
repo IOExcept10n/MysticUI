@@ -97,13 +97,13 @@ namespace Icy.UI
         /// Deliberately minimal - no z-ordering beyond insertion order, no adorner/anchoring system. An entry
         /// positions itself via its own <see cref="UIElement.Margin"/>/<see cref="UIElement.HorizontalAlignment"/>/
         /// <see cref="UIElement.VerticalAlignment"/> against the full viewport, arranged the same way
-        /// <see cref="Diagnostics.DebugHudHost"/>'s own screen-space HUD already is. Not part of
-        /// <see cref="HitTest(Point)"/>/focus traversal or <see cref="Add(UIElement)"/>'s root-element list - an
-        /// overlay (a <see cref="DragDropSession.Preview"/>, a future <c>Dialog</c>'s backdrop, a future
-        /// <c>ComboBox</c>'s dropdown) sits visually above everything without competing for normal hit-testing/tab
-        /// order; a caller wires that up itself if it needs any. Use <see cref="AddOverlay(UIElement)"/>/
-        /// <see cref="RemoveOverlay(UIElement)"/> to change it, not direct list mutation - those also wire
-        /// <see cref="UIElement.Canvas"/>.
+        /// <see cref="Diagnostics.DebugHudHost"/>'s own screen-space HUD already is. Overlay elements now participate
+        /// in <see cref="HitTest(Point)"/> (checked first, so topmost/last-added win) but not in focus traversal or
+        /// <see cref="Add(UIElement)"/>'s root-element list - an overlay (a <see cref="DragDropSession.Preview"/>,
+        /// a future <c>Dialog</c>'s backdrop, a future <c>ComboBox</c>'s dropdown) sits visually above everything
+        /// and is hittable for pointer/touch input, but doesn't participate in keyboard focus or tab order. Use
+        /// <see cref="AddOverlay(UIElement)"/>/<see cref="RemoveOverlay(UIElement)"/> to change it, not direct list
+        /// mutation - those also wire <see cref="UIElement.Canvas"/>.
         /// </remarks>
         public IReadOnlyList<UIElement> Overlays => overlayElements;
 
