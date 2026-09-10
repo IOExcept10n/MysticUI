@@ -152,6 +152,46 @@
     </Style.StateGroups>
   </Style>
 
+  <!-- SelectorItem -->
+  <Style TargetType="SelectorItem" Background="Transparent" Padding="8,6">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" Background="#FF33333E"/>
+      </VisualStateGroup>
+      <VisualStateGroup Name="SelectionStates">
+        <VisualState Name="Selected" State="Selected" Background="#FF3C78D8"/>
+        <VisualState Name="Highlighted" State="Highlighted" Background="#FF46465A"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- Dropdown -->
+  <ControlTemplate x:Key="IcyDefaultDropdownTemplate" TargetType="Dropdown">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+      <ToggleButton x:Name="PART_ToggleButton"/>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="Dropdown" Template="{StaticResource IcyDefaultDropdownTemplate}"
+         Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" BorderBrush="#FF6A6A80"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
+  <!-- ComboBox -->
+  <Style TargetType="ComboBox" Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6">
+    <Style.StateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Hovered" State="Hovered" BorderBrush="#FF6A6A80"/>
+        <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+      </VisualStateGroup>
+    </Style.StateGroups>
+  </Style>
+
   <!-- TextBox, ScrollViewer, Window: Style-only (Border-level decoration through Control's existing dual-path
        forwarding) - neither is template-safe yet (see Control.Template's own remarks), so no ControlTemplate is
        applied to them here; a future named-template-parts retrofit can add one without touching these entries. -->
