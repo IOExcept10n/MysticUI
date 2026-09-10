@@ -1652,6 +1652,39 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Converts a point in this element's own local space (relative to its <see cref="ActualBounds"/> origin) into
+        /// screen/window space - the exact inverse of <see cref="PointToLocal(Point)"/>, composing every ancestor's
+        /// <see cref="Styles.VisualState"/>-independent layout transform up through the <see cref="UI.Canvas"/>.
+        /// </summary>
+        /// <param name="localPoint">A point in this element's own local space.</param>
+        /// <returns>
+        /// The equivalent point in screen/window space, or <see cref="Point.Empty"/> if this element isn't currently
+        /// attached to a <see cref="UI.Canvas"/>.
+        /// </returns>
+        /// <remarks>
+        /// Like <see cref="PointToLocal(Point)"/>, only <see cref="LayoutOffset"/>/<see cref="LayoutRotation"/>/
+        /// <see cref="LayoutScale"/> are accounted for - <see cref="RenderOffset"/>/<see cref="RenderRotation"/>/
+        /// <see cref="RenderScale"/> are treated as purely cosmetic and don't affect the result, matching
+        /// <see cref="HitTest(Vector2)"/>'s own scope.
+        /// </remarks>
+        public Point PointToScreen(Vector2 localPoint)
+        {
+            if (Canvas == null)
+                return Point.Empty;
+
+            Vector2 point = localPoint;
+            for (UIElement? element = this; element != null; element = element.Parent)
+            {
+                if (element.IsTransformInvalid)
+                    element.UpdateTransformMatrix();
+                point = element.layoutTransform.Apply(point);
+            }
+
+            Vector2 screenPoint = Canvas.CanvasToScreenSpace(point);
+            return new Point((int)screenPoint.X, (int)screenPoint.Y);
+        }
+
+        /// <summary>
         /// Sets whether this element currently has focus, raising <see cref="FocusChanged"/> and updating
         /// <see cref="ControlState"/> if the value actually changes.
         /// </summary>

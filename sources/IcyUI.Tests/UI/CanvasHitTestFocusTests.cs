@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Input.Events;
@@ -295,6 +296,32 @@ namespace Icy.Tests.UI
             input.Mouse.MouseInfo = new(new Point(500, 500));
             canvas.Render();
             Assert.Equal(ControlState.Normal, target.ControlState & ControlState.Hovered);
+        }
+
+        [Fact]
+        public void PointToScreen_IsTheInverseOfPointToLocal()
+        {
+            var (canvas, _, _) = CreateCanvas();
+            UIElement element = CreateLeaf(40, 30, 100);
+            canvas.Add(element);
+            canvas.Render();
+
+            var originalScreenPoint = new Point(120, 80);
+            Vector2 local = element.PointToLocal(originalScreenPoint);
+            Point roundTripped = element.PointToScreen(local);
+
+            Assert.Equal(originalScreenPoint.X, roundTripped.X);
+            Assert.Equal(originalScreenPoint.Y, roundTripped.Y);
+        }
+
+        [Fact]
+        public void PointToScreen_DetachedElement_ReturnsEmptyPoint()
+        {
+            UIElement element = CreateLeaf(0, 0, 50);
+
+            Point result = element.PointToScreen(Vector2.Zero);
+
+            Assert.Equal(Point.Empty, result);
         }
     }
 }

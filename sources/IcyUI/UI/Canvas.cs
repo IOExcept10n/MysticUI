@@ -441,6 +441,19 @@ namespace Icy.UI
             return inverseTransform.Apply(new Vector2(screenPoint.X, screenPoint.Y));
         }
 
+        /// <summary>
+        /// Converts a point in this canvas's own local content space into screen/window space - the exact inverse of
+        /// <see cref="ScreenToCanvasSpace(Point)"/>.
+        /// </summary>
+        /// <param name="canvasLocalPoint">A point in this canvas's own local content space.</param>
+        /// <returns>The equivalent point in screen/window space.</returns>
+        internal Vector2 CanvasToScreenSpace(Vector2 canvasLocalPoint)
+        {
+            if (isTransformInvalid)
+                UpdateTransform();
+            return transform.Apply(canvasLocalPoint);
+        }
+
         /// <inheritdoc/>
         protected override void OnPropertyChanging(PropertyChangingEventArgs e)
         {
