@@ -450,7 +450,7 @@ namespace Icy.UI.Controls
         /// <summary>
         /// Builds a fresh <see cref="ItemContainer"/> to host <paramref name="item"/>'s built visual tree - the
         /// default body <see cref="RentContainer(DataTemplate, object)"/> falls back to whenever pooling can't supply
-        /// one. A <see cref="Selector"/> overrides this to realize <see cref="SelectorItem"/>s instead.
+        /// one. A <c>Selector</c> overrides this to realize <c>SelectorItem</c>s instead.
         /// </summary>
         /// <param name="template">The template to build <paramref name="item"/>'s content with.</param>
         /// <param name="item">The data item the new container is being realized for.</param>
@@ -573,8 +573,7 @@ namespace Icy.UI.Controls
         {
             foreach (ItemContainer container in realizedContainers.Values)
             {
-                container.Parent = null;
-                container.Canvas = null;
+                DetachContainer(container);
             }
 
             realizedContainers.Clear();
