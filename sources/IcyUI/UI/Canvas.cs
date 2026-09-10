@@ -294,12 +294,25 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Determines which element - if any - is under the specified point.
+        /// Determines which element - if any - is under the specified point. Checks <see cref="Overlays"/> first
+        /// (topmost/last-added wins), falling back to <see cref="rootElements"/> - see <see cref="Overlays"/>'s own
+        /// remarks for why overlay content participates here (unlike focus traversal, which it still doesn't).
         /// </summary>
         /// <param name="screenPoint">A point in screen/window space (the same space pointer/touch positions arrive in).</param>
         /// <returns>The topmost hit-testable element under the point, or <see langword="null"/> if none is.</returns>
         public UIElement? HitTest(Point screenPoint)
         {
+            // Overlays are tested in screen space directly (last-added = topmost = checked first, matching Overlays'
+            // own draw order) - unlike rootElements, they're arranged against the raw viewport with this canvas's own
+            // transform reset (see RenderVisual/UpdateLayout), so hit-testing must match rather than going through
+            // ScreenToCanvasSpace.
+            for (int i = overlayElements.Count - 1; i >= 0; i--)
+            {
+                UIElement? hit = overlayElements[i].HitTest(new Vector2(screenPoint.X, screenPoint.Y));
+                if (hit != null)
+                    return hit;
+            }
+
             Vector2 canvasLocalPoint = ScreenToCanvasSpace(screenPoint);
             foreach (UIElement element in rootElements.OrderByDescending(e => e.ZIndex))
             {

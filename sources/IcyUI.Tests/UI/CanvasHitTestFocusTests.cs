@@ -65,6 +65,46 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
+        public void HitTest_PointOverOverlay_ReturnsTheOverlayElement_EvenWhenOverlappingRootContent()
+        {
+            var (canvas, _, _) = CreateCanvas();
+            UIElement rootContent = CreateLeaf(0, 0, 100);
+            UIElement overlay = CreateLeaf(0, 0, 100);
+            canvas.Add(rootContent);
+            canvas.AddOverlay(overlay);
+
+            UIElement? hit = canvas.HitTest(new Point(50, 50));
+
+            Assert.Same(overlay, hit);
+        }
+
+        [Fact]
+        public void HitTest_MultipleOverlays_ReturnsTheLastAdded()
+        {
+            var (canvas, _, _) = CreateCanvas();
+            UIElement first = CreateLeaf(0, 0, 100);
+            UIElement second = CreateLeaf(0, 0, 100);
+            canvas.AddOverlay(first);
+            canvas.AddOverlay(second);
+
+            UIElement? hit = canvas.HitTest(new Point(50, 50));
+
+            Assert.Same(second, hit);
+        }
+
+        [Fact]
+        public void HitTest_PointOverNeitherOverlayNorRoot_StillReturnsNull()
+        {
+            var (canvas, _, _) = CreateCanvas();
+            canvas.AddOverlay(CreateLeaf(0, 0, 50));
+            canvas.Add(CreateLeaf(0, 0, 50));
+
+            UIElement? hit = canvas.HitTest(new Point(500, 500));
+
+            Assert.Null(hit);
+        }
+
+        [Fact]
         public void Focus_MovesFocusAndTogglesIsFocusedOnBothElements()
         {
             var (canvas, _, _) = CreateCanvas();
