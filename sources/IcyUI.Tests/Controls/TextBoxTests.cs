@@ -190,6 +190,51 @@ namespace Icy.Tests.Controls
             Assert.True(textBox.ActualBounds.Width > 0, $"Expected nonzero width from the fallback font, got {textBox.ActualBounds.Width}.");
         }
 
+        [Fact]
+        public void MeasureContent_ReservesRoomForPaddingAboveAndBelowTheTextLine_NotJustTheLarger()
+        {
+            // Regression: MeasureContent computed Height as Math.Max(chromeSize.Height, textSize.Y) - unlike
+            // Width, which correctly SUMS chromeSize.Width + textSize.X. chromeSize already includes this
+            // element's own Padding/BorderThickness (see Control.MeasureContent => Chrome.Measure()); Max'ing it
+            // against the text's own line height means the padding above the text and the padding below it are
+            // never BOTH reserved once the text's line height alone exceeds chromeSize.Height (the common case
+            // for any real font) - the box measures only as tall as the taller of the two, so the text (drawn at
+            // a fixed Padding.Top + BorderThickness.Top offset from the top) overflows past the box's own bottom
+            // edge by roughly Padding.Bottom + BorderThickness.Bottom. Visually: text bleeding out of/below its
+            // own TextBox.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            var textBox = new TextBox
+            {
+                FontFamily = "Airfool",
+                FontSize = 16,
+                Text = "Hello",
+                Padding = new Thickness(6, 4),
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(textBox);
+            canvas.Render();
+
+            IFont font = config.Fonts.GetOrLoad(new FontInfo("Airfool", 16, FontStyle.Regular))!;
+            float lineHeight = font.Metrics.Ascent - font.Metrics.Descent;
+            float textBottom = (textBox.Padding.Top + textBox.BorderThickness.Top) + lineHeight;
+            float reservedBottom = textBox.Padding.Bottom + textBox.BorderThickness.Bottom;
+
+            Assert.True(
+                textBox.ActualBounds.Height >= textBottom + reservedBottom - 1,
+                $"Text (ending at y={textBottom}) plus the bottom padding/border ({reservedBottom}) should fit inside the box - box height was only {textBox.ActualBounds.Height}.");
+        }
+
         private static (Canvas Canvas, FakeInputSystem Input, TextBox TextBox) CreateFocusedTextBox()
         {
             var input = new FakeInputSystem();

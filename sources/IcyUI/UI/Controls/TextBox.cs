@@ -107,6 +107,15 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Both axes SUM chrome (border + padding, from <see cref="Control.MeasureContent"/> measuring
+        /// <see cref="Control.Chrome"/>) with the text's own size - never <see cref="Math.Max(int, int)"/>. The text
+        /// is drawn at a fixed <see cref="UIElement.Padding"/>-derived offset from the top, so the box must reserve
+        /// room for the padding/border above the text AND below it, on top of the text's own full line height -
+        /// <c>Max</c>'ing them (as height alone used to) only reserves whichever of the two happens to be taller,
+        /// so the text silently overflows past the box's own bottom edge by roughly the bottom padding/border
+        /// whenever the text's line height (the common case for any real font) exceeds the chrome's own size.
+        /// </remarks>
         protected override Size MeasureContent()
         {
             Size chromeSize = base.MeasureContent();
@@ -117,7 +126,7 @@ namespace Icy.UI.Controls
             Vector2 textSize = font.MeasureAdvance(Text.Length > 0 ? Text : " ", DefaultRenderingOptions(Vector2.Zero));
             return new Size(
                 chromeSize.Width + (int)MathF.Ceiling(textSize.X),
-                Math.Max(chromeSize.Height, (int)MathF.Ceiling(textSize.Y)));
+                chromeSize.Height + (int)MathF.Ceiling(textSize.Y));
         }
 
         /// <inheritdoc/>

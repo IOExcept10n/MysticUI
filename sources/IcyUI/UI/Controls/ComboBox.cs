@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using Icy.Data.Markup.Attributes;
+using Icy.UI.Styles;
 
 namespace Icy.UI.Controls
 {
@@ -38,6 +39,15 @@ namespace Icy.UI.Controls
             textBox = new TextBox();
             textBox.TextChanged += TextBox_TextChanged;
 
+            // A no-op Style, not left null: an implicit (keyless, type-targeted) TextBox style applies to ANY
+            // TextBox instance that has no Style set by the time it attaches - see UIElement.Style's own remarks -
+            // and this textBox is a genuine nested TextBox, so it would otherwise pick up the theme's own
+            // Background/BorderBrush/BorderThickness/Padding on top of this ComboBox's OWN chrome, drawing a
+            // second, smaller border+background floating inside the first and eating into the already-narrow
+            // Grid cell twice over. This textBox is meant to look like a bare text-entry surface sitting directly
+            // on ComboBox's own chrome, not a self-bordered control in its own right.
+            textBox.Style = new Style(typeof(TextBox));
+
             // Order matters: swap chromePanel into Chrome BEFORE adding its children. Border.Child's setter
             // unconditionally nulls the OLD child's Parent/Canvas when replaced - if Toggle were added to
             // chromePanel first (setting Toggle.Parent = chromePanel via Panel.OnChildAdded), the immediately
@@ -71,11 +81,30 @@ namespace Icy.UI.Controls
 
             IsFocusable = false;
             HookFocusGate(textBox);
+            textBox.FocusChanged += TextBox_FocusChanged;
 
+            // Regression: a mouse/touch commit (Selector.OnPopupItemTap sets SelectedIndex directly, then closes
+            // the popup) never routed through this ComboBox's own OnNavigationSelectElement (the Enter-key path,
+            // the only place that used to call SetTextFromSelection) - so clicking a popup item updated
+            // SelectedItem/lastCommittedItem's bookkeeping but left textBox.Text showing whatever the user had
+            // typed to filter, never the item they actually picked. SelectionChanged is the one hook every commit
+            // path already funnels through (Enter's own SelectedIndex assignment fires it too), so syncing the
+            // text here - once, guarded exactly like OnNavigationSelectElement's own explicit call already is -
+            // covers every current and future way a selection can be committed.
             SelectionChanged += (_, _) =>
             {
-                if (!suppressSelectionChanged)
-                    lastCommittedItem = SelectedItem;
+                if (suppressSelectionChanged)
+                    return;
+
+                lastCommittedItem = SelectedItem;
+
+                suppressTextChanged = true;
+                SetTextFromSelection();
+                suppressTextChanged = false;
+
+                // The popup was filtered down to whatever the user had typed before committing - without this,
+                // the list stays narrowed to (essentially) the just-picked item the next time the popup opens.
+                ApplyFilter(string.Empty);
             };
         }
 
@@ -133,27 +162,7 @@ namespace Icy.UI.Controls
                 return;
             }
 
-            // Upper bound guarded too - see Selector.OnNavigationSelectElement's own remarks: filtering can shrink
-            // the list underneath a stale highlight between the arrow press that set it and this commit.
-            if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
-            {
-                SelectedIndex = HighlightedIndex;
-                lastCommittedItem = SelectedItem;
-
-                // Suppressed, exactly as in RevertText: unguarded, this assignment re-enters TextBox_TextChanged ->
-                // ApplyFilter(committed text), leaving the list narrowed to (essentially) the single committed item
-                // for the next time the popup opens. The explicit ApplyFilter below then restores the full list.
-                suppressTextChanged = true;
-                SetTextFromSelection();
-                suppressTextChanged = false;
-                ApplyFilter(string.Empty);
-                IsOpen = false;
-            }
-            else
-            {
-                RevertText();
-                IsOpen = false;
-            }
+            CommitHighlightOrRevert();
         }
 
         /// <inheritdoc/>
@@ -161,6 +170,44 @@ namespace Icy.UI.Controls
         {
             RevertText();
             IsOpen = false;
+        }
+
+        /// <summary>
+        /// Commits <see cref="Selector.HighlightedIndex"/> as the new selection if it's still valid, otherwise
+        /// reverts <see cref="TextBox.Text"/> back to the last real selection - and closes the popup either way.
+        /// </summary>
+        /// <remarks>
+        /// Shared by both the Enter-key commit path (<see cref="OnNavigationSelectElement"/>, after its own
+        /// "open if closed" check) and losing focus (<see cref="TextBox_FocusChanged"/>) - standard combobox UX
+        /// commits pending navigation on blur exactly like Enter would, it just must never also reopen a closed
+        /// popup the way Enter's own leading check does.
+        /// </remarks>
+        private void CommitHighlightOrRevert()
+        {
+            // Upper bound guarded too - see Selector.OnNavigationSelectElement's own remarks: filtering can shrink
+            // the list underneath a stale highlight between the arrow press that set it and this commit.
+            if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
+            {
+                // The SelectionChanged subscription above takes care of lastCommittedItem/SetTextFromSelection/
+                // ApplyFilter(string.Empty) - every commit path funnels through this one assignment.
+                SelectedIndex = HighlightedIndex;
+            }
+            else
+            {
+                RevertText();
+            }
+
+            IsOpen = false;
+        }
+
+        private void TextBox_FocusChanged(object? sender, EventArgs e)
+        {
+            // Regression: losing focus (Tab away, clicking elsewhere) used to do nothing at all - a highlighted-
+            // but-not-yet-committed item (arrow-keyed but Enter never pressed) left textBox.Text showing stale
+            // filter text instead of snapping to either the highlighted item or the last real selection, exactly
+            // like standard combobox UX (and Enter) already does.
+            if (!textBox.IsFocused)
+                CommitHighlightOrRevert();
         }
 
         private void ApplyFilter(string filterText)

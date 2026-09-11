@@ -266,6 +266,70 @@ namespace Icy.Tests.Controls
             Assert.True(comboBox.ActualBounds.Height > 0, $"ComboBox bounds: {comboBox.ActualBounds}");
         }
 
+        [Fact]
+        public void ThemedComboBox_InternalTextBox_DoesNotGetItsOwnBorderOrPadding()
+        {
+            // Regression: an implicit (keyless, type-targeted) style applies to ANY element of a matching type
+            // that has no Style set by the time it attaches - see UIElement.Style's own remarks - and this
+            // internal textBox is a genuine TextBox instance, so applying the default theme gave it its own
+            // Background/BorderBrush/BorderThickness/Padding on top of this ComboBox's own chrome: a second,
+            // smaller border floating inside the first, eating into the already-narrow Grid cell twice over.
+            var comboBox = new ComboBox { ItemsSource = new List<object> { "Apple", "Banana" }, Width = 240 };
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new Icy.Tests.Rendering.FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets();
+            var config = builder.Build().UseDefaultTheme();
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(comboBox);
+            canvas.Render();
+
+            var textBox = GetTextBox(comboBox);
+
+            Assert.Equal(Thickness.Zero, textBox.Padding);
+            Assert.Equal(Thickness.Zero, textBox.BorderThickness);
+        }
+
+        [Fact]
+        public void SelectingAnItem_ByAnyMeans_UpdatesTextBoxContents()
+        {
+            // Regression: only the Enter-key commit path (OnNavigationSelectElement) used to push the selected
+            // item's display text into the internal textBox - a mouse/touch commit (Selector.OnPopupItemTap sets
+            // SelectedIndex directly, bypassing OnNavigationSelectElement entirely) left the box showing stale
+            // filter text instead of the item that was actually picked, even though SelectedItem itself was
+            // correct. Setting SelectedIndex/SelectedItem directly - what a popup click, or any other future
+            // commit path, ultimately does - must update the visible text the same way Enter always has.
+            var comboBox = new ComboBox { ItemsSource = new List<object> { "Apple", "Banana" } };
+
+            comboBox.SelectedIndex = 1;
+
+            Assert.Equal("Banana", GetTextBox(comboBox).Text);
+        }
+
+        [Fact]
+        public void LosingFocus_WithAHighlightedItem_CommitsItJustLikeEnterWould()
+        {
+            // Regression: losing focus (Tab away, clicking elsewhere) used to do nothing - an item arrow-keyed
+            // into HighlightedIndex but never confirmed with Enter left textBox.Text showing stale filter text,
+            // instead of snapping to the highlighted item exactly like Enter would have.
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Banana" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>"""),
+            };
+            var input = new FakeInputSystem();
+            Canvas canvas = SimulateFocused(comboBox, input);
+            GetTextBox(comboBox).Text = "ban";
+            InvokeOnNavigationFocusChanging(comboBox, new System.Numerics.Vector2(0, 1));
+
+            canvas.Focus(null);
+
+            Assert.Equal("Banana", comboBox.SelectedItem);
+            Assert.Equal("Banana", GetTextBox(comboBox).Text);
+            Assert.False(comboBox.IsOpen);
+        }
+
         private static TextBox GetTextBox(ComboBox comboBox) =>
             (TextBox)typeof(ComboBox).GetField("textBox", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(comboBox)!;
 
