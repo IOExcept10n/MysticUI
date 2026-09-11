@@ -30,6 +30,7 @@ namespace Icy.UI.Controls
             IsFocusable = true;
             SelectionChanged += (_, _) => UpdateToggleContent();
             FocusChanged += Dropdown_FocusChanged;
+            UpdateToggleContent();
         }
 
         /// <inheritdoc/>
@@ -91,7 +92,16 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Pushes <see cref="Selector.SelectedItem"/>'s display text onto <see cref="Selector.Toggle"/>. Falls back
+        /// to a single space rather than an empty string when nothing is selected - <see cref="TextBlock"/>
+        /// measures as <see cref="System.Drawing.Size.Empty"/> for a truly empty <see cref="TextBlock.Text"/> (by
+        /// design, so an optional/conditional label doesn't reserve space when it has nothing to show), which for
+        /// this toggle would mean the whole <see cref="Dropdown"/> visibly changed height the moment a selection
+        /// was first made. A space keeps <see cref="TextBlock"/> measuring a real (font-metrics-based) line height
+        /// throughout, matching how <see cref="TextBox"/> already avoids the same trap for its own empty text.
+        /// </summary>
         private void UpdateToggleContent() =>
-            Toggle.Content = new TextBlock { Text = SelectedItem == null ? string.Empty : GetDisplayText(SelectedItem) };
+            Toggle.Content = new TextBlock { Text = SelectedItem == null ? " " : GetDisplayText(SelectedItem) };
     }
 }

@@ -99,6 +99,22 @@ namespace Icy.Rendering.Fonts
             // happens to end in a space).
             max.X = Math.Max(max.X, bounds.Location.X);
 
+            // Same ink-vs-metrics gap on the vertical axis, but narrower: text that has ANY real ink anywhere
+            // (min.Y != max.Y - different glyphs have different Bearing.Y/Size.Height, so real content almost
+            // always produces a real spread) keeps its existing tight ink bounding box untouched - that's
+            // established, tested behavior elsewhere in this class (e.g. lowercase-only text correctly measures
+            // shorter than text with capitals or descenders). The gap only matters for text with NO ink
+            // whatsoever - every glyph empty, so min.Y and max.Y never moved past their identical starting point
+            // (e.g. a lone space, which TextBox measures in place of a truly empty Text - see its own
+            // MeasureContent). Falling back to the font's own metrics-derived line height only in that genuinely
+            // degenerate case is what TextBox.OnRender's own caret-height calculation already does unconditionally
+            // via Metrics.Ascent - Metrics.Descent, just scoped here to when there's nothing else to measure by.
+            if (min.Y == max.Y)
+            {
+                min.Y = localOptions.Position.Y;
+                max.Y = localOptions.Position.Y + (Metrics.Ascent - Metrics.Descent);
+            }
+
             return transform.Apply(Rectangle.FromLTRB((int)min.X, (int)min.Y, (int)max.X, (int)max.Y));
         }
 

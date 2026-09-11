@@ -55,6 +55,46 @@ namespace Icy.Tests.Controls
             Assert.True(singleSpaceSize.X > 0, $"A lone space must measure to its real (nonzero) advance width, not disappear entirely - got {singleSpaceSize.X}.");
         }
 
+        [Fact]
+        public void MeasureString_ContentWithNoDescender_StillReportsTheFontsFullLineHeight()
+        {
+            // Regression, same root cause as the width test above but on the vertical axis: min.Y/max.Y used to
+            // grow only from actual glyph ink, so a string with none at all (a lone space - what TextBox measures
+            // in place of a truly empty Text, see its own MeasureContent) reported zero height. A single line's
+            // height must never depend on which glyphs happen to be present - it should match the font's own
+            // Ascent-to-Descent metrics every time, exactly like TextBox.OnRender's caret-height calculation
+            // already computes it. This is what made an empty TextBox (or a Dropdown before anything is selected,
+            // or ComboBox's internal TextBox) collapse to a visibly shorter box than the same control holding
+            // real text, instead of keeping a stable height throughout.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            IFont font = config.Fonts.GetOrLoad(new FontInfo("Airfool", 16, FontStyle.Regular))!;
+            var options = new FontRenderingOptions(
+                Position: Vector2.Zero,
+                Scale: null,
+                Rotation: 0,
+                Origin: Vector2.Zero,
+                CharacterSpacing: 0,
+                LineSpacing: 0,
+                Color: Color.Black,
+                Depth: 0,
+                Effect: null);
+
+            float expectedLineHeight = font.Metrics.Ascent - font.Metrics.Descent;
+            Vector2 emptyLineSize = font.MeasureString(" ", options);
+
+            Assert.True(
+                emptyLineSize.Y >= expectedLineHeight - 1,
+                $"Expected height around the font's own line height ({expectedLineHeight}), got {emptyLineSize.Y}.");
+        }
+
         private static (Canvas Canvas, FakeInputSystem Input, TextBox TextBox) CreateFocusedTextBox()
         {
             var input = new FakeInputSystem();
