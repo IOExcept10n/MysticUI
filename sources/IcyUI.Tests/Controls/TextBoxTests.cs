@@ -165,6 +165,104 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Caret_StaysWithinTheVisibleArea_WhenTextIsWiderThanTheBox()
+        {
+            // Regression/feature: TextBox had no horizontal scrolling at all - typing past the visible width just
+            // let the caret's true (unscrolled) position run off past the box's own right edge, off-screen, with
+            // no way to bring it back into view (matching a real text field's "keep typing, the box scrolls to
+            // follow your cursor" behavior, which WPF's TextBox has and this one didn't).
+            var builder = new IcyConfigurationBuilder();
+            var renderContext = new FakeRenderContext();
+            var input = new FakeInputSystem();
+            builder.ConfigureRendering(renderContext)
+                   .ConfigureInput(input)
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            var textBox = new TextBox
+            {
+                FontFamily = "Airfool",
+                FontSize = 16,
+                Width = 60,
+                Height = 24,
+                Padding = new Thickness(2),
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(textBox);
+            canvas.Render();
+            canvas.Focus(textBox);
+
+            input.Events.Text.RaiseTextInput("Hello World Testing");
+            renderContext.DrawCalls.Clear();
+            canvas.Render();
+            var caret = renderContext.DrawCalls.Last(d => d.Texture == renderContext.WhiteTexture && d.Options.Destination.Width == 1);
+
+            int contentLeft = textBox.Padding.Left + textBox.BorderThickness.Left;
+            int contentRight = textBox.ActualBounds.Width - textBox.Padding.Right - textBox.BorderThickness.Right;
+            int caretXWithinControl = caret.Options.Destination.X - textBox.ActualBounds.X;
+
+            Assert.True(
+                caretXWithinControl >= contentLeft && caretXWithinControl <= contentRight,
+                $"Caret should stay within the visible content area ({contentLeft}..{contentRight}) - was at {caretXWithinControl}.");
+        }
+
+        [Fact]
+        public void Caret_NavigatingAwayFromTheEnd_KeepsAMarginOnBothSides()
+        {
+            // Feature: navigating mid-string (not just typing at the tail, covered by the test above) should keep
+            // a small margin of already-visible characters on both sides of the caret, not just snap it flush to
+            // an edge - so the user can see a couple of characters they're about to type over/delete, matching
+            // how a WPF TextBox scrolls.
+            var builder = new IcyConfigurationBuilder();
+            var renderContext = new FakeRenderContext();
+            var input = new FakeInputSystem();
+            builder.ConfigureRendering(renderContext)
+                   .ConfigureInput(input)
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            var textBox = new TextBox
+            {
+                FontFamily = "Airfool",
+                FontSize = 16,
+                Width = 60,
+                Height = 24,
+                Padding = new Thickness(2),
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(textBox);
+            canvas.Render();
+            canvas.Focus(textBox);
+
+            input.Events.Text.RaiseTextInput("Hello World Testing");
+            for (int i = 0; i < 10; i++)
+                input.Keyboard.RaiseKeyDown(Keys.Left);
+            renderContext.DrawCalls.Clear();
+            canvas.Render();
+            var caret = renderContext.DrawCalls.Last(d => d.Texture == renderContext.WhiteTexture && d.Options.Destination.Width == 1);
+
+            int contentLeft = textBox.ActualBounds.X + textBox.Padding.Left + textBox.BorderThickness.Left;
+            int contentRight = textBox.ActualBounds.Right - textBox.Padding.Right - textBox.BorderThickness.Right;
+            int caretX = caret.Options.Destination.X;
+
+            Assert.True(
+                caretX > contentLeft && caretX < contentRight,
+                $"Caret at a mid-string position should sit with room on both sides ({contentLeft}..{contentRight}), not flush against an edge - was at {caretX}.");
+        }
+
+        [Fact]
         public void MeasureContent_WithNoFontFamilySet_FallsBackToTheConfiguredDefault()
         {
             // Regression: unlike TextBlock.ResolveFont's three-step fallback (own FontFamily, then

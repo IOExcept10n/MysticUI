@@ -28,6 +28,7 @@ namespace Icy.UI.Controls
         private int caretIndex;
         private string fontFamily = string.Empty;
         private float fontSize = 16;
+        private float scrollOffset;
         private IKeyboardInput? subscribedKeyboard;
         private ITextEvents? subscribedTextEvents;
         private string text = string.Empty;
@@ -137,6 +138,14 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// When <see cref="Text"/> is wider than the visible content area, this scrolls horizontally to keep the
+        /// caret in view - like a WPF <c>TextBox</c>, never like <see cref="TextBlock"/> (which has no caret and
+        /// simply overflows/clips). <see cref="scrollOffset"/> persists across renders and is only nudged when the
+        /// caret would otherwise leave a small margin band near either edge, so scrolling doesn't jitter on every
+        /// keystroke - it moves exactly as far as needed to bring the caret back into view, the same way typing
+        /// past the edge of a real text field does.
+        /// </remarks>
         protected override void OnRender(IRenderContext context)
         {
             base.OnRender(context);
@@ -146,18 +155,51 @@ namespace Icy.UI.Controls
                 return;
 
             Vector2 textOrigin = new(Padding.Left + BorderThickness.Left, Padding.Top + BorderThickness.Top);
-            font.DrawString(context, Text, DefaultRenderingOptions(textOrigin));
+            Rectangle contentBounds = new Rectangle(Point.Empty, ActualBounds.Size) - (Padding + BorderThickness);
+            float caretX = font.MeasureAdvance(Text[..caretIndex], DefaultRenderingOptions(Vector2.Zero)).X;
 
-            if (!IsFocused)
-                return;
+            if (contentBounds.Width > 0)
+            {
+                // A margin so the caret never sits flush against the visible edge - the user can see the next
+                // couple of characters they're about to type over/delete, not just the caret itself. Two "0"s is
+                // a reasonably representative two-character width for most fonts; capped against a third of the
+                // visible width so it never eats the whole box on a very narrow TextBox.
+                float margin = MathF.Min(contentBounds.Width / 3f, font.MeasureAdvance("00", DefaultRenderingOptions(Vector2.Zero)).X);
 
-            Vector2 caretOffset = font.MeasureAdvance(Text[..caretIndex], DefaultRenderingOptions(Vector2.Zero));
-            Rectangle caretRect = new(
-                (int)(textOrigin.X + MathF.Ceiling(caretOffset.X)),
-                (int)textOrigin.Y,
-                1,
-                (int)MathF.Ceiling(font.Metrics.Ascent - font.Metrics.Descent));
-            new SolidColorBrush(Foreground).Draw(context, GetDefaultRenderOptions() with { Destination = caretRect });
+                if (caretX - scrollOffset > contentBounds.Width - margin)
+                    scrollOffset = caretX - contentBounds.Width + margin;
+                else if (caretX - scrollOffset < margin)
+                    scrollOffset = caretX - margin;
+
+                float fullTextWidth = font.MeasureAdvance(Text, DefaultRenderingOptions(Vector2.Zero)).X;
+                scrollOffset = Math.Clamp(scrollOffset, 0, MathF.Max(0, fullTextWidth - contentBounds.Width));
+            }
+            else
+            {
+                scrollOffset = 0;
+            }
+
+            // Narrows ClipToBounds's existing scissor (already set to this whole control's ActualBounds, chrome
+            // included, by UIElement.Draw before OnRender runs) down to just the content area - otherwise scrolled
+            // text can bleed left into the padding/border band instead of disappearing behind it.
+            Rectangle screenContentBounds = context.Transform.Apply(contentBounds);
+            Rectangle oldScissor = context.Options.Scissor;
+            context.Options.Scissor = Rectangle.Intersect(oldScissor, screenContentBounds);
+
+            Vector2 scrolledOrigin = textOrigin with { X = textOrigin.X - scrollOffset };
+            font.DrawString(context, Text, DefaultRenderingOptions(scrolledOrigin));
+
+            if (IsFocused)
+            {
+                Rectangle caretRect = new(
+                    (int)(scrolledOrigin.X + MathF.Ceiling(caretX)),
+                    (int)textOrigin.Y,
+                    1,
+                    (int)MathF.Ceiling(font.Metrics.Ascent - font.Metrics.Descent));
+                new SolidColorBrush(Foreground).Draw(context, GetDefaultRenderOptions() with { Destination = caretRect });
+            }
+
+            context.Options.Scissor = oldScissor;
         }
 
         private FontRenderingOptions DefaultRenderingOptions(Vector2 position) => new(
