@@ -88,6 +88,17 @@ namespace Icy.Rendering.Fonts
                 max = Vector2.Max(max, glyphPos + new Vector2(glyph.Size.Width, glyph.Size.Height));
             });
 
+            // The loop above only grows `max` for glyphs that have actual ink (Size > 0) - an inkless glyph like
+            // a space contributes Size=(0,0) and is silently excluded from this tight ink bounding box, even
+            // though it legitimately advanced the cursor (ProcessText's own bounds.Location.X += glyph.Advance,
+            // which still ran for it). That's invisible for a space in the middle of the text, since a later
+            // glyph's own ink pushes max.X past it anyway - but a *trailing* space has nothing after it to do
+            // that, so it silently disappeared from the measured width entirely. Extending max.X to the cursor's
+            // final resting position (bounds.Location.X, after ProcessText's ref mutation) fixes both that and
+            // the equivalent case in TextBox's own caret-position measurement (MeasureString of a substring that
+            // happens to end in a space).
+            max.X = Math.Max(max.X, bounds.Location.X);
+
             return transform.Apply(Rectangle.FromLTRB((int)min.X, (int)min.Y, (int)max.X, (int)max.Y));
         }
 

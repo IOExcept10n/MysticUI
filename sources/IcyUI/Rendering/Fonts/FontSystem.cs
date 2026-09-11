@@ -230,11 +230,36 @@ namespace Icy.Rendering.Fonts
                                   .DistinctBy(x => x.Info)
                                   .ToFrozenDictionary(x => x.Info, y => y.FileName);
 
-        private static IEnumerable<(VectorFontInfo Info, string FileName)> EnumerateSystemFonts() => from filePath in Directory.EnumerateFiles(SystemFontsPath)
-                                                                                                     let fileName = Path.GetFileName(filePath)
-                                                                                                     where DynamicFontsHelper.IsFontFileName(fileName)
-                                                                                                     let info = DynamicFontsHelper.GetFontInfo(filePath)[0]
-                                                                                                     select ((VectorFontInfo)info, fileName);
+        private static IEnumerable<(VectorFontInfo Info, string FileName)> EnumerateSystemFonts()
+        {
+            foreach (string filePath in Directory.EnumerateFiles(SystemFontsPath))
+            {
+                string fileName = Path.GetFileName(filePath);
+                if (!DynamicFontsHelper.IsFontFileName(fileName))
+                    continue;
+
+                FontInfo[] infos;
+                try
+                {
+                    infos = DynamicFontsHelper.GetFontInfo(filePath);
+                }
+                catch
+                {
+                    // A file with a font-like extension isn't guaranteed to actually be parseable TTF/OTF/TTC data -
+                    // some OS-shipped files in the system fonts directory carry a misleading extension (e.g. legacy
+                    // symbol/UI fonts on Windows) and fail DynamicFontsHelper's own sfnt parsing. Skip it rather
+                    // than aborting the whole system-fonts index over one unreadable file - EnableSystemFonts is
+                    // meant to make every *usable* system font available, not require every file in the directory
+                    // to be a well-formed font.
+                    continue;
+                }
+
+                if (infos.Length == 0)
+                    continue;
+
+                yield return ((VectorFontInfo)infos[0], fileName);
+            }
+        }
 
         private DynamicSpriteFont ReuseFont(FontInfo info, SharedDynamicFontData data)
         {

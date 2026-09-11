@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Input.Devices;
 using Icy.Input.Events;
 using Icy.Markup;
 using Icy.Tests.Input;
@@ -31,19 +32,7 @@ namespace Icy.Tests.Controls
             var input = new FakeInputSystem();
             SimulateFocused(dropdown, input);
 
-            input.Events.Text.RaiseTextInput("b");
-
-            Assert.Equal(1, dropdown.SelectedIndex);
-        }
-
-        [Fact]
-        public void Typeahead_IsCaseInsensitive()
-        {
-            var dropdown = new Dropdown { ItemsSource = new List<object> { "Apple", "Banana" }, IsFocusable = true };
-            var input = new FakeInputSystem();
-            SimulateFocused(dropdown, input);
-
-            input.Events.Text.RaiseTextInput("B");
+            input.Keyboard.RaiseKeyDown(Keys.B);
 
             Assert.Equal(1, dropdown.SelectedIndex);
         }
@@ -55,10 +44,10 @@ namespace Icy.Tests.Controls
             var input = new FakeInputSystem();
             SimulateFocused(dropdown, input);
 
-            input.Events.Text.RaiseTextInput("a");
+            input.Keyboard.RaiseKeyDown(Keys.A);
             Assert.Equal(0, dropdown.SelectedIndex);
 
-            input.Events.Text.RaiseTextInput("a");
+            input.Keyboard.RaiseKeyDown(Keys.A);
             Assert.Equal(1, dropdown.SelectedIndex);
         }
 
@@ -70,7 +59,7 @@ namespace Icy.Tests.Controls
             SimulateFocused(dropdown, input);
             dropdown.SelectedIndex = 1;
 
-            input.Events.Text.RaiseTextInput("a");
+            input.Keyboard.RaiseKeyDown(Keys.A);
 
             Assert.Equal(0, dropdown.SelectedIndex);
         }
@@ -82,15 +71,33 @@ namespace Icy.Tests.Controls
             var input = new FakeInputSystem();
             SimulateFocused(dropdown, input);
 
-            input.Events.Text.RaiseTextInput("b");
+            input.Keyboard.RaiseKeyDown(Keys.B);
 
             Assert.False(dropdown.IsOpen);
             Assert.Equal(1, dropdown.SelectedIndex);
         }
 
         [Fact]
-        public void TextInputEnabledDisabled_OnFocusChange()
+        public void Typeahead_IgnoresNonLetterKeys()
         {
+            var dropdown = new Dropdown { ItemsSource = new List<object> { "Apple", "Banana" }, IsFocusable = true };
+            var input = new FakeInputSystem();
+            SimulateFocused(dropdown, input);
+
+            input.Keyboard.RaiseKeyDown(Keys.D1);
+            input.Keyboard.RaiseKeyDown(Keys.Space);
+            input.Keyboard.RaiseKeyDown(Keys.Enter);
+
+            Assert.Equal(-1, dropdown.SelectedIndex);
+        }
+
+        [Fact]
+        public void KeyDown_NeverEnablesTextInput_AndStopsFiringAfterFocusIsLost()
+        {
+            // Regression: a Dropdown never accepts free text, so it must never put the input system into "text
+            // input" mode - on some platforms that's what triggers an IME candidate window or on-screen keyboard,
+            // which would surprise a user (e.g. typing in Japanese) with a popup over a control that has nowhere
+            // to show composed text. See the class remarks on Dropdown for the full reasoning.
             var dropdown = new Dropdown { ItemsSource = new List<object> { "Apple", "Banana" }, IsFocusable = true };
             var input = new FakeInputSystem();
             var assets = new AssetConfiguration(AssetContext.ApplicationContext);
@@ -100,15 +107,16 @@ namespace Icy.Tests.Controls
             canvas.Add(dropdown);
             canvas.Render();
 
-            // Before focus, text input should be disabled
+            canvas.Focus(dropdown);
+            input.Keyboard.RaiseKeyDown(Keys.B);
+            Assert.Equal(1, dropdown.SelectedIndex);
             Assert.False(input.Events.Text.IsTextInputEnabled);
 
-            // After focus, text input should be enabled
-            canvas.Focus(dropdown);
-            Assert.True(input.Events.Text.IsTextInputEnabled);
-
-            // After losing focus, text input should be disabled
             canvas.Focus(null);
+            dropdown.SelectedIndex = -1;
+            input.Keyboard.RaiseKeyDown(Keys.B);
+
+            Assert.Equal(-1, dropdown.SelectedIndex);
             Assert.False(input.Events.Text.IsTextInputEnabled);
         }
 
@@ -144,7 +152,7 @@ namespace Icy.Tests.Controls
 
             // End to end: with focus on the Dropdown rather than its toggle, typeahead is live straight after a
             // mouse/touch tap - the actual user-visible symptom this fix is about.
-            input.Events.Text.RaiseTextInput("b");
+            input.Keyboard.RaiseKeyDown(Keys.B);
             Assert.Equal(1, dropdown.SelectedIndex);
         }
 

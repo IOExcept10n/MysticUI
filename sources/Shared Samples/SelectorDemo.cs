@@ -29,10 +29,26 @@ namespace Icy.SharedSamples
                 <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,0,0,12">Click either control to open its popup. Arrow keys/gamepad navigate; Enter selects; Escape closes. Type a letter in the Dropdown for typeahead, or type in the ComboBox to filter.</TextBlock>
 
                 <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,0,0,4">Dropdown:</TextBlock>
-                <Dropdown x:Name="FruitDropdown" Width="240" Margin="0,0,0,16"/>
+                <Dropdown x:Name="FruitDropdown" Width="240" Margin="0,0,0,16">
+                  <Dropdown.ItemTemplate>
+                    <DataTemplate>
+                      <Border BorderBrush="#FF3A3A44" BorderThickness="0,0,0,1" Padding="10,8">
+                        <TextBlock FontSize="14" Foreground="WhiteSmoke" Text="{Binding}"/>
+                      </Border>
+                    </DataTemplate>
+                  </Dropdown.ItemTemplate>
+                </Dropdown>
 
                 <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,0,0,4">ComboBox:</TextBlock>
-                <ComboBox x:Name="FruitComboBox" Width="240"/>
+                <ComboBox x:Name="FruitComboBox" Width="240">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <Border BorderBrush="#FF3A3A44" BorderThickness="0,0,0,1" Padding="10,8">
+                        <TextBlock FontSize="14" Foreground="WhiteSmoke" Text="{Binding}"/>
+                      </Border>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
               </StackPanel>
             </Border>
             """;

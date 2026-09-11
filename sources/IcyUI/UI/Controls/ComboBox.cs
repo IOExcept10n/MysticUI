@@ -38,7 +38,7 @@ namespace Icy.UI.Controls
             textBox = new TextBox();
             textBox.TextChanged += TextBox_TextChanged;
 
-            // Order matters: swap chromePanel into Chrome BEFORE adding Toggle to it. Border.Child's setter
+            // Order matters: swap chromePanel into Chrome BEFORE adding its children. Border.Child's setter
             // unconditionally nulls the OLD child's Parent/Canvas when replaced - if Toggle were added to
             // chromePanel first (setting Toggle.Parent = chromePanel via Panel.OnChildAdded), the immediately
             // following `Chrome.Child = chromePanel` assignment would still see `toggle` as Chrome's current old
@@ -47,10 +47,19 @@ namespace Icy.UI.Controls
             // remarks describe for the same reason. Swapping chromePanel in first means Chrome's old-child
             // cleanup fires while chromePanel is still empty (a legitimate unparent, not a clobber), and Toggle's
             // Parent is set correctly afterward.
-            var chromePanel = new StackPanel { Orientation = Orientation.Horizontal };
+            //
+            // A Grid, not a horizontal StackPanel: StackPanel sizes every child to its own natural/measured
+            // width and never distributes leftover space, so textBox and Toggle would both collapse to their
+            // tiny natural sizes and leave the rest of this control's own Width empty. A two-column Grid (Star +
+            // Auto) gives textBox the whole remaining width and Toggle its own natural size on the right.
+            var chromePanel = new Grid();
+            chromePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+            chromePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             ((Border)Chrome).Child = chromePanel;
             chromePanel.Children.Add(textBox);
             chromePanel.Children.Add(Toggle);
+            Grid.SetColumn(textBox, 0);
+            Grid.SetColumn(Toggle, 1);
 
             IsFocusable = false;
             HookFocusGate(textBox);

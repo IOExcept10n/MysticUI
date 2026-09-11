@@ -1,6 +1,9 @@
+using System.Drawing;
+using System.Numerics;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Input.Devices;
+using Icy.Rendering.Fonts;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
@@ -11,6 +14,47 @@ namespace Icy.Tests.Controls
 {
     public class TextBoxTests
     {
+        [Fact]
+        public void MeasureString_TrailingCharacterWithNoInk_StillContributesItsAdvanceWidth()
+        {
+            // Regression: SpriteFont.CalculateBounds computed a tight ink bounding box (the union of each glyph's
+            // own visible Size) instead of the cursor's final advance position. A space glyph has Size=(0,0) by
+            // design (there's no ink to draw) - for a space in the MIDDLE of a string this was invisible, because
+            // the callback captures each glyph's own *starting* position (before its own advance), so the NEXT
+            // glyph's starting position (already past the space) is what actually grew the box - the bug only
+            // ever dropped the very last character's own advance, whatever it was. For a single trailing space
+            // (nothing after it to reveal that missing advance), the measured width came out as exactly the
+            // pre-text cursor position - here, zero. This affected both TextBox's own box sizing and its
+            // caret-position math, since both route through this same MeasureString call.
+            //
+            // Measures the font directly (bypassing TextBox's own chrome/Padding, which would otherwise add a
+            // constant offset that masks a "width == 0" assertion) for a precise, font-metric-independent check.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            IFont font = config.Fonts.GetOrLoad(new FontInfo("Airfool", 16, FontStyle.Regular))!;
+            var options = new FontRenderingOptions(
+                Position: Vector2.Zero,
+                Scale: null,
+                Rotation: 0,
+                Origin: Vector2.Zero,
+                CharacterSpacing: 0,
+                LineSpacing: 0,
+                Color: Color.Black,
+                Depth: 0,
+                Effect: null);
+
+            Vector2 singleSpaceSize = font.MeasureString(" ", options);
+
+            Assert.True(singleSpaceSize.X > 0, $"A lone space must measure to its real (nonzero) advance width, not disappear entirely - got {singleSpaceSize.X}.");
+        }
+
         private static (Canvas Canvas, FakeInputSystem Input, TextBox TextBox) CreateFocusedTextBox()
         {
             var input = new FakeInputSystem();
