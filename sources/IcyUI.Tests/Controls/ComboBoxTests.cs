@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
+using Icy.Configuration;
 using Icy.Input.Events;
 using Icy.Markup;
 using Icy.Tests.Input;
@@ -224,6 +225,45 @@ namespace Icy.Tests.Controls
             Assert.Equal(new[] { "Item 7" }, InvokeGetFilteredDisplayTexts(comboBox));
             int narrowedHeight = canvas.Overlays.Single().ActualBounds.Height;
             Assert.True(narrowedHeight < fullHeight, $"Expected the popup to shrink with the filtered list, got {narrowedHeight} vs {fullHeight}.");
+        }
+
+        [Fact]
+        public void NaturalHeight_WithNoExplicitHeightSet_IsNotZero()
+        {
+            // Regression, two compounding root causes: (1) ComboBox's chrome Grid never gave its implicit single
+            // row an explicit RowDefinition, and Grid.MeasureContent() always measures a Star track (which an
+            // empty RowDefinitions collection implies) as 0 during measure - deferred to arrange time, matching
+            // WPF's own Star semantics - so the whole chrome's measured height was always 0 regardless of what its
+            // children needed. (2) Separately, the internal textBox never has its own FontFamily set, and
+            // TextBox.ResolveFont() (unlike TextBlock's own three-step fallback) used to return null outright for
+            // an empty FontFamily rather than falling back to FontSystem.DefaultFontFamily - so even once the Grid
+            // row was fixed, the internal textBox itself still measured as zero-sized. Together, a ComboBox with
+            // no explicit Height (the common case - see SelectorDemo) rendered as nothing at all.
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Banana" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 240,
+            };
+            var stack = new StackPanel { Orientation = Orientation.Vertical };
+            stack.Children.Add(comboBox);
+
+            var builder = new IcyConfigurationBuilder();
+            var renderContext = new Icy.Tests.Rendering.FakeRenderContext();
+            var input = new FakeInputSystem();
+            builder.ConfigureRendering(renderContext)
+                   .ConfigureInput(input)
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(stack);
+            canvas.Render();
+
+            Assert.True(comboBox.ActualBounds.Height > 0, $"ComboBox bounds: {comboBox.ActualBounds}");
         }
 
         private static TextBox GetTextBox(ComboBox comboBox) =>

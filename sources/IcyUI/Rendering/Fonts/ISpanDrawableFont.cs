@@ -19,6 +19,9 @@ namespace Icy.Rendering.Fonts
         /// <inheritdoc cref="IFont.CalculateBounds(string, in FontRenderingOptions)"/>
         Rectangle CalculateBounds(ReadOnlySpan<char> text, in FontRenderingOptions options);
 
+        /// <inheritdoc cref="IFont.MeasureAdvance(string, in FontRenderingOptions)"/>
+        Vector2 MeasureAdvance(ReadOnlySpan<char> text, in FontRenderingOptions options);
+
         /// <inheritdoc cref="IFont.GetRenderGlyphs(string, in FontRenderingOptions)"/>
         List<RenderGlyph> GetRenderGlyphs(ReadOnlySpan<char> text, in FontRenderingOptions options);
 

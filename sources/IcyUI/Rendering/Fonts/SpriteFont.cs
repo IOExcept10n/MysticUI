@@ -123,6 +123,32 @@ namespace Icy.Rendering.Fonts
             CalculateBounds(text.AsSpan(), options);
 
         /// <inheritdoc/>
+        public Vector2 MeasureAdvance(ReadOnlySpan<char> text, in FontRenderingOptions options)
+        {
+            if (text.IsEmpty)
+                return Vector2.Zero;
+
+            var localOptions = options;
+            Transform2D transform = CreateTransform(localOptions);
+            Prepare(text, localOptions, out int baseline, out int lineHeight);
+
+            BoundsInfo bounds = new(new Vector2(0, baseline), localOptions.Position.X);
+            ProcessText(text, localOptions, lineHeight, ref bounds, static (_, _, _) => { });
+
+            // Deliberately NOT the ink-based CalculateBounds: this is the raw cursor position after every
+            // character (including inkless ones like a trailing space), never clamped up by a preceding glyph's
+            // own ink overhanging past its advance width - see the interface remarks for why that distinction
+            // matters for caret placement specifically.
+            Rectangle advanceRect = Rectangle.FromLTRB(0, 0, (int)bounds.Location.X, (int)(Metrics.Ascent - Metrics.Descent));
+            Rectangle transformed = transform.Apply(advanceRect);
+            return new Vector2(transformed.Width, transformed.Height);
+        }
+
+        /// <inheritdoc/>
+        public Vector2 MeasureAdvance(string text, in FontRenderingOptions options) =>
+            MeasureAdvance(text.AsSpan(), options);
+
+        /// <inheritdoc/>
         public void DrawString(IRenderContext context, ReadOnlySpan<char> text, in FontRenderingOptions options)
         {
             if (text.IsEmpty)

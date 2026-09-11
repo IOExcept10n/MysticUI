@@ -95,6 +95,101 @@ namespace Icy.Tests.Controls
                 $"Expected height around the font's own line height ({expectedLineHeight}), got {emptyLineSize.Y}.");
         }
 
+        [Fact]
+        public void MeasureAdvance_TrailingSpaceAfterAnOverhangingGlyph_StillAdvancesTheCursor()
+        {
+            // Regression: MeasureString/CalculateBounds intentionally report an ink bounding box - the tightest
+            // box containing visible pixels - and a preceding glyph's own ink can extend further right than its
+            // own advance width (Airfool's 'b' does). That means "ab" can already measure as wide as - or wider
+            // than - "ab "'s true cursor position, so the earlier ink-based width fix (which only extended the
+            // ink box up to the FINAL cursor position) never actually moved for a trailing space added after
+            // such a glyph: the ink from 'b' was already past where the cursor would land. Ink bounds and cursor
+            // advance are different questions; MeasureAdvance answers the second one exclusively, never clamped
+            // by ink from earlier characters.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            IFont font = config.Fonts.GetOrLoad(new FontInfo("Airfool", 16, FontStyle.Regular))!;
+            var options = new FontRenderingOptions(
+                Position: Vector2.Zero, Scale: null, Rotation: 0, Origin: Vector2.Zero,
+                CharacterSpacing: 0, LineSpacing: 0, Color: Color.Black, Depth: 0, Effect: null);
+
+            Vector2 ab = font.MeasureAdvance("ab", options);
+            Vector2 abSpace = font.MeasureAdvance("ab ", options);
+
+            Assert.True(abSpace.X > ab.X, $"ab={ab.X}, ab_space={abSpace.X}");
+        }
+
+        [Fact]
+        public void Caret_MovesRight_WhenTrailingSpaceIsTyped()
+        {
+            // End-to-end regression for the same root cause as the MeasureAdvance test above: TextBox.OnRender
+            // used to compute the caret's screen position via MeasureString (ink-based), so a user typing a
+            // trailing space after a glyph that overhangs its own advance (like Airfool's 'b') would see the
+            // caret not move at all - indistinguishable from the space having been silently dropped.
+            var renderContext = new FakeRenderContext();
+            var input = new FakeInputSystem();
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(renderContext)
+                   .ConfigureInput(input)
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+
+            var textBox = new TextBox { FontFamily = "Airfool", FontSize = 16, Width = 300, Height = 28 };
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(textBox);
+            canvas.Render();
+            canvas.Focus(textBox);
+
+            input.Events.Text.RaiseTextInput("ab");
+            renderContext.DrawCalls.Clear();
+            canvas.Render();
+            var caretBeforeSpace = renderContext.DrawCalls.Last(d => d.Texture == renderContext.WhiteTexture && d.Options.Destination.Width == 1);
+
+            input.Events.Text.RaiseTextInput(" ");
+            renderContext.DrawCalls.Clear();
+            canvas.Render();
+            var caretAfterSpace = renderContext.DrawCalls.Last(d => d.Texture == renderContext.WhiteTexture && d.Options.Destination.Width == 1);
+
+            Assert.True(caretAfterSpace.Options.Destination.X > caretBeforeSpace.Options.Destination.X,
+                $"Caret should move right after a trailing space. Before={caretBeforeSpace.Options.Destination.X}, After={caretAfterSpace.Options.Destination.X}");
+        }
+
+        [Fact]
+        public void MeasureContent_WithNoFontFamilySet_FallsBackToTheConfiguredDefault()
+        {
+            // Regression: unlike TextBlock.ResolveFont's three-step fallback (own FontFamily, then
+            // FontSystem.DefaultFontFamily, then FallbackFont), TextBox.ResolveFont used to return null outright
+            // whenever FontFamily was left unset - which ComboBox's internal text box always does. That made the
+            // internal text box (and therefore, before its own chrome-layout fix, the whole ComboBox) render no
+            // text, no caret, and measure as zero-sized even with a perfectly good document-wide default font.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+
+            var textBox = new TextBox { Text = "Hello", HorizontalAlignment = HorizontalAlignment.Left };
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(textBox);
+            canvas.Render();
+
+            Assert.True(textBox.ActualBounds.Width > 0, $"Expected nonzero width from the fallback font, got {textBox.ActualBounds.Width}.");
+        }
+
         private static (Canvas Canvas, FakeInputSystem Input, TextBox TextBox) CreateFocusedTextBox()
         {
             var input = new FakeInputSystem();

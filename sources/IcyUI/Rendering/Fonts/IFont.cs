@@ -67,6 +67,24 @@ namespace Icy.Rendering.Fonts
         Rectangle CalculateBounds(string text, in FontRenderingOptions options);
 
         /// <summary>
+        /// Measures the raw cursor advance for the specified text - how far the text cursor (caret) moves after
+        /// "typing" every character, including trailing whitespace that has no visible ink of its own.
+        /// </summary>
+        /// <param name="text">Text to measure.</param>
+        /// <param name="options">Options for the measurement.</param>
+        /// <returns>The cursor's total displacement from <see cref="FontRenderingOptions.Position"/>.</returns>
+        /// <remarks>
+        /// Unlike <see cref="MeasureString"/>/<see cref="CalculateBounds"/> - which report the tightest box
+        /// containing actual glyph <em>ink</em>, appropriate for auto-sizing content to what's visually drawn - this
+        /// always reflects the true pen position, even past a glyph whose own ink extends beyond its own advance
+        /// width. Caret placement and "reserve room for what was typed" sizing (e.g. <see cref="TextBox"/>) must use
+        /// this, not the ink-based measurements: a glyph that overhangs its advance can otherwise make a trailing,
+        /// inkless character (like a space) appear to not move the cursor at all, because the ink-based bounds were
+        /// already wider than the true cursor position.
+        /// </remarks>
+        Vector2 MeasureAdvance(string text, in FontRenderingOptions options);
+
+        /// <summary>
         /// Enumerates glyphs to render for the specified text.
         /// </summary>
         /// <param name="text">Text to enumerate glyphs for.</param>

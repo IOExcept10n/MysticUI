@@ -114,7 +114,7 @@ namespace Icy.UI.Controls
             if (font == null)
                 return chromeSize;
 
-            Vector2 textSize = font.MeasureString(Text.Length > 0 ? Text : " ", DefaultRenderingOptions(Vector2.Zero));
+            Vector2 textSize = font.MeasureAdvance(Text.Length > 0 ? Text : " ", DefaultRenderingOptions(Vector2.Zero));
             return new Size(
                 chromeSize.Width + (int)MathF.Ceiling(textSize.X),
                 Math.Max(chromeSize.Height, (int)MathF.Ceiling(textSize.Y)));
@@ -142,7 +142,7 @@ namespace Icy.UI.Controls
             if (!IsFocused)
                 return;
 
-            Vector2 caretOffset = font.MeasureString(Text[..caretIndex], DefaultRenderingOptions(Vector2.Zero));
+            Vector2 caretOffset = font.MeasureAdvance(Text[..caretIndex], DefaultRenderingOptions(Vector2.Zero));
             Rectangle caretRect = new(
                 (int)(textOrigin.X + MathF.Ceiling(caretOffset.X)),
                 (int)textOrigin.Y,
@@ -243,8 +243,26 @@ namespace Icy.UI.Controls
             InsertText(e.Data.Text);
         }
 
-        private IFont? ResolveFont() =>
-            FontFamily.Length == 0 ? null : Configuration?.Fonts.GetOrLoad(new FontInfo(FontFamily, FontSize, FontStyle.Regular));
+        /// <summary>
+        /// Resolves the font to measure and draw <see cref="Text"/> with.
+        /// </summary>
+        /// <returns>The resolved font, or <see langword="null"/> when nothing at all could be resolved.</returns>
+        /// <remarks>
+        /// Falls back in three steps, mirroring <see cref="TextBlock"/>'s own <c>ResolveFont</c>: this element's
+        /// own <see cref="FontFamily"/>, then <see cref="Icy.Rendering.Fonts.FontSystem.DefaultFontFamily"/>, then
+        /// <see cref="Icy.Rendering.Fonts.FontSystem.FallbackFont"/>. Without this, a <see cref="TextBox"/> that
+        /// never had <see cref="FontFamily"/> set explicitly - such as <see cref="ComboBox"/>'s internal text box,
+        /// which never sets it - rendered no text, no caret, and measured as zero-sized, regardless of what font
+        /// the rest of the document was using.
+        /// </remarks>
+        private IFont? ResolveFont()
+        {
+            if (Configuration?.Fonts is not { } fonts)
+                return null;
+
+            string family = FontFamily.Length > 0 ? FontFamily : fonts.DefaultFontFamily;
+            return family.Length == 0 ? fonts.FallbackFont : fonts.GetOrLoad(new FontInfo(family, FontSize, FontStyle.Regular));
+        }
 
         private void Subscribe()
         {

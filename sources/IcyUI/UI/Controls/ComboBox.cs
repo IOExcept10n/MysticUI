@@ -52,9 +52,17 @@ namespace Icy.UI.Controls
             // width and never distributes leftover space, so textBox and Toggle would both collapse to their
             // tiny natural sizes and leave the rest of this control's own Width empty. A two-column Grid (Star +
             // Auto) gives textBox the whole remaining width and Toggle its own natural size on the right.
+            //
+            // The row must be explicit Auto, not left as Grid's implicit single row: Grid.MeasureContent()
+            // deliberately measures every Star track as 0 (Star sizing is only resolved later, at arrange time,
+            // once real available space is known - see Grid's own remarks) - and an empty RowDefinitions
+            // collection means that lone implicit row IS Star. Left implicit, this whole Grid's (and therefore
+            // this ComboBox's, when nothing gives it an explicit Height) measured height for layout is always 0,
+            // regardless of what textBox/Toggle actually need - Auto instead sizes the row to the taller child.
             var chromePanel = new Grid();
             chromePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
             chromePanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            chromePanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             ((Border)Chrome).Child = chromePanel;
             chromePanel.Children.Add(textBox);
             chromePanel.Children.Add(Toggle);
