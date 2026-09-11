@@ -569,6 +569,12 @@ namespace Icy.UI
                     dragDropSession = new DragDropSession(element, payload!, e.Data) { Preview = preview };
                     if (preview != null)
                     {
+                        // The preview's top-left sits exactly on the cursor (see PositionOverlayAtScreenPoint) and
+                        // UIElement.HitTest's bounds check is inclusive at the origin, so an ordinarily hit-testable
+                        // preview would win every HitTest of the drag point - and, since an overlay has no Parent,
+                        // UpdateDragDropTarget's ancestor walk would terminate on it and never reach the real drop
+                        // target underneath. The ghost visual must never be a target itself.
+                        preview.IsHitTestVisible = false;
                         AddOverlay(preview);
                         PositionOverlayAtScreenPoint(preview, e.Data);
                     }

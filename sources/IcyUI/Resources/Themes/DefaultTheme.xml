@@ -173,7 +173,8 @@
   </ControlTemplate>
 
   <Style TargetType="Dropdown" Template="{StaticResource IcyDefaultDropdownTemplate}"
-         Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6">
+         Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6"
+         PopupBackground="#FF2E2E38" PopupBorderBrush="#FF56566A" PopupBorderThickness="1">
     <Style.StateGroups>
       <VisualStateGroup Name="CommonStates">
         <VisualState Name="Hovered" State="Hovered" BorderBrush="#FF6A6A80"/>
@@ -183,7 +184,8 @@
   </Style>
 
   <!-- ComboBox -->
-  <Style TargetType="ComboBox" Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6">
+  <Style TargetType="ComboBox" Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6"
+         PopupBackground="#FF2E2E38" PopupBorderBrush="#FF56566A" PopupBorderThickness="1">
     <Style.StateGroups>
       <VisualStateGroup Name="CommonStates">
         <VisualState Name="Hovered" State="Hovered" BorderBrush="#FF6A6A80"/>

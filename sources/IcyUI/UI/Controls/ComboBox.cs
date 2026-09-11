@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Collections;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using Icy.Data.Markup.Attributes;
 
@@ -24,6 +25,7 @@ namespace Icy.UI.Controls
     {
         private readonly TextBox textBox;
         private object? lastCommittedItem;
+        private INotifyCollectionChanged? observedRealSource;
         private IEnumerable? realItemsSource;
         private bool suppressSelectionChanged;
         private bool suppressTextChanged;
@@ -64,6 +66,12 @@ namespace Icy.UI.Controls
         /// Gets or sets the collection this control's items are drawn from - shadows
         /// <see cref="ItemsControl.ItemsSource"/> to apply <see cref="TextBox.Text"/>'s filter on top.
         /// </summary>
+        /// <remarks>
+        /// Because the base <see cref="ItemsControl.ItemsSource"/> is only ever pointed at a throwaway filtered
+        /// snapshot, <see cref="ItemsControl"/>'s own <see cref="INotifyCollectionChanged"/> observation never sees
+        /// the real collection - so this setter subscribes to it here instead, re-running the filter whenever it
+        /// changes (see <see cref="OnDetached"/> for the matching unsubscribe).
+        /// </remarks>
         [Category("Content")]
         [DefaultValue(null)]
         [RegisterReference]
@@ -72,9 +80,31 @@ namespace Icy.UI.Controls
             get => realItemsSource;
             set
             {
+                if (observedRealSource != null)
+                    observedRealSource.CollectionChanged -= RealSource_CollectionChanged;
+
                 realItemsSource = value;
+                observedRealSource = value as INotifyCollectionChanged;
+                if (observedRealSource != null)
+                    observedRealSource.CollectionChanged += RealSource_CollectionChanged;
+
                 ApplyFilter(textBox.Text);
             }
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Unsubscribes from the real (unfiltered) <see cref="ItemsSource"/>'s
+        /// <see cref="INotifyCollectionChanged.CollectionChanged"/>, mirroring what
+        /// <see cref="ItemsControl.OnDetached"/> already does for the base class's own observed source - otherwise a
+        /// long-lived view-model collection keeps this whole control alive after its host is torn down.
+        /// </remarks>
+        protected override void OnDetached()
+        {
+            base.OnDetached();
+
+            if (observedRealSource != null)
+                observedRealSource.CollectionChanged -= RealSource_CollectionChanged;
         }
 
         /// <inheritdoc/>
@@ -86,11 +116,20 @@ namespace Icy.UI.Controls
                 return;
             }
 
-            if (HighlightedIndex >= 0)
+            // Upper bound guarded too - see Selector.OnNavigationSelectElement's own remarks: filtering can shrink
+            // the list underneath a stale highlight between the arrow press that set it and this commit.
+            if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
             {
                 SelectedIndex = HighlightedIndex;
                 lastCommittedItem = SelectedItem;
+
+                // Suppressed, exactly as in RevertText: unguarded, this assignment re-enters TextBox_TextChanged ->
+                // ApplyFilter(committed text), leaving the list narrowed to (essentially) the single committed item
+                // for the next time the popup opens. The explicit ApplyFilter below then restores the full list.
+                suppressTextChanged = true;
                 SetTextFromSelection();
+                suppressTextChanged = false;
+                ApplyFilter(string.Empty);
                 IsOpen = false;
             }
             else
@@ -112,6 +151,8 @@ namespace Icy.UI.Controls
             if (realItemsSource == null)
             {
                 base.ItemsSource = null;
+                HighlightedIndex = -1;
+                RefreshPopupPosition();
                 return;
             }
 
@@ -132,14 +173,26 @@ namespace Icy.UI.Controls
             suppressSelectionChanged = true;
             SelectedItem = lastCommittedItem != null && matches.Contains(lastCommittedItem) ? lastCommittedItem : null;
             suppressSelectionChanged = false;
+
+            // The highlight indexes into the filtered subset that just went away - keeping it would both show a
+            // highlight on the wrong row and, once the list narrows below it, throw from SelectedIndex on commit.
+            HighlightedIndex = -1;
+
+            // The popup was sized for the previous (possibly far longer) match list - resize it to the new one.
+            RefreshPopupPosition();
         }
+
+        private void RealSource_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => ApplyFilter(textBox.Text);
 
         private void RevertText()
         {
             suppressTextChanged = true;
             SetTextFromSelection();
             suppressTextChanged = false;
-            ApplyFilter(textBox.Text);
+
+            // Deliberately not ApplyFilter(textBox.Text): reverting restores the committed item's own text, which as
+            // a filter would narrow the list to (essentially) that one item for the next time the popup opens.
+            ApplyFilter(string.Empty);
         }
 
         private void SetTextFromSelection() =>

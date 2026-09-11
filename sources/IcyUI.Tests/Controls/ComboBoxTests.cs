@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using Icy.Input.Events;
@@ -91,6 +92,140 @@ namespace Icy.Tests.Controls
             Assert.Equal("Apple", comboBox.SelectedItem);
         }
 
+        [Fact]
+        public void EnterAfterTheFilterNarrowsBelowTheHighlight_CommitsTheRemainingMatchWithoutThrowing()
+        {
+            // Regression coverage: HighlightedIndex was only ever clamped at arrow-key time, so narrowing the filter
+            // below it left it stale - Enter then ran SelectedIndex = HighlightedIndex straight into Selector's own
+            // ArgumentOutOfRangeException guard.
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Apricot", "Banana" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>"""),
+            };
+            var input = new FakeInputSystem();
+            SimulateFocused(comboBox, input);
+
+            GetTextBox(comboBox).Text = "ap";
+            Assert.Equal(new[] { "Apple", "Apricot" }, InvokeGetFilteredDisplayTexts(comboBox));
+
+            // Highlight the second match (index 1 of the two-item filtered view)...
+            InvokeOnNavigationFocusChanging(comboBox, new System.Numerics.Vector2(0, 1));
+            InvokeOnNavigationFocusChanging(comboBox, new System.Numerics.Vector2(0, 1));
+
+            // ...then narrow the list to a single item, leaving index 1 out of range.
+            GetTextBox(comboBox).Text = "appl";
+            Assert.Equal(new[] { "Apple" }, InvokeGetFilteredDisplayTexts(comboBox));
+
+            var exception = Record.Exception(() => InvokeOnNavigationSelectElement(comboBox));
+
+            Assert.Null(exception);
+            Assert.False(comboBox.IsOpen);
+
+            // The stale highlight is dropped rather than committed, so this takes the revert path and selects
+            // nothing - re-highlighting inside the narrowed list is what commits the remaining match.
+            Assert.Null(comboBox.SelectedItem);
+
+            GetTextBox(comboBox).Text = "appl";
+            InvokeOnNavigationFocusChanging(comboBox, new System.Numerics.Vector2(0, 1));
+            InvokeOnNavigationSelectElement(comboBox);
+
+            Assert.Equal("Apple", comboBox.SelectedItem);
+            Assert.Equal("Apple", GetTextBox(comboBox).Text);
+        }
+
+        [Fact]
+        public void AfterCommit_TheFullItemListIsAvailableAgain()
+        {
+            // Regression coverage: every commit/revert path left base.ItemsSource narrowed to (essentially) the
+            // single committed item, so reopening the popup showed one row until the user typed again.
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Banana", "Cherry" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>"""),
+            };
+            var input = new FakeInputSystem();
+            SimulateFocused(comboBox, input);
+            GetTextBox(comboBox).Text = "ban";
+            InvokeOnNavigationFocusChanging(comboBox, new System.Numerics.Vector2(0, 1));
+
+            InvokeOnNavigationSelectElement(comboBox);
+
+            Assert.Equal("Banana", comboBox.SelectedItem);
+            Assert.Equal(new[] { "Apple", "Banana", "Cherry" }, InvokeGetFilteredDisplayTexts(comboBox));
+        }
+
+        [Fact]
+        public void AfterEscapeRevert_TheFullItemListIsAvailableAgain()
+        {
+            var comboBox = new ComboBox { ItemsSource = new List<object> { "Apple", "Banana", "Cherry" } };
+            comboBox.SelectedItem = "Apple";
+            comboBox.IsOpen = true;
+            GetTextBox(comboBox).Text = "ban";
+
+            InvokeOnNavigationCloseModal(comboBox);
+
+            Assert.Equal(new[] { "Apple", "Banana", "Cherry" }, InvokeGetFilteredDisplayTexts(comboBox));
+        }
+
+        [Fact]
+        public void LiveCollectionChangesOnTheRealSource_ReachTheFilteredView()
+        {
+            // Regression coverage: base.ItemsSource only ever pointed at a throwaway filtered snapshot, so
+            // ItemsControl's own INotifyCollectionChanged observation never watched the user's real collection -
+            // mutating it after binding was silently ignored.
+            var source = new ObservableCollection<string> { "Apple", "Banana" };
+            var comboBox = new ComboBox { ItemsSource = source };
+
+            source.Add("Cherry");
+
+            Assert.Equal(new[] { "Apple", "Banana", "Cherry" }, InvokeGetFilteredDisplayTexts(comboBox));
+
+            source.Remove("Banana");
+
+            Assert.Equal(new[] { "Apple", "Cherry" }, InvokeGetFilteredDisplayTexts(comboBox));
+        }
+
+        [Fact]
+        public void LiveCollectionChanges_RespectTheCurrentFilter()
+        {
+            var source = new ObservableCollection<string> { "Apple", "Banana" };
+            var comboBox = new ComboBox { ItemsSource = source };
+            GetTextBox(comboBox).Text = "an";
+
+            source.Add("Mango");
+
+            Assert.Equal(new[] { "Banana", "Mango" }, InvokeGetFilteredDisplayTexts(comboBox));
+        }
+
+        [Fact]
+        public void FilteringWhileOpen_ResizesThePopupToTheNarrowedList()
+        {
+            // Popup geometry used to be computed once, at open, and never again - so a ComboBox whose filter cut a
+            // 20-item list down to one kept rendering a full-height popup over mostly empty space.
+            var comboBox = new ComboBox
+            {
+                ItemsSource = Enumerable.Range(0, 20).Select(i => (object)$"Item {i}").ToList(),
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var input = new FakeInputSystem();
+            Canvas canvas = SimulateFocused(comboBox, input);
+            comboBox.IsOpen = true;
+            canvas.Render();
+            int fullHeight = canvas.Overlays.Single().ActualBounds.Height;
+
+            GetTextBox(comboBox).Text = "Item 7";
+            canvas.Render();
+
+            Assert.Equal(new[] { "Item 7" }, InvokeGetFilteredDisplayTexts(comboBox));
+            int narrowedHeight = canvas.Overlays.Single().ActualBounds.Height;
+            Assert.True(narrowedHeight < fullHeight, $"Expected the popup to shrink with the filtered list, got {narrowedHeight} vs {fullHeight}.");
+        }
+
         private static TextBox GetTextBox(ComboBox comboBox) =>
             (TextBox)typeof(ComboBox).GetField("textBox", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(comboBox)!;
 
@@ -117,7 +252,7 @@ namespace Icy.Tests.Controls
             typeof(Selector).GetMethod("OnNavigationFocusChanging", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(comboBox, [null, args]);
         }
 
-        private static void SimulateFocused(ComboBox comboBox, FakeInputSystem input)
+        private static Canvas SimulateFocused(ComboBox comboBox, FakeInputSystem input)
         {
             var assets = new Icy.Configuration.AssetConfiguration(Icy.Assets.AssetContext.ApplicationContext);
             var renderContext = new Icy.Tests.Rendering.FakeRenderContext();
@@ -126,6 +261,7 @@ namespace Icy.Tests.Controls
             canvas.Add(comboBox);
             canvas.Render();
             canvas.Focus(GetTextBox(comboBox));
+            return canvas;
         }
 
         private static DataTemplate LoadDataTemplate(string markup)

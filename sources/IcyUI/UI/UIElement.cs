@@ -63,6 +63,7 @@ namespace Icy.UI
         private HorizontalAlignment horizontalAlignment = HorizontalAlignment.Stretch;
         private Transform2D inverseLayoutTransform;
         private bool isVisible = true;
+        private bool isHitTestVisible = true;
         private float layerIndex;
         private Vector2 layoutOffset;
         private float layoutRotation;
@@ -360,6 +361,23 @@ namespace Icy.UI
                     OnVisibilityChanged();
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this element can be returned by <see cref="UI.Canvas.HitTest(System.Drawing.Point)"/>.
+        /// </summary>
+        /// <remarks>
+        /// <see langword="true"/> by default. Set to <see langword="false"/> for a purely visual overlay (e.g. a
+        /// drag-and-drop preview) that must never itself become a hit-test/click/drop target - the entire subtree is
+        /// skipped, letting whatever's visually underneath it be hit instead.
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(true)]
+        [RegisterReference]
+        public bool IsHitTestVisible
+        {
+            get => isHitTestVisible;
+            set => SetProperty(ref isHitTestVisible, value);
         }
 
         /// <summary>
@@ -1187,10 +1205,15 @@ namespace Icy.UI
         /// <see cref="LayoutScale"/> (the same transform that determines <see cref="ActualBounds"/>) —
         /// <see cref="RenderOffset"/>/<see cref="RenderRotation"/>/<see cref="RenderScale"/> are treated as purely
         /// cosmetic for v1 and don't affect where clicks land.
+        /// <para>
+        /// An element that is hidden (<see cref="IsVisible"/> is <see langword="false"/>), fully transparent
+        /// (<see cref="Opacity"/> is <c>0</c> or less), or explicitly excluded from hit-testing
+        /// (<see cref="IsHitTestVisible"/> is <see langword="false"/>) is skipped along with its entire subtree.
+        /// </para>
         /// </remarks>
         public UIElement? HitTest(Vector2 pointInParentLocalSpace)
         {
-            if (!IsVisible || Opacity <= 0)
+            if (!IsVisible || Opacity <= 0 || !IsHitTestVisible)
                 return null;
 
             if (IsTransformInvalid)

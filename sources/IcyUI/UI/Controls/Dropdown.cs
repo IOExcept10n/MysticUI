@@ -23,6 +23,18 @@ namespace Icy.UI.Controls
             FocusChanged += Dropdown_FocusChanged;
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <see cref="Selector.OnApplyTemplate"/> has just repointed <see cref="Selector.Toggle"/> at whichever
+        /// <see cref="ToggleButton"/> is now live - a freshly loaded <c>PART_ToggleButton</c> carries no content, so
+        /// the closed-state display text has to be pushed onto it again here.
+        /// </remarks>
+        protected override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            UpdateToggleContent();
+        }
+
         private void Dropdown_FocusChanged(object? sender, EventArgs e)
         {
             if (IsFocused)

@@ -8,6 +8,7 @@ using Icy.Data;
 using Icy.Data.Bindings;
 using Icy.Data.Markup.Attributes;
 using Icy.Input.Events;
+using Icy.Rendering.Brushes;
 using Icy.UI.Styles;
 
 namespace Icy.UI.Controls
@@ -75,6 +76,12 @@ namespace Icy.UI.Controls
             defaultToggle = new ToggleButton();
             toggle = defaultToggle;
             toggle.IsCheckedChanged += Toggle_IsCheckedChanged;
+
+            // ToggleButton/Button default to IsFocusable - left alone, tapping this Selector would focus the
+            // internal toggle instead of this control's own focus gate (see HookFocusGate), so navigation/typeahead
+            // would only ever engage after Tab-driven focus, never after a mouse/touch tap. OnApplyTemplate repeats
+            // this for a templated PART_ToggleButton.
+            toggle.IsFocusable = false;
 
             // Safe here, at construction: Chrome is always the default Border until/unless Template is set later,
             // in which case OnApplyTemplate re-wires appropriately (mirrors Expander/SplitPane).
@@ -144,6 +151,51 @@ namespace Icy.UI.Controls
                 if (SetProperty(ref maxDropDownHeight, value) && isOpen)
                     PositionPopup();
             }
+        }
+
+        /// <summary>
+        /// Gets or sets the background brush of the open popup.
+        /// </summary>
+        /// <remarks>
+        /// The popup is hosted in the owning <see cref="UI.Canvas"/>'s <see cref="UI.Canvas.Overlays"/>, outside this
+        /// control's own <see cref="Control.Template"/>/<see cref="Control.Chrome"/>, so it can't be decorated by a
+        /// template - this property (and <see cref="PopupBorderBrush"/>/<see cref="PopupBorderThickness"/>) is how a
+        /// <see cref="Icy.UI.Styles.Style"/> reaches it.
+        /// </remarks>
+        [Category("Appearance")]
+        [RegisterReference]
+        public IBrush PopupBackground
+        {
+            get => popupRoot.Background;
+            set => popupRoot.Background = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the border brush of the open popup.
+        /// </summary>
+        /// <remarks>
+        /// See <see cref="PopupBackground"/> for why the popup carries its own decoration properties.
+        /// </remarks>
+        [Category("Appearance")]
+        [RegisterReference]
+        public IBrush? PopupBorderBrush
+        {
+            get => popupRoot.BorderBrush;
+            set => popupRoot.BorderBrush = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the border thickness of the open popup.
+        /// </summary>
+        /// <remarks>
+        /// See <see cref="PopupBackground"/> for why the popup carries its own decoration properties.
+        /// </remarks>
+        [Category("Appearance")]
+        [RegisterReference]
+        public Thickness PopupBorderThickness
+        {
+            get => popupRoot.BorderThickness;
+            set => popupRoot.BorderThickness = value;
         }
 
         /// <summary>
@@ -312,6 +364,48 @@ namespace Icy.UI.Controls
             base.OnDetached();
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Repoints <c>toggle</c> - the field every open/close path in this class already references - to whichever
+        /// <see cref="ToggleButton"/> is actually live right now: <see cref="Control.Template"/>'s own
+        /// <c>PART_ToggleButton</c> when one is set, falling back to the built-in default toggle otherwise (mirrors
+        /// <see cref="Expander.OnApplyTemplate"/>/<see cref="SplitPane.OnApplyTemplate"/> exactly). Without this, the
+        /// default theme's <see cref="Dropdown"/> <see cref="Control.Template"/> would orphan the constructor's own
+        /// toggle and the control would render as an inert empty box.
+        /// </remarks>
+        protected override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            toggle.IsCheckedChanged -= Toggle_IsCheckedChanged;
+
+            if (Template != null && GetTemplateChild<ToggleButton>("PART_ToggleButton") is { } part)
+            {
+                toggle = part;
+            }
+            else
+            {
+                toggle = defaultToggle;
+                if (Template == null)
+                    ((Border)Chrome).Child = toggle;
+            }
+
+            toggle.IsFocusable = false;
+            toggle.IsChecked = isOpen;
+            toggle.IsCheckedChanged += Toggle_IsCheckedChanged;
+        }
+
+        /// <summary>
+        /// Re-runs the popup's position/size calculation if it's currently open - a no-op otherwise. A subclass calls
+        /// this after something that changes how much space the popup needs (e.g. <see cref="ComboBox"/> after
+        /// filtering changes the item count).
+        /// </summary>
+        protected void RefreshPopupPosition()
+        {
+            if (isOpen)
+                PositionPopup();
+        }
+
         /// <summary>
         /// Re-points which element's <see cref="UIElement.FocusChanged"/> gates keyboard/gamepad navigation
         /// subscription (see <see cref="SubscribeNavigation"/>) - <see langword="this"/> by default (wired once, at
@@ -389,7 +483,9 @@ namespace Icy.UI.Controls
                 return;
             }
 
-            if (HighlightedIndex >= 0)
+            // Upper bound guarded too: the item count can shrink underneath a stale highlight (a live collection
+            // change, or ComboBox's filtering) - committing it unguarded would throw from SelectedIndex's own range check.
+            if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
             {
                 SelectedIndex = HighlightedIndex;
                 IsOpen = false;
@@ -441,6 +537,11 @@ namespace Icy.UI.Controls
             Canvas.AddOverlay(popupRoot);
             ((IVirtualizingScrollInfo)this).OnViewportChanged(0, popupScrollViewer.VerticalOffset, popupScrollViewer.ViewportWidth, popupScrollViewer.ViewportHeight);
 
+            // The first PositionPopup above sized the popup from ExtentHeight while every item was still an
+            // estimate; the realize pass just above has since measured some of them, so re-run it against the now
+            // more accurate extent rather than leaving the popup stuck at its pre-realize guess.
+            PositionPopup();
+
             subscribedTouch = Canvas.Configuration.Input.Events.Touch;
             subscribedTouch.TouchDown += OnOutsideTouchDown;
             subscribedTouch.Tap += OnPopupItemTap;
@@ -448,6 +549,10 @@ namespace Icy.UI.Controls
 
         private void ClosePopup()
         {
+            // The highlight is a per-open-session cursor: left standing, reopening would show a stale highlight, and
+            // a stale value that outlives a shrinking item count is what makes an out-of-range commit reachable.
+            HighlightedIndex = -1;
+
             openedOnCanvas?.RemoveOverlay(popupRoot);
             openedOnCanvas = null;
 

@@ -495,6 +495,32 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Closing_ClearsTheHighlight()
+        {
+            // Regression coverage: HighlightedIndex used to survive a close, so reopening showed a stale highlight -
+            // and a highlight outliving its own open session is what made an out-of-range commit reachable once the
+            // item count shrank underneath it.
+            var (canvas, input) = CreateCanvas();
+            var selector = new TestSelector
+            {
+                ItemsSource = new List<object> { "a", "b", "c" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 100,
+                Height = 30,
+                IsFocusable = true,
+            };
+            canvas.Add(selector);
+            canvas.Render();
+            canvas.Focus(selector);
+            input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
+            Assert.Equal(0, GetHighlightedIndex(selector));
+
+            selector.IsOpen = false;
+
+            Assert.Equal(-1, GetHighlightedIndex(selector));
+        }
+
+        [Fact]
         public void TappingARealizedItem_SelectsItAndCloses()
         {
             var (canvas, input) = CreateCanvas();
@@ -559,6 +585,9 @@ namespace Icy.Tests.Controls
             var multicastDelegate = (MulticastDelegate?)backingField.GetValue(eventSource);
             return multicastDelegate?.GetInvocationList().Any(d => ReferenceEquals(d.Target, subscriber)) ?? false;
         }
+
+        private static int GetHighlightedIndex(Selector selector) =>
+            (int)typeof(Selector).GetProperty("HighlightedIndex", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(selector)!;
 
         private static ToggleButton GetToggle(Selector selector) =>
             (ToggleButton)typeof(Selector).GetProperty("Toggle", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(selector)!;

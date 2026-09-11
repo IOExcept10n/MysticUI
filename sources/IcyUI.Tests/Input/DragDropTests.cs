@@ -166,6 +166,40 @@ namespace Icy.Tests.Input
         }
 
         [Fact]
+        public void DragWithAPreview_StillFindsTheDropTargetUnderneathIt()
+        {
+            // Regression coverage: the preview is an overlay positioned with its top-left exactly on the cursor, and
+            // Canvas.HitTest scans Overlays before rootElements, so once the preview has been arranged at the cursor
+            // it won every HitTest of the drag point. An overlay has no Parent, so UpdateDragDropTarget's
+            // SelfAndAncestors walk terminated on it immediately and no drop target was ever found - every
+            // preview-carrying drag silently stopped firing OnDragEnter/OnDragOver/OnDrop. Hence
+            // UIElement.IsHitTestVisible, which Canvas.OnDragStarted clears on the preview.
+            var (canvas, input) = CreateCanvas();
+            var payload = new object();
+            var preview = new UIElement { Width = 60, Height = 60 };
+            AddSource(canvas, payload, preview);
+            var target = AddTarget(canvas, accepts: true, new Rectangle(200, 0, 100, 100));
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(50, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(250, 50));
+
+            // The frame an app would render between two drag updates - this is what actually arranges the overlay at
+            // the cursor, so the next hit test genuinely has the preview sitting on top of the target.
+            canvas.Render();
+            Assert.Equal(new Rectangle(250, 50, 60, 60), preview.ActualBounds);
+
+            input.Events.Drag.RaiseDragPerforming(new Point(250, 50));
+
+            Assert.Equal(1, target.EnterCount);
+            Assert.Equal(0, target.LeaveCount);
+
+            input.Events.Drag.RaiseDragEnded(new Point(250, 50));
+
+            Assert.Same(payload, target.DroppedPayload);
+        }
+
+        [Fact]
         public void SourceDecliningTheDrag_StartsNoSession()
         {
             var (canvas, input) = CreateCanvas();

@@ -1,11 +1,14 @@
 using System.Collections.Generic;
+using System.Drawing;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Input.Events;
+using Icy.Markup;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
@@ -107,6 +110,49 @@ namespace Icy.Tests.Controls
             // After losing focus, text input should be disabled
             canvas.Focus(null);
             Assert.False(input.Events.Text.IsTextInputEnabled);
+        }
+
+        [Fact]
+        public void Tapping_FocusesTheDropdownItself_NotItsInternalToggleButton()
+        {
+            // Regression coverage: ToggleButton/Button default to IsFocusable, and Canvas.OnTap focuses the nearest
+            // focusable ancestor of whatever it hit - so tapping a Dropdown used to land focus on the internal
+            // toggle, leaving the Dropdown's own focus gate (and therefore navigation + typeahead) inert until the
+            // user happened to Tab to it instead.
+            var dropdown = new Dropdown
+            {
+                ItemsSource = new List<object> { "Apple", "Banana" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var input = new FakeInputSystem();
+            var config = new IcyConfiguration(input, new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(dropdown);
+            canvas.Render();
+
+            input.Events.Touch.RaiseTap(new TouchInfo(new Point(dropdown.ActualBounds.X + 5, dropdown.ActualBounds.Y + 5), 1));
+
+            Assert.Same(dropdown, canvas.FocusedElement);
+
+            // The tap must still have reached the toggle itself (a non-focusable element is not an un-tappable one),
+            // otherwise the assertion above would hold for the wrong reason.
+            Assert.True(dropdown.IsOpen);
+
+            // End to end: with focus on the Dropdown rather than its toggle, typeahead is live straight after a
+            // mouse/touch tap - the actual user-visible symptom this fix is about.
+            input.Events.Text.RaiseTextInput("b");
+            Assert.Equal(1, dropdown.SelectedIndex);
+        }
+
+        private static DataTemplate LoadDataTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (DataTemplate)loader.LoadObject(markup);
         }
 
         private static void SimulateFocused(Dropdown dropdown, FakeInputSystem input)
