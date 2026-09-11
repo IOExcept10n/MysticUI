@@ -106,6 +106,27 @@ namespace Icy.UI.Controls
                 // the list stays narrowed to (essentially) the just-picked item the next time the popup opens.
                 ApplyFilter(string.Empty);
             };
+
+            // Regression: SelectedIndex's own setter no-ops - never firing SelectionChanged at all - when the
+            // value it's given already equals the current selection. ApplyFilter's "restore the previous
+            // selection if the still-filtered list still contains it" logic (a few lines up) can already have
+            // re-selected the very item the user is about to click - e.g. filter down to a single match that
+            // happens to be the item already selected from an earlier commit - so OnPopupItemTap's own
+            // SelectedIndex assignment silently no-ops and the SelectionChanged-based sync above never runs,
+            // leaving textBox.Text showing stale filter text instead of the (unchanged, but just re-confirmed)
+            // selection. Syncing here instead - unconditionally, whenever the popup closes, for ANY reason
+            // (commit or revert) - never depends on SelectedIndex having actually changed value.
+            PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(IsOpen) || IsOpen)
+                    return;
+
+                lastCommittedItem = SelectedItem;
+                suppressTextChanged = true;
+                SetTextFromSelection();
+                suppressTextChanged = false;
+                ApplyFilter(string.Empty);
+            };
         }
 
         /// <summary>

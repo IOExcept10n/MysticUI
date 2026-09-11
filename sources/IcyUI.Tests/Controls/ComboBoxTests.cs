@@ -261,6 +261,49 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void ClickingAnItem_AlreadyMatchingTheLastSelection_StillUpdatesTheText()
+        {
+            // Regression: SelectedIndex's own setter no-ops (never fires SelectionChanged at all) when given the
+            // value it already has. ApplyFilter's own "restore the previous selection if the filtered list still
+            // contains it" logic can already have re-selected the very item about to be clicked - e.g. select
+            // Cherry, then filter down to text that only Cherry matches (narrowing through a no-match state and
+            // back, as typing/editing naturally does) - so OnPopupItemTap's SelectedIndex assignment becomes a
+            // silent no-op, and a sync that only runs off SelectionChanged never fires, leaving textBox.Text
+            // showing the stale filter text instead of "Cherry" even though the click "worked" (IsOpen closes).
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Banana", "Cherry" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var input = new FakeInputSystem();
+            Canvas canvas = SimulateFocused(comboBox, input);
+            comboBox.SelectedItem = "Cherry";
+
+            // Narrow through a no-match state, then back to something only Cherry matches - ApplyFilter's own
+            // "restore the previous selection if still valid" logic re-selects Cherry here, well before any click.
+            GetTextBox(comboBox).Text = "xyz";
+            Assert.Empty(InvokeGetFilteredDisplayTexts(comboBox));
+            GetTextBox(comboBox).Text = "ry";
+            Assert.Equal(new[] { "Cherry" }, InvokeGetFilteredDisplayTexts(comboBox));
+            Assert.Equal("Cherry", comboBox.SelectedItem);
+
+            canvas.Render();
+            var cherryItem = canvas.Overlays.Single().EnumerateVisualSubtree().OfType<SelectorItem>().Single();
+            System.Drawing.Point tapPoint = new(cherryItem.ActualBounds.X + 5, cherryItem.ActualBounds.Y + 5);
+
+            input.Events.Touch.RaiseTouchDown(tapPoint);
+            input.Events.Touch.RaiseTap(new TouchInfo(tapPoint, 1));
+
+            Assert.Equal("Cherry", comboBox.SelectedItem);
+            Assert.Equal("Cherry", GetTextBox(comboBox).Text);
+            Assert.False(comboBox.IsOpen);
+        }
+
+        [Fact]
         public void NaturalHeight_WithNoExplicitHeightSet_IsNotZero()
         {
             // Regression, two compounding root causes: (1) ComboBox's chrome Grid never gave its implicit single
