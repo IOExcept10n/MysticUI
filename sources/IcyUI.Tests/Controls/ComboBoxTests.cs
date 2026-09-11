@@ -228,6 +228,39 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void ClickingAPopupItem_CommitsCorrectly_WithoutAPriorArrowKeyHighlight()
+        {
+            // Regression: a real click is TouchDown then Tap, not Tap alone - existing tests only ever raised Tap
+            // in isolation, which never exercised OnOutsideTouchDown. That handler treats a TouchDown outside both
+            // `this` and popupRoot as "clicked outside, close the popup" - if a tapped item's own ancestor walk
+            // doesn't correctly reach popupRoot, TouchDown closes (and unsubscribes) the popup a moment before the
+            // Tap that was actually meant to select it, so the click silently does nothing.
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Banana" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var input = new FakeInputSystem();
+            Canvas canvas = SimulateFocused(comboBox, input);
+            comboBox.IsOpen = true;
+            canvas.Render();
+
+            var bananaItem = canvas.Overlays.Single().EnumerateVisualSubtree().OfType<SelectorItem>().ElementAt(1);
+            System.Drawing.Point tapPoint = new(bananaItem.ActualBounds.X + 5, bananaItem.ActualBounds.Y + 5);
+
+            input.Events.Touch.RaiseTouchDown(tapPoint);
+            input.Events.Touch.RaiseTap(new TouchInfo(tapPoint, 1));
+
+            Assert.Equal("Banana", comboBox.SelectedItem);
+            Assert.Equal("Banana", GetTextBox(comboBox).Text);
+            Assert.False(comboBox.IsOpen);
+        }
+
+        [Fact]
         public void NaturalHeight_WithNoExplicitHeightSet_IsNotZero()
         {
             // Regression, two compounding root causes: (1) ComboBox's chrome Grid never gave its implicit single

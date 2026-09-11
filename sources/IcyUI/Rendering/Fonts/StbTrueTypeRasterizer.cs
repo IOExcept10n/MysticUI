@@ -109,12 +109,24 @@ namespace Icy.Rendering.Fonts
                 int padding = hasInk && size <= 16 ? 1 : 0;
                 int width = x1 - x0 + (padding * 2),
                     height = y1 - y0 + (padding * 2);
+
+                // Regression: Bearing used to be (leftSideBearing + padding, y0 + padding) - as if the padded
+                // pixel buffer RasterizeGlyph allocates had the glyph's ink centered with an empty margin on
+                // every side. It doesn't: stbtt_MakeGlyphBitmapSubpixel always rasterizes starting at the
+                // buffer's own (0,0) (it positions strokes via the glyph's natural ix0/iy0 bitmap-box origin,
+                // with no separate shift for a larger output buffer) - the padding only adds blank, unused
+                // room on the buffer's right/bottom, never around the ink. Bearing must therefore stay at the
+                // true, unpadded (leftSideBearing, y0) - only Size grows, to match RasterizeGlyph's own larger
+                // (but ink-unshifted) buffer. Getting this wrong renders every padded glyph (any inked glyph at
+                // size <= 16, the common case) 1px right and 1px down from its correct position - visually, the
+                // caret (which uses the correct, unpadded advance/cursor math - see MeasureAdvance) then looks
+                // like it sits slightly inside the previous character's own misplaced ink.
                 return new FontGlyph(
                     codepoint,
                     0,
                     0,
                     advanceWidth,
-                    new Vector2(leftSideBearing + padding, y0 + padding),
+                    new Vector2(leftSideBearing, y0),
                     new Size(width, height),
                     Rectangle.Empty);
             }
