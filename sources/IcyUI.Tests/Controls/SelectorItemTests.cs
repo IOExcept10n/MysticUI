@@ -48,5 +48,30 @@ namespace Icy.Tests.Controls
 
             Assert.Equal(ControlState.Selected | ControlState.Highlighted, item.ControlState & (ControlState.Selected | ControlState.Highlighted));
         }
+
+        [Fact]
+        public void OnTap_RaisesTapped()
+        {
+            var item = new SelectorItem();
+            bool raised = false;
+            item.Tapped += (_, _) => raised = true;
+
+            InvokeOnTap(item);
+
+            Assert.True(raised);
+        }
+
+        [Fact]
+        public void OnTap_NoSubscribers_DoesNotThrow()
+        {
+            var item = new SelectorItem();
+
+            var exception = Record.Exception(() => InvokeOnTap(item));
+
+            Assert.Null(exception);
+        }
+
+        private static void InvokeOnTap(SelectorItem item) =>
+            typeof(SelectorItem).GetMethod("OnTap", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(item, null);
     }
 }
