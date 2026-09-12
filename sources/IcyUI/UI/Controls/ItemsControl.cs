@@ -53,10 +53,10 @@ namespace Icy.UI.Controls
 
         private float sumOfKnownHeights;
         private int knownCount;
-        private float horizontalOffset;
-        private float verticalOffset;
-        private float viewportWidth;
-        private float viewportHeight;
+        protected float horizontalOffset;
+        protected float verticalOffset;
+        protected float viewportWidth;
+        protected float viewportHeight;
 
         // anchorIndex/anchorOffset track the item at the top of the viewport - anchorIndex is read by
         // RecordHeight's above-viewport correction (Task 5); both are read and written by LocateViewportStart's
@@ -101,7 +101,13 @@ namespace Icy.UI.Controls
         public float ExtentWidth => viewportWidth;
 
         /// <inheritdoc/>
-        public float ExtentHeight => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
+        public float ExtentHeight => ComputeExtentHeight();
+
+        /// <summary>
+        /// Computes <see cref="ExtentHeight"/> - the running-average single-column estimate by default. A subclass
+        /// with different virtualization geometry (e.g. a uniform grid) overrides this with its own formula instead.
+        /// </summary>
+        protected virtual float ComputeExtentHeight() => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
 
         /// <summary>
         /// Gets or sets the template used to build each item's visual tree, when <see cref="ItemTemplateSelector"/>
@@ -327,8 +333,9 @@ namespace Icy.UI.Controls
         /// <summary>
         /// Finds the item whose slot contains the current <c>verticalOffset</c> - via a short walk from the last
         /// anchor for a small scroll delta, or a direct estimate for a big jump (spec §5).
+        /// A subclass with different virtualization geometry overrides this to replace the algorithm entirely.
         /// </summary>
-        private (int Index, float Offset) LocateViewportStart()
+        protected virtual (int Index, float Offset) LocateViewportStart()
         {
             float distanceFromAnchor = Math.Abs(verticalOffset - anchorOffset);
             if (realizedContainers.Count == 0 || distanceFromAnchor > BigJumpThreshold)
@@ -360,8 +367,9 @@ namespace Icy.UI.Controls
         /// Realizes every item whose slot overlaps the viewport (plus a forward-only scroll-ahead buffer),
         /// starting the walk at <paramref name="firstIndex"/>/<paramref name="firstOffset"/>; positions each
         /// realized container, and de-realizes anything realized but no longer in range.
+        /// A subclass with different virtualization geometry overrides this to replace the algorithm entirely.
         /// </summary>
-        private void RealizeRange(int firstIndex, float firstOffset)
+        protected virtual void RealizeRange(int firstIndex, float firstOffset)
         {
             const float ScrollAheadBuffer = 100f;
             float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
@@ -508,7 +516,7 @@ namespace Icy.UI.Controls
         /// Realizes <paramref name="index"/> if it isn't already, wiring it into the visual tree, measuring it,
         /// and folding its real height into the height cache (see <see cref="RecordHeight(int, float)"/>).
         /// </summary>
-        private void EnsureRealized(int index)
+        protected void EnsureRealized(int index)
         {
             if (realizedContainers.ContainsKey(index))
                 return;
@@ -529,7 +537,7 @@ namespace Icy.UI.Controls
         /// any final size change into the height cache, see the Phase 2 design spec §6), detaches it, and returns
         /// it to its template's pool when <see cref="PoolingEnabled"/>.
         /// </summary>
-        private void Derealize(int index)
+        protected void Derealize(int index)
         {
             if (!realizedContainers.Remove(index, out ItemContainer? container))
                 return;

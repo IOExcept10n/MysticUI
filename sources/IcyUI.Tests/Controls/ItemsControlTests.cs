@@ -23,6 +23,39 @@ namespace Icy.Tests.Controls
                 => new TestContainer { Content = template.Build(item) };
         }
 
+        private sealed class GeometryOverrideItemsControl : ItemsControl
+        {
+            public bool LocateViewportStartCalled;
+            public bool RealizeRangeCalled;
+            public bool ComputeExtentHeightCalled;
+            public float ObservedVerticalOffset;
+            public float ObservedViewportHeight;
+
+            public void CallEnsureRealized(int index) => EnsureRealized(index);
+
+            public void CallDerealize(int index) => Derealize(index);
+
+            protected override (int Index, float Offset) LocateViewportStart()
+            {
+                LocateViewportStartCalled = true;
+                return base.LocateViewportStart();
+            }
+
+            protected override void RealizeRange(int firstIndex, float firstOffset)
+            {
+                RealizeRangeCalled = true;
+                ObservedVerticalOffset = verticalOffset;
+                ObservedViewportHeight = viewportHeight;
+                base.RealizeRange(firstIndex, firstOffset);
+            }
+
+            protected override float ComputeExtentHeight()
+            {
+                ComputeExtentHeightCalled = true;
+                return base.ComputeExtentHeight();
+            }
+        }
+
         [Fact]
         public void CreateContainer_Overridden_RealizesTheSubclassInstead()
         {
@@ -560,6 +593,45 @@ namespace Icy.Tests.Controls
             var assets = new AssetConfiguration(AssetContext.ApplicationContext);
             var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
             return new Canvas(config);
+        }
+
+        [Fact]
+        public void VirtualizationGeometryHooks_CanBeOverridden_AndBaseStillWorksThroughThem()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new GeometryOverrideItemsControl
+            {
+                ItemsSource = Enumerable.Range(0, 10).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+
+            ((IVirtualizingScrollInfo)control).OnViewportChanged(0, 0, 300, 400);
+            float extent = control.ExtentHeight;
+
+            Assert.True(control.LocateViewportStartCalled);
+            Assert.True(control.RealizeRangeCalled);
+            Assert.True(control.ComputeExtentHeightCalled);
+            Assert.Equal(0f, control.ObservedVerticalOffset);
+            Assert.Equal(400f, control.ObservedViewportHeight);
+            Assert.Equal(10 * 40f, extent);
+            Assert.NotEmpty(GetRealizedContainers(control));
+        }
+
+        [Fact]
+        public void EnsureRealized_Derealize_AreCallableDirectlyFromASubclass()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="40"/></DataTemplate>""");
+            var control = new GeometryOverrideItemsControl
+            {
+                ItemsSource = new List<object> { "a", "b" },
+                ItemTemplate = template,
+            };
+
+            control.CallEnsureRealized(0);
+            Assert.Contains(0, GetRealizedContainers(control).Keys);
+
+            control.CallDerealize(0);
+            Assert.DoesNotContain(0, GetRealizedContainers(control).Keys);
         }
     }
 }
