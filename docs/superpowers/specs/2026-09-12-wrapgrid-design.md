@@ -55,7 +55,7 @@ Three real findings shaped this design, each verified against the actual current
 | Selection | Both get `SelectedIndex`/`SelectedItem` (inherited), single-select only, click/tap-to-select. **No keyboard/gamepad navigation in v1** for either - `Selector`'s 1D popup-list nav doesn't translate cleanly to `WrapGrid`'s 2D layout or generalize obviously to `ListBox` either; deferred as a future addition if a concrete need shows up. |
 | Tap-to-select mechanics | New `SelectorItem.Tapped` event, raised from a `protected internal override void OnTap()` (mirrors `Button`'s own `OnTap`-to-`Click` shape). `WrapGrid`/`ListBox` each wire it in their own `AttachContainer`/`DetachContainer` override (small, identical shape in both - duplicated rather than pulled into `SelectingItemsControl`, since `Selector`'s popup items are hosted outside the normal visual tree and use a different, already-shipped mechanism that shouldn't be entangled with this). Confirmed via reading `Canvas.OnTap`'s actual dispatch (`HitTest` then `.OnTap()` on the hit element and every ancestor) that this reaches `WrapGrid`/`ListBox` items directly - no manual re-`HitTest` workaround needed, since (unlike `Selector`'s popup) their items live in the normal tree. |
 | Drag/drop | Out of scope for both controls. An item's own content implements `IDragSource`/`IDropTarget` (Phase 1's existing framework) directly, same pattern `Slider`'s thumb/`SplitPane`'s divider already use. |
-| Collection-change handling (`WrapGrid`) | Any `INotifyCollectionChanged` notification triggers a full derealize-and-recompute rather than incremental index-shifting - `WrapGrid` caches no per-item state worth preserving across a splice (unlike `ItemsControl`'s `knownHeights`), and pooling already makes a full recompute as cheap as an incremental update would be. `ListBox` needs no special handling at all - it's just `ItemsControl`'s own existing incremental logic, inherited and unchanged. |
+| Collection-change handling | Neither control needs any override - both inherit `ItemsControl`'s existing incremental `Add`/`Remove`/`Replace`/`Move`/`Reset` handling unchanged. Confirmed correct for `WrapGrid`'s 2D geometry too, not just `ListBox`'s 1D case: `DerealizeFromIndex` already de-realizes everything at/after a splice point regardless of what geometry produced each index's position, and indices before the splice point don't change identity, so they keep their still-correct positions untouched. (An earlier draft of this spec, from when `WrapGrid` was standalone rather than `ItemsControl`-derived, called for a simpler from-scratch recompute here - no longer applicable now that it inherits the real thing for free.) |
 | Theming | No `ControlTemplate` needed for either control - plain layout+virtualization containers, same tier as `Panel`/`Grid`/`ItemsControl` today. Only `SelectorItem`'s existing `Selected`-state visuals apply (already themed from Phase 5). |
 
 ## Detailed design
@@ -334,13 +334,16 @@ reflow) and `ListBoxDemo` (a scrollable list of selectable rows).
   `RealizeRange` realize exactly the expected index range for a given offset/viewport (matching the worked
   example); resizing `ContentBounds.Width` reflows already-realized items without requiring a scroll;
   selection sync + pool-survival; tap-to-select via `SelectorItem.Tapped`; `ItemsSource` `Add`/`Remove`/
-  `Replace`/`Move`/`Reset` each trigger a correct full re-realize; `PoolingEnabled` reuse; hosted inside a
-  real `ScrollViewer`, only the visible range is ever realized for a large source.
+  `Replace`/`Move` correctly update `items`/realized state via the inherited incremental handling, with
+  positions still correct afterward for the (now 2D) geometry - not re-testing the incremental mechanism
+  itself (already covered by `ItemsControlTests`), just confirming it composes correctly with `WrapGrid`'s
+  own `RealizeRange`; `PoolingEnabled` reuse; hosted inside a real `ScrollViewer`, only the visible range is
+  ever realized for a large source.
 - **`ListBox`**: defaults; selection sync + pool-survival (inherited `SelectingItemsControl` behavior,
   confirmed working through `ListBox` specifically, not just assumed from `SelectingItemsControl`'s own
-  tests); tap-to-select; `ItemsSource` reactivity uses `ItemsControl`'s existing *incremental* Add/Remove/
-  Replace/Move handling correctly (unlike `WrapGrid`, this should NOT trigger a full re-realize - a
-  regression test confirming `ListBox` actually inherits the cheaper incremental path, not a full recompute).
+  tests); tap-to-select; hosted inside a real `ScrollViewer`, only the visible range is ever realized for a
+  large source (proving `ListBox` gets `ItemsControl`'s real virtualization "for free," not just that it
+  compiles).
 - Manual smoke test (both engines, per `[[feedback_smoke_test_notification]]`): `WrapGrid` scrolling/reflow/
   selection as before; `ListBox` scrolling/selection; confirm the whole `Selector`/`Dropdown`/`ComboBox`
   popup stack still behaves identically post-refactor (open/close, nav, filtering, typeahead).
