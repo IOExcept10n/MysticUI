@@ -26,6 +26,8 @@
     <Compile Include="..\Shared Samples\SplitPaneDemo.cs" Link="SplitPaneDemo.cs" />
     <Compile Include="..\Shared Samples\ExpanderDemo.cs" Link="ExpanderDemo.cs" />
     <Compile Include="..\Shared Samples\SelectorDemo.cs" Link="SelectorDemo.cs" />
+    <Compile Include="..\Shared Samples\WrapGridDemo.cs" Link="WrapGridDemo.cs" />
+    <Compile Include="..\Shared Samples\ListBoxDemo.cs" Link="ListBoxDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

@@ -49,7 +49,9 @@ namespace Icy.MonoGameSample
                 new ItemsControlSample(this, uiConfiguration, canvas),
                 new SplitPaneSample(this, uiConfiguration, canvas),
                 new ExpanderSample(this, uiConfiguration, canvas),
-                new SelectorSample(this, uiConfiguration, canvas)
+                new SelectorSample(this, uiConfiguration, canvas),
+                new WrapGridSample(this, uiConfiguration, canvas),
+                new ListBoxSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);
