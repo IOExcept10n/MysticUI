@@ -18,7 +18,7 @@ namespace Icy.UI.Controls
     /// virtual) the inherited property, the same way <see cref="Control.Padding"/> already shadows
     /// <see cref="UIElement.Padding"/>: this control's real, full source is held here, and the base
     /// <see cref="ItemsControl.ItemsSource"/> is kept pointed at whatever subset currently matches the filter
-    /// text. <see cref="Selector.SelectedItem"/>/<see cref="Selector.SelectedIndex"/> reflect the filtered
+    /// text. <see cref="SelectingItemsControl.SelectedItem"/>/<see cref="SelectingItemsControl.SelectedIndex"/> reflect the filtered
     /// subset only while actively filtering - full selection is restored on every commit path (a matching
     /// Enter, or a revert via Escape/non-matching Enter).
     /// </remarks>

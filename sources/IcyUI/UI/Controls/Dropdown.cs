@@ -6,7 +6,7 @@ using Icy.Input.Devices;
 namespace Icy.UI.Controls
 {
     /// <summary>
-    /// A <see cref="Selector"/> with a fixed-text closed-state display (<see cref="Selector.SelectedItem"/>'s
+    /// A <see cref="Selector"/> with a fixed-text closed-state display (<see cref="SelectingItemsControl.SelectedItem"/>'s
     /// display text) and letter-key typeahead - no free text entry.
     /// </summary>
     /// <remarks>
@@ -93,7 +93,7 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Pushes <see cref="Selector.SelectedItem"/>'s display text onto <see cref="Selector.Toggle"/>. Falls back
+        /// Pushes <see cref="SelectingItemsControl.SelectedItem"/>'s display text onto <see cref="Selector.Toggle"/>. Falls back
         /// to a single space rather than an empty string when nothing is selected - <see cref="TextBlock"/>
         /// measures as <see cref="System.Drawing.Size.Empty"/> for a truly empty <see cref="TextBlock.Text"/> (by
         /// design, so an optional/conditional label doesn't reserve space when it has nothing to show), which for

@@ -13,7 +13,7 @@ namespace Icy.UI.Controls
     /// <remarks>
     /// <see cref="IsSelected"/>/<see cref="IsHighlighted"/> mirror <see cref="ToggleButton.IsChecked"/>'s own
     /// shape (set/clear a <see cref="ControlState"/> flag, no other side effects here) - <see cref="Selector"/>
-    /// itself is what keeps them in sync with <see cref="Selector.SelectedIndex"/>/its internal highlighted
+    /// itself is what keeps them in sync with <see cref="SelectingItemsControl.SelectedIndex"/>/its internal highlighted
     /// index, including across a pool-and-reuse cycle (see <see cref="Selector.AttachContainer(ItemContainer, int)"/>).
     /// </remarks>
     public class SelectorItem : ItemContainer
@@ -23,7 +23,7 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Gets or sets a value indicating whether this item is the <see cref="Selector"/>'s current
-        /// <see cref="Selector.SelectedItem"/>. Setting this sets/clears <see cref="ControlState.Selected"/>.
+        /// <see cref="SelectingItemsControl.SelectedItem"/>. Setting this sets/clears <see cref="ControlState.Selected"/>.
         /// </summary>
         [Category("Behavior")]
         [DefaultValue(false)]
