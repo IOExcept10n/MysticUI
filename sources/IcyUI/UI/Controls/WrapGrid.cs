@@ -26,6 +26,8 @@ namespace Icy.UI.Controls
     {
         private const float DefaultItemSize = 64f;
 
+        private readonly Dictionary<SelectorItem, int> containerIndices = [];
+
         private float itemHeight = DefaultItemSize;
         private float itemWidth = DefaultItemSize;
 
@@ -125,6 +127,48 @@ namespace Icy.UI.Controls
                 if (!stillRealized.Contains(realizedIndex))
                     Derealize(realizedIndex);
             }
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// On top of the base <see cref="SelectingItemsControl"/> wiring, subscribes <see cref="SelectorItem.Tapped"/>
+        /// (via <see cref="Container_Tapped"/>) for click-to-select, and records <paramref name="index"/> in
+        /// <see cref="containerIndices"/> so the handler can look it back up.
+        /// </remarks>
+        protected override void AttachContainer(ItemContainer container, int index)
+        {
+            base.AttachContainer(container, index);
+            var item = (SelectorItem)container;
+            item.IsSelected = index == SelectedIndex;
+            item.Tapped += Container_Tapped;
+            containerIndices[item] = index;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Exact inverse of <see cref="AttachContainer(ItemContainer, int)"/> - unsubscribes
+        /// <see cref="SelectorItem.Tapped"/> and forgets <paramref name="container"/>'s <see cref="containerIndices"/>
+        /// entry before deferring to the base detach.
+        /// </remarks>
+        protected override void DetachContainer(ItemContainer container)
+        {
+            var item = (SelectorItem)container;
+            item.Tapped -= Container_Tapped;
+            containerIndices.Remove(item);
+            base.DetachContainer(container);
+        }
+
+        /// <summary>
+        /// Handles a realized <see cref="SelectorItem"/>'s <see cref="SelectorItem.Tapped"/> event by setting
+        /// <see cref="SelectingItemsControl.SelectedIndex"/> to the item's current index, looked up via
+        /// <see cref="containerIndices"/>.
+        /// </summary>
+        /// <param name="sender">The tapped <see cref="SelectorItem"/>.</param>
+        /// <param name="e">Unused.</param>
+        private void Container_Tapped(object? sender, EventArgs e)
+        {
+            if (sender is SelectorItem item && containerIndices.TryGetValue(item, out int index))
+                SelectedIndex = index;
         }
     }
 }

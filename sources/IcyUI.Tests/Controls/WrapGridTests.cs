@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
@@ -169,6 +170,131 @@ namespace Icy.Tests.Controls
             // Index 5 -> row 0, column 5 -> (250, 0) at 6 columns.
             Assert.Equal(250, GetRealizedContainers(grid)[5].ActualBounds.X);
             Assert.Equal(0, GetRealizedContainers(grid)[5].ActualBounds.Y);
+        }
+
+        [Fact]
+        public void SelectionState_SurvivesPoolAndReuseCycle()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>""");
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 20).Cast<object>().ToList(),
+                ItemTemplate = template,
+                Width = 400,
+            };
+            ArrangeAtWidth(grid, 400);
+            grid.SelectedIndex = 5;
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 0, 400, 100);
+            Assert.True(((SelectorItem)GetRealizedContainers(grid)[5]).IsSelected);
+
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 5000, 400, 100); // scroll item 5 out
+            Assert.DoesNotContain(5, GetRealizedContainers(grid).Keys);
+
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 0, 400, 100); // scroll back
+            Assert.True(((SelectorItem)GetRealizedContainers(grid)[5]).IsSelected);
+        }
+
+        [Fact]
+        public void TappingARealizedItem_SelectsIt()
+        {
+            // Must be ScrollViewer-hosted, not added straight to the Canvas - ItemsControl's own remarks are
+            // explicit that realization only ever happens inside OnViewportChanged, and nothing but a
+            // ScrollViewer (or an equivalent IVirtualizingScrollInfo-aware host) ever calls it; without one,
+            // nothing is ever realized and a tap would hit nothing.
+            var (canvas, input) = CreateCanvas();
+            var template = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>""");
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 20).Cast<object>().ToList(),
+                ItemTemplate = template,
+                ItemWidth = 50,
+                ItemHeight = 30,
+            };
+            var scrollViewer = new ScrollViewer
+            {
+                Content = grid,
+                Width = 200,
+                Height = 100,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(scrollViewer);
+            canvas.Render();
+
+            // ColumnsPerRow = 4 at width 200; index 5 -> row 1, col 1 -> tap around (75, 45).
+            input.Events.Touch.RaiseTap(new Icy.Input.Events.TouchInfo(new Point(75, 45), 1));
+
+            Assert.Equal(5, grid.SelectedIndex);
+        }
+
+        [Fact]
+        public void Derealize_ThenEnsureRealizedAgain_ReusesThePooledContainer()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>""");
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 20).Cast<object>().ToList(),
+                ItemTemplate = template,
+                Width = 400,
+            };
+            ArrangeAtWidth(grid, 400);
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 0, 400, 100);
+            ItemContainer original = GetRealizedContainers(grid)[0];
+
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 5000, 400, 100); // scroll item 0 out
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 0, 400, 100); // scroll back
+
+            // The pool is a plain per-template Stack<ItemContainer> (see ItemsControl.RentContainer/Derealize) -
+            // not keyed by index, so a container that scrolls back into view isn't guaranteed to land at the same
+            // index it started at (ItemsControlTests.Derealize_ThenEnsureRealizedAgain_ReusesThePooledContainer
+            // makes the same point: its reused container reappears at a DIFFERENT index, by design). What pooling
+            // actually promises is that the instance is reused at all, not discarded - assert that instead of
+            // pinning down which index it lands on.
+            Assert.Contains(original, GetRealizedContainers(grid).Values);
+        }
+
+        [Fact]
+        public void ItemsSource_ObservableCollection_Insert_UpdatesItemsAndDerealizesShiftedIndexes()
+        {
+            var source = new ObservableCollection<object> { "a", "b", "c" };
+            var template = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>""");
+            var grid = new WrapGrid { ItemsSource = source, ItemTemplate = template, Width = 400 };
+            ArrangeAtWidth(grid, 400);
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 0, 400, 100);
+            Assert.Contains(2, GetRealizedContainers(grid).Keys); // "c" realized at index 2
+
+            source.Insert(0, "new");
+
+            // "c"'s old index-2 realization must be gone - it would otherwise silently represent "b" now.
+            Assert.DoesNotContain(2, GetRealizedContainers(grid).Keys);
+        }
+
+        [Fact]
+        public void HostedInsideScrollViewer_OnlyRealizesTheVisibleRange()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>""");
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 10000).Cast<object>().ToList(),
+                ItemTemplate = template,
+            };
+            var scrollViewer = new ScrollViewer { Content = grid, Width = 400, Height = 300 };
+            var (canvas, _) = CreateCanvas();
+            canvas.Add(scrollViewer);
+
+            canvas.Render();
+
+            var realized = GetRealizedContainers(grid);
+            Assert.True(realized.Count < 200, $"expected far fewer than 10000 realized, got {realized.Count}");
+        }
+
+        private static (Canvas Canvas, FakeInputSystem Input) CreateCanvas(int viewportWidth = 800, int viewportHeight = 600)
+        {
+            var input = new FakeInputSystem();
+            var renderContext = new FakeRenderContext { ViewportSize = new Size(viewportWidth, viewportHeight) };
+            var assets = new AssetConfiguration(AssetContext.ApplicationContext);
+            var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
+            return (new Canvas(config) { IsInputEnabled = true, IsVisible = true }, input);
         }
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
