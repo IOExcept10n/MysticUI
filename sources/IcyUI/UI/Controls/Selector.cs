@@ -14,12 +14,12 @@ using Icy.UI.Styles;
 namespace Icy.UI.Controls
 {
     /// <summary>
-    /// Adds single selection and a popup-hosted item list on top of <see cref="ItemsControl"/> - the shared base
+    /// Adds single selection and a popup-hosted item list on top of <see cref="SelectingItemsControl"/> - the shared base
     /// for <see cref="Dropdown"/> and <see cref="ComboBox"/>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Realizes <see cref="SelectorItem"/>s (see <see cref="CreateContainer(DataTemplate, object)"/>) instead of
+    /// Realizes <see cref="SelectorItem"/>s (see <see cref="SelectingItemsControl.CreateContainer(DataTemplate, object)"/>) instead of
     /// bare <see cref="ItemContainer"/>s. <see cref="Chrome"/> shows only the always-visible closed-state row
     /// (<c>PART_ToggleButton</c>, plus <c>PART_TextBox</c> for <see cref="ComboBox"/>); realized items live in a
     /// separate popup host added to the owning <see cref="UI.Canvas"/>'s <see cref="UI.Canvas.Overlays"/> only
@@ -33,7 +33,7 @@ namespace Icy.UI.Controls
     /// and never moves focus onto individual <see cref="SelectorItem"/>s.
     /// </para>
     /// </remarks>
-    public abstract class Selector : ItemsControl
+    public abstract class Selector : SelectingItemsControl
     {
         private const float DefaultMaxDropDownHeight = 200f;
 
@@ -49,8 +49,6 @@ namespace Icy.UI.Controls
         private bool isOpen;
         private float maxDropDownHeight = DefaultMaxDropDownHeight;
         private Canvas? openedOnCanvas;
-        private int selectedIndex = -1;
-        private object? selectedItem;
         private object? selectedValue;
         private DynamicPropertyPath? selectedValuePath;
         private string? selectedValuePathText;
@@ -89,11 +87,6 @@ namespace Icy.UI.Controls
 
             HookFocusGate(this);
         }
-
-        /// <summary>
-        /// Occurs when <see cref="SelectedIndex"/>/<see cref="SelectedItem"/> changes.
-        /// </summary>
-        public event EventHandler? SelectionChanged;
 
         /// <summary>
         /// Gets or sets the path (resolved dynamically, tolerant of heterogeneous/unknown item types) used to
@@ -199,53 +192,8 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Gets or sets the currently selected item's index, or <c>-1</c> for no selection.
-        /// </summary>
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is less than <c>-1</c> or greater than or equal to the item count.</exception>
-        [Category("Behavior")]
-        [DefaultValue(-1)]
-        [RegisterReference]
-        public int SelectedIndex
-        {
-            get => selectedIndex;
-            set
-            {
-                Guard.IsGreaterThanOrEqualTo(value, -1);
-                if (value != -1)
-                    Guard.IsLessThan(value, ItemCount);
-                if (selectedIndex == value)
-                    return;
-
-                if (realizedContainers.TryGetValue(selectedIndex, out ItemContainer? oldContainer))
-                    ((SelectorItem)oldContainer).IsSelected = false;
-
-                selectedIndex = value;
-                selectedItem = selectedIndex == -1 ? null : GetItemAt(selectedIndex);
-                UpdateSelectedValue();
-
-                if (realizedContainers.TryGetValue(selectedIndex, out ItemContainer? newContainer))
-                    ((SelectorItem)newContainer).IsSelected = true;
-
-                SelectionChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the currently selected item, or <see langword="null"/> for no selection. Setting an item
-        /// not present in <see cref="ItemsControl.ItemsSource"/> clears selection instead of throwing.
-        /// </summary>
-        [Category("Behavior")]
-        [DefaultValue(null)]
-        [RegisterReference]
-        public object? SelectedItem
-        {
-            get => selectedItem;
-            set => SelectedIndex = IndexOfItem(value);
-        }
-
-        /// <summary>
-        /// Gets the value <see cref="SelectedValuePath"/> resolves from <see cref="SelectedItem"/> -
-        /// <see langword="null"/> when <see cref="SelectedItem"/>/<see cref="SelectedValuePath"/> is
+        /// Gets the value <see cref="SelectedValuePath"/> resolves from <see cref="SelectingItemsControl.SelectedItem"/> -
+        /// <see langword="null"/> when <see cref="SelectingItemsControl.SelectedItem"/>/<see cref="SelectedValuePath"/> is
         /// <see langword="null"/>, or when the path fails to resolve for the current item.
         /// </summary>
         [Category("Data")]
@@ -254,7 +202,7 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Gets or sets the path (resolved dynamically) used to derive <see cref="SelectedValue"/> from
-        /// <see cref="SelectedItem"/>.
+        /// <see cref="SelectingItemsControl.SelectedItem"/>.
         /// </summary>
         [Category("Data")]
         [DefaultValue(null)]
@@ -311,10 +259,6 @@ namespace Icy.UI.Controls
             containerIndices[item] = index;
             popupHost.Children.Add(container);
         }
-
-        /// <inheritdoc/>
-        protected override ItemContainer CreateContainer(DataTemplate template, object item)
-            => new SelectorItem { Content = template.Build(item) };
 
         /// <inheritdoc/>
         protected override void DetachContainer(ItemContainer container)
@@ -471,7 +415,7 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Handles Enter/gamepad-A while the focus gate is focused - opens the popup if closed; if open with a valid
-        /// <see cref="HighlightedIndex"/>, commits it to <see cref="SelectedIndex"/> and closes; otherwise no-ops.
+        /// <see cref="HighlightedIndex"/>, commits it to <see cref="SelectingItemsControl.SelectedIndex"/> and closes; otherwise no-ops.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -494,7 +438,7 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Handles Escape/gamepad-B while the focus gate is focused - closes the popup without changing
-        /// <see cref="SelectedIndex"/>.
+        /// <see cref="SelectingItemsControl.SelectedIndex"/>.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -522,8 +466,11 @@ namespace Icy.UI.Controls
 
         private void UpdateSelectedValue()
         {
-            selectedValue = selectedItem == null || selectedValuePath == null ? null : selectedValuePath.GetValue(selectedItem);
+            selectedValue = SelectedItem == null || selectedValuePath == null ? null : selectedValuePath.GetValue(SelectedItem);
         }
+
+        /// <inheritdoc/>
+        protected override void OnSelectionChanged() => UpdateSelectedValue();
 
         private void Toggle_IsCheckedChanged(object? sender, EventArgs e) => IsOpen = toggle.IsChecked;
 
