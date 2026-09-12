@@ -1,199 +1,292 @@
-# Tier-2 Phase 6 — WrapGrid
+# Tier-2 Phase 6 — WrapGrid, ListBox, and the `SelectingItemsControl` extraction
 
 > Design spec for Phase 6 of the Tier-2 controls roadmap (`ah-i-ve-understood-i-piped-axolotl.md`).
-> The roadmap calls this phase "`GridView`" and scopes it as a WPF-`ListView`+`GridView`-style tabular
-> data browser (columns, headers, sort). Confirmed with Ivan at the start of this discussion: that's not
-> actually what's needed here - the real ask is an auto-flowing grid *layout* (items wrap into rows/columns
-> automatically, like WPF's `WrapPanel`/`UniformGrid`, sized for an icon/inventory grid), which is smaller,
-> more foundational, and unrelated to tabular data. Renamed to **`WrapGrid`** so a genuine future tabular
-> phase can still use the name "`GridView`" for itself without collision. The tabular browser itself is
-> explicitly deferred, not part of this phase.
+> The roadmap's own scope note named this phase "`GridView`" and described a WPF-tabular data browser
+> (columns, headers, sort). Through this discussion that scope corrected twice: first to an auto-flowing
+> item-grid layout (**`WrapGrid`**, unrelated to tabular data - a genuine future tabular-browser phase, if
+> ever built, is free to use the name "`GridView`" for itself), then Ivan added a second control - a plain
+> WPF-`ListBox`-style always-visible selectable list (**`ListBox`**), initially misnamed "`ListView`" before
+> being corrected. Ivan also directed a class-hierarchy change beyond what either control needs on its own:
+> **every control that realizes multiple items should be an `ItemsControl`**, including `WrapGrid` (originally
+> scoped standalone) - and since `WrapGrid`/`ListBox` both need the same `SelectedIndex`/`SelectedItem`
+> selection state `Selector` already has, that state is extracted into a new shared base,
+> **`SelectingItemsControl`**, rather than duplicated three times.
 
 ## Context
 
-`ItemsControl` (Phase 2) virtualizes a single-column vertical list via variable-height estimation
-(`knownHeights`, running-average, anchor-walk - see `ItemsControl.cs`'s `RealizeRange`/`LocateViewportStart`/
-`RecordHeight`). None of that machinery is pluggable today beyond *where* a realized container is
-positioned and *what type* it is (`RealizationBounds`/`CreateContainer`/`AttachContainer`/`DetachContainer`,
-added in Phase 5) - the actual "which indices are visible, what rect does each get" computation is private
-and tightly coupled to the single-column variable-height model.
+Three real findings shaped this design, each verified against the actual current source, not assumed:
 
-A uniform-cell grid (fixed `ItemWidth`/`ItemHeight`, needed for the inventory-grid use case this phase
-targets) is a **simpler** virtualization problem than what `ItemsControl` already solves - row/column
-placement is exact arithmetic, no height estimation or anchor-walk needed - but it's a genuinely different
-algorithm, not a variant of the existing one. Confirmed directly with Ivan during this discussion: rather
-than refactor `ItemsControl`'s private internals to make the geometry step pluggable (real regression risk
-to the `Selector`/`Dropdown`/`ComboBox` stack already built on it, for not much reuse payoff since the
-geometry math needs a full override either way), `WrapGrid` is built **standalone** - its own
-`IVirtualizingScrollInfo` implementation, its own realize/pool/derealize loop, `ItemsControl` untouched.
+1. **`ItemsControl`'s virtualization geometry (`RealizeRange`/`LocateViewportStart`/`ExtentHeight`) is
+   private and specific to single-column variable-height estimation** - but it's already cleanly separable
+   from the genuinely reusable 90% of the class (pooling, `CreateContainer`, `AttachContainer`/
+   `DetachContainer`, `INotifyCollectionChanged` incremental handling). Widening those three members (plus
+   `EnsureRealized`/`Derealize` and the `verticalOffset`/`viewportHeight`/`viewportWidth`/`horizontalOffset`
+   fields they and a subclass's own geometry both need) from `private` to `protected`/`protected virtual` is
+   a **mechanical, additive visibility change** - the base class's own runtime behavior doesn't change at
+   all, so the existing 744 tests should stay green unmodified. `OnViewportChanged` is already `public
+   virtual` and already just calls `LocateViewportStart()` then `RealizeRange(...)`, so neither `WrapGrid`
+   nor `ListBox` needs to override it.
+2. **`Selector.cs`'s actual shipped shape** (read in full, not from the older plan document, which predates
+   several since-shipped fixes: `PopupBackground`/`PopupBorderBrush`/`PopupBorderThickness`,
+   `containerIndices`, the nested `PopupItemsHost : Panel, IVirtualizingScrollInfo` forwarding shim) shows
+   the `SelectedIndex`/`SelectedItem`/`SelectionChanged`/`CreateContainer` extraction is a **pure hoist**:
+   every other line in `Selector.cs` that references `SelectedIndex` (`AttachContainer`, `OnPopupItemTap`,
+   etc.) keeps working completely unchanged once it's inherited instead of locally declared - accessibility
+   (`protected`) is preserved, nothing about how those members are *used* changes.
+3. **`ListBox` needs no geometry override at all** - a plain always-visible vertical selectable list is
+   exactly what `ItemsControl`'s *default* single-column virtualization already does. It only adds selection
+   (via the new `SelectingItemsControl` base) and click-to-select wiring on top - the smallest of the three
+   new/changed classes here by a wide margin.
 
-**No cross-engine impact.** Pure core-`IcyUI` layout/input/styling work, same as every prior Tier-2 phase -
-`IcyUI.MonoGame`/`IcyUI.Stride` are untouched, `IcyUI.FNA` (still an unimplemented stub) needs no
-equivalent work.
+**No cross-engine impact.** Pure core-`IcyUI` work, same as every prior Tier-2 phase - `IcyUI.MonoGame`/
+`IcyUI.Stride` untouched, `IcyUI.FNA` (still an unimplemented stub) needs no equivalent work.
 
 ## Decisions
 
 | Decision | Choice |
 |---|---|
-| Scope | An auto-flowing, virtualizing grid *layout* control (`WrapGrid : Control`), not a tabular data browser. No columns, headers, sorting, or per-column typed data - a genuine future "`GridView`"/`DataGrid` phase, if ever built, is unrelated to this one. |
-| Relationship to `ItemsControl` | Standalone, not a subclass. Own `ItemsSource`/`ItemTemplate`/`ItemTemplateSelector`/`PoolingEnabled` surface (same shape as `ItemsControl`'s, independently implemented), own `IVirtualizingScrollInfo` implementation, own pooling. Zero changes to `ItemsControl.cs`. |
-| Cell sizing | Explicit `ItemWidth`/`ItemHeight` (both `float`, validated `> 0`) - no auto-measure-to-discover-size bootstrapping. Every cell is exactly this size; content that doesn't fit is the item template's own problem (e.g. clip, or size itself to fit), same as any other fixed-size layout slot in this framework. |
-| Flow layout | Row-major auto-flow only (fills left-to-right, wraps to the next row below) - matches the vertical-scroll-centric shape every other virtualizing surface in this codebase already has (`ItemsControl`, `ScrollViewer`). No `Orientation` property, no explicit `Columns` count override, in v1 - `columnsPerRow` is always derived from available width. |
-| Container | Realizes `SelectorItem` (reused as-is from Phase 5 - already has `IsSelected`/`ControlState.Selected`, no popup coupling). No `CreateContainer`-style extension point - container type is fixed, no known need for a `WrapGrid` subclass yet (YAGNI, unlike `ItemsControl`/`Selector`'s more open-ended hook). |
-| Selection | `SelectedIndex`/`SelectedItem`, click/tap-to-select only. **No keyboard/gamepad grid navigation in v1** - 2D directional movement (which neighbor does "Up" mean when row lengths can differ at the very end of the list?) is a harder, separate problem from `Selector`'s 1D popup-list nav and wasn't part of what was actually asked for; flagged as a deferred future addition, not attempted here. |
-| Tap-to-select mechanics | New `SelectorItem.Tapped` event, raised from a `protected internal override void OnTap()` - mirrors `Button`'s own `OnTap`-to-`Click` shape. `WrapGrid` subscribes per-container on realize, unsubscribes on de-realize. Since realized items live in `WrapGrid`'s own normal visual tree (not an overlay), this reaches them through `Canvas`'s existing per-element `OnTap` dispatch directly - no manual re-`HitTest` workaround needed (unlike `Selector`'s popup items, which need that workaround specifically because overlay content isn't reachable through the normal tree-rooted dispatch). |
-| Drag/drop | Out of scope for `WrapGrid` itself. An item's own content implements `IDragSource`/`IDropTarget` (Phase 1's existing framework) directly, same pattern `Slider`'s thumb/`SplitPane`'s divider already use - `WrapGrid` needs no special knowledge of dragging. Tap-vs-drag-start disambiguation is the existing touch/gesture pipeline's job (a tap is a press+release within a small movement threshold; a drag is a press+move past it), already proven to coexist correctly elsewhere in the framework - worth a quick behavioral confirmation at implementation time, not a design fork. |
-| Collection-change handling | Any `INotifyCollectionChanged` notification (`Add`/`Remove`/`Replace`/`Move`/`Reset`) triggers a full re-snapshot + derealize-everything-and-recompute, rather than `ItemsControl`'s careful incremental index-shifting. Deliberate simplification: `WrapGrid` caches no per-item state (no heights to preserve across a splice, unlike `ItemsControl`'s `knownHeights`), so there's nothing incremental handling would actually save - pooling already makes a full recompute just as cheap as an index-preserving update would be. |
-| Theming | No `ControlTemplate` needed for `WrapGrid` itself - a plain layout+virtualization container, same tier as `Panel`/`Grid` today. Only `SelectorItem`'s existing `Selected`-state visuals apply (already themed from Phase 5). |
+| Scope | Two controls: `WrapGrid` (auto-flowing virtualizing grid layout, e.g. an icon/inventory grid) and `ListBox` (plain always-visible virtualizing selectable list, WPF-`ListBox`-shaped). No tabular columns/headers/sort/resize for either - a genuine future tabular "`GridView`" phase, if ever needed, is unrelated and unscoped here. |
+| Class hierarchy | `ItemsControl` → **`SelectingItemsControl`** (new, abstract - `SelectedIndex`/`SelectedItem`/`SelectionChanged`, `CreateContainer` → `SelectorItem`) → `Selector` (existing, now derives from `SelectingItemsControl` instead of `ItemsControl` directly; keeps popup lifecycle/`HighlightedIndex`/nav/`DisplayMemberPath`/`SelectedValuePath`, none of which move) → `Dropdown`/`ComboBox` (unchanged); and, as siblings of `Selector` under `SelectingItemsControl`: `WrapGrid` (own grid-flow geometry override) and `ListBox` (no geometry override - inherits the default vertical-list behavior as-is). |
+| `ItemsControl` changes | Widen `RealizeRange`/`LocateViewportStart` to `protected virtual`; wrap `ExtentHeight`'s body in a new `protected virtual float ComputeExtentHeight()`; widen `EnsureRealized`/`Derealize` and the `verticalOffset`/`viewportHeight`/`viewportWidth`/`horizontalOffset` fields to `protected`. No other change - `ExtentWidth`'s existing `=> viewportWidth` body already matches what `WrapGrid`/`ListBox` want, needs no override. |
+| `Selector.cs` changes | `SelectedIndex`/`SelectedItem` (+ their two backing fields), `SelectionChanged`, and the `CreateContainer` override move up into `SelectingItemsControl`, verbatim. `Selector`'s base type changes to `SelectingItemsControl`. Every other member (popup lifecycle, `HighlightedIndex`, nav, `AttachContainer`/`DetachContainer`, `PopupItemsHost`, etc.) is untouched, including its own references to `SelectedIndex` (still resolves via inheritance). |
+| Cell sizing (`WrapGrid`) | Explicit `ItemWidth`/`ItemHeight` (both `float`, validated `> 0`, default `64f`) - no auto-measure-to-discover-size bootstrapping. |
+| Flow layout (`WrapGrid`) | Row-major auto-flow only (fills left-to-right, wraps down) - `columnsPerRow` always derived from `ContentBounds.Width`. No `Orientation`/explicit `Columns` override in v1. |
+| Container | Both realize `SelectorItem` (inherited via `SelectingItemsControl.CreateContainer` - no per-control override needed). |
+| Selection | Both get `SelectedIndex`/`SelectedItem` (inherited), single-select only, click/tap-to-select. **No keyboard/gamepad navigation in v1** for either - `Selector`'s 1D popup-list nav doesn't translate cleanly to `WrapGrid`'s 2D layout or generalize obviously to `ListBox` either; deferred as a future addition if a concrete need shows up. |
+| Tap-to-select mechanics | New `SelectorItem.Tapped` event, raised from a `protected internal override void OnTap()` (mirrors `Button`'s own `OnTap`-to-`Click` shape). `WrapGrid`/`ListBox` each wire it in their own `AttachContainer`/`DetachContainer` override (small, identical shape in both - duplicated rather than pulled into `SelectingItemsControl`, since `Selector`'s popup items are hosted outside the normal visual tree and use a different, already-shipped mechanism that shouldn't be entangled with this). Confirmed via reading `Canvas.OnTap`'s actual dispatch (`HitTest` then `.OnTap()` on the hit element and every ancestor) that this reaches `WrapGrid`/`ListBox` items directly - no manual re-`HitTest` workaround needed, since (unlike `Selector`'s popup) their items live in the normal tree. |
+| Drag/drop | Out of scope for both controls. An item's own content implements `IDragSource`/`IDropTarget` (Phase 1's existing framework) directly, same pattern `Slider`'s thumb/`SplitPane`'s divider already use. |
+| Collection-change handling (`WrapGrid`) | Any `INotifyCollectionChanged` notification triggers a full derealize-and-recompute rather than incremental index-shifting - `WrapGrid` caches no per-item state worth preserving across a splice (unlike `ItemsControl`'s `knownHeights`), and pooling already makes a full recompute as cheap as an incremental update would be. `ListBox` needs no special handling at all - it's just `ItemsControl`'s own existing incremental logic, inherited and unchanged. |
+| Theming | No `ControlTemplate` needed for either control - plain layout+virtualization containers, same tier as `Panel`/`Grid`/`ItemsControl` today. Only `SelectorItem`'s existing `Selected`-state visuals apply (already themed from Phase 5). |
 
 ## Detailed design
 
-### 1. Properties
+### 1. `ItemsControl` visibility widening
 
-New file `sources/IcyUI/UI/Controls/WrapGrid.cs`, `public class WrapGrid : Control, IVirtualizingScrollInfo`:
+`sources/IcyUI/UI/Controls/ItemsControl.cs` - every change below is a visibility/structure widening only,
+verified to preserve the class's own existing runtime behavior exactly:
 
-- `IEnumerable? ItemsSource` - own implementation, same live-reactive-to-`INotifyCollectionChanged` shape
-  `ItemsControl.ItemsSource` has (see Decisions: collection-change handling differs, see §4).
-- `DataTemplate? ItemTemplate`, `Func<object, DataTemplate>? ItemTemplateSelector` - same resolution order
-  (`ItemTemplateSelector` first, falling back to `ItemTemplate`) as `ItemsControl`.
-- `bool PoolingEnabled` (default `true`) - same shape as `ItemsControl.PoolingEnabled`.
-- `float ItemWidth`, `float ItemHeight` - both `[RegisterReference]`, `Guard.IsGreaterThan(value, 0f)`
-  validated setters (matching `DefaultEstimatedItemHeight`'s own precedent), default `64f` each. Changing
-  either invalidates measure/arrange and forces a full re-realize (column count and every item's target
-  rect both depend on these).
-- `int SelectedIndex` (default `-1`) - validated (`Guard.IsGreaterThanOrEqualTo(-1)`,
-  `Guard.IsLessThan(ItemCount)` when `!= -1`, matching `Selector.SelectedIndex`'s own precedent exactly).
-  Setting it clears the old realized container's `SelectorItem.IsSelected` (if realized) and sets the new
-  one's (if realized), and raises `SelectionChanged`.
-- `object? SelectedItem` (default `null`) - setter resolves the item's index and forwards to
-  `SelectedIndex`; not in the list resolves to `-1`/`null` rather than throwing (matches
-  `Selector.SelectedItem`'s own precedent).
-- `event EventHandler? SelectionChanged`.
-
-No `DisplayMemberPath`/`SelectedValuePath` - those exist on `Selector` to derive display text for a
-single-line closed-state summary, which has no equivalent concept here (every item's own `ItemTemplate`
-already renders its own full content).
-
-### 2. Virtualization: `IVirtualizingScrollInfo`
-
-```csharp
-public float ExtentWidth => viewportWidth; // mirrors ItemsControl.ExtentWidth - no horizontal scrolling supported
-public float ExtentHeight => RowCount * ItemHeight;
-public event EventHandler<float>? VerticalOffsetCorrectionRequested; // declared to satisfy the interface, never raised - see below
+```diff
+- private float horizontalOffset;
+- private float verticalOffset;
+- private float viewportWidth;
+- private float viewportHeight;
++ protected float horizontalOffset;
++ protected float verticalOffset;
++ protected float viewportWidth;
++ protected float viewportHeight;
 ```
 
-`VerticalOffsetCorrectionRequested` exists on the interface to let content whose item sizes change after
-being realized (`ItemsControl`'s whole reason for having it) correct for that without a visible jump. Every
-`WrapGrid` cell is a fixed, known-upfront size - nothing here ever needs that correction, so the event is
-never invoked. Interface-compliance-without-use, same as any interface member a given implementer
-legitimately has nothing to do for.
-
-`columnsPerRow` is recomputed from the actual arranged width, not the raw viewport parameter (mirrors how
-`ItemsControl.RealizationBounds` - `ContentBounds` - is what item rects are actually placed against, while
-`verticalOffset`/`viewportHeight` drive range math separately):
-
-```csharp
-private int ColumnsPerRow => Math.Max(1, (int)(ContentBounds.Width / ItemWidth));
-private int RowCount => (int)Math.Ceiling(ItemCount / (float)ColumnsPerRow);
+```diff
+- public float ExtentHeight => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
++ public float ExtentHeight => ComputeExtentHeight();
++
++ /// <summary>
++ /// Computes <see cref="ExtentHeight"/> - the running-average single-column estimate by default. A
++ /// subclass with different virtualization geometry (e.g. a uniform grid) overrides this with its own
++ /// formula instead.
++ /// </summary>
++ protected virtual float ComputeExtentHeight() => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
 ```
 
-`OnViewportChanged(horizontalOffset, verticalOffset, viewportWidth, viewportHeight)` stores the offset/
-viewport fields (same bookkeeping shape as `ItemsControl.OnViewportChanged`), then computes the visible row
-band and realizes every index in it:
-
-```csharp
-const float ScrollAheadBuffer = 100f; // same constant/precedent as ItemsControl.RealizeRange
-int columnsPerRow = ColumnsPerRow;
-int firstRow = (int)(verticalOffset / ItemHeight);
-int lastRow = (int)((verticalOffset + viewportHeight + ScrollAheadBuffer) / ItemHeight);
-
-int firstIndex = Math.Max(0, firstRow * columnsPerRow);
-int lastIndex = Math.Min(ItemCount - 1, ((lastRow + 1) * columnsPerRow) - 1);
-
-var stillRealized = new HashSet<int>();
-for (int index = firstIndex; index <= lastIndex; index++)
-{
-    EnsureRealized(index); // resolves template, rents/creates a SelectorItem, wires Tapped
-    stillRealized.Add(index);
-
-    int row = index / columnsPerRow;
-    int column = index % columnsPerRow;
-    var targetRect = new Rectangle(
-        ContentBounds.X + (column * (int)ItemWidth),
-        ContentBounds.Y + (row * (int)ItemHeight) - (int)verticalOffset,
-        (int)ItemWidth,
-        (int)ItemHeight);
-
-    ItemContainer container = realizedContainers[index];
-    container.InvalidateArrange();
-    container.Arrange(targetRect);
-}
-
-foreach (int realizedIndex in realizedContainers.Keys.ToList())
-{
-    if (!stillRealized.Contains(realizedIndex))
-        Derealize(realizedIndex);
-}
+```diff
+- private (int Index, float Offset) LocateViewportStart()
++ protected virtual (int Index, float Offset) LocateViewportStart()
 ```
 
-No anchor-walk, no height cache, no estimation - every index's row/column/rect is exact, O(1) arithmetic.
-`EnsureRealized`/`Derealize`/pooling (`RentContainer`, `Stack<ItemContainer>` per `DataTemplate`) mirror
-`ItemsControl`'s own shape closely (same proven pattern) but with no `knownHeights`/`RecordHeight`
-bookkeeping at all - there's nothing variable to track.
+```diff
+- private void RealizeRange(int firstIndex, float firstOffset)
++ protected virtual void RealizeRange(int firstIndex, float firstOffset)
+```
 
-**Worked example**: `ItemWidth = ItemHeight = 64`, `ContentBounds.Width = 400` → `columnsPerRow = 6`
-(`400 / 64 = 6.25` → floors to `6`). `ItemCount = 100` → `RowCount = ceil(100 / 6) = 17` →
-`ExtentHeight = 17 * 64 = 1088`. With `verticalOffset = 300`, `viewportHeight = 500`:
-`firstRow = 300 / 64 = 4` (floors), `lastRow = (300 + 500 + 100) / 64 = 900 / 64 = 14` (floors) → realizes
-rows 4 through 14 inclusive (11 rows × 6 columns), i.e. indices `4*6=24` through
-`min(99, 15*6-1) = min(99, 89) = 89`.
+```diff
+- private void EnsureRealized(int index)
++ protected void EnsureRealized(int index)
+```
 
-### 3. Container realization, pooling, and tap-to-select
+```diff
+- private void Derealize(int index)
++ protected void Derealize(int index)
+```
+
+`ExtentWidth => viewportWidth` is untouched - already exactly what `WrapGrid`/`ListBox` want, no subclass
+override needed. `anchorIndex`/`anchorOffset` stay `private` - only `RecordHeight`'s own (harmless-for-fixed-
+size-content, see §3) above-viewport correction reads them, no subclass needs to.
+
+### 2. `SelectingItemsControl` extraction
+
+New file `sources/IcyUI/UI/Controls/SelectingItemsControl.cs`, `public abstract class
+SelectingItemsControl : ItemsControl` - moved **verbatim** out of `Selector.cs` (confirmed against the
+current shipped file, not the older plan document):
 
 ```csharp
-private ItemContainer EnsureRealized(int index)
+public abstract class SelectingItemsControl : ItemsControl
 {
-    if (realizedContainers.TryGetValue(index, out ItemContainer? existing))
-        return existing;
+    private int selectedIndex = -1;
+    private object? selectedItem;
 
-    object item = items[index];
-    DataTemplate template = ResolveTemplate(item); // ItemTemplateSelector, falling back to ItemTemplate
-    SelectorItem container = RentContainer(template, item); // pool lookup, or new SelectorItem { Content = template.Build(item) }
+    public event EventHandler? SelectionChanged;
 
-    container.IsSelected = index == SelectedIndex;
-    container.Tapped += Container_Tapped;
-    containerIndices[container] = index; // small Dictionary<SelectorItem, int>, mirrors Selector's own containerIndices
+    public int SelectedIndex
+    {
+        get => selectedIndex;
+        set
+        {
+            Guard.IsGreaterThanOrEqualTo(value, -1);
+            if (value != -1)
+                Guard.IsLessThan(value, ItemCount);
+            if (selectedIndex == value)
+                return;
 
-    container.Parent = this;
-    container.Canvas = Canvas;
-    realizedContainers[index] = container;
-    return container;
-}
+            if (realizedContainers.TryGetValue(selectedIndex, out ItemContainer? oldContainer))
+                ((SelectorItem)oldContainer).IsSelected = false;
 
-private void Derealize(int index)
-{
-    if (!realizedContainers.Remove(index, out ItemContainer? container))
-        return;
+            selectedIndex = value;
+            selectedItem = selectedIndex == -1 ? null : GetItemAt(selectedIndex);
 
-    var selectorItem = (SelectorItem)container;
-    selectorItem.Tapped -= Container_Tapped;
-    containerIndices.Remove(selectorItem);
+            OnSelectionChanged();
 
-    container.Parent = null;
-    container.Canvas = null;
+            if (realizedContainers.TryGetValue(selectedIndex, out ItemContainer? newContainer))
+                ((SelectorItem)newContainer).IsSelected = true;
 
-    if (PoolingEnabled) /* return to the per-template pool, same as ItemsControl.Derealize */;
-}
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
-private void Container_Tapped(object? sender, EventArgs e)
-{
-    if (sender is SelectorItem item && containerIndices.TryGetValue(item, out int index))
-        SelectedIndex = index;
+    public object? SelectedItem
+    {
+        get => selectedItem;
+        set => SelectedIndex = IndexOfItem(value);
+    }
+
+    protected override ItemContainer CreateContainer(DataTemplate template, object item)
+        => new SelectorItem { Content = template.Build(item) };
+
+    /// <summary>
+    /// Called after <see cref="SelectedIndex"/>/<see cref="SelectedItem"/> have been updated, before the
+    /// realized-container stamp and the public <see cref="SelectionChanged"/> event - empty by default. A
+    /// subclass with derived state of its own that depends on the new selection (e.g. <see cref="Selector"/>'s
+    /// <see cref="Selector.SelectedValue"/>) overrides this to refresh it, rather than reacting to its own
+    /// <see cref="SelectionChanged"/> subscription (which would depend on subscriber-ordering relative to any
+    /// external subscriber this control's own consumer adds).
+    /// </summary>
+    protected virtual void OnSelectionChanged()
+    {
+    }
 }
 ```
 
-`SelectorItem` gains (in `sources/IcyUI/UI/Controls/SelectorItem.cs`, additive - `Selector`/`Dropdown`/
-`ComboBox` are unaffected):
+(Same `[Category]`/`[DefaultValue]`/`[RegisterReference]` attributes and XML docs the originals carry -
+omitted above for brevity, not omitted in the actual change.)
+
+**`Selector.cs` changes**: delete the two moved fields, the `SelectionChanged` event, the `SelectedIndex`/
+`SelectedItem` properties, and the `CreateContainer` override. Change the class declaration:
+
+```diff
+- public abstract class Selector : ItemsControl
++ public abstract class Selector : SelectingItemsControl
+```
+
+Add one small override to restore the old setter's `UpdateSelectedValue()` call (a `Selector`-only concept,
+since `SelectedValue`/`SelectedValuePath` don't move):
+
+```csharp
+protected override void OnSelectionChanged() => UpdateSelectedValue();
+```
+
+**Everything else in `Selector.cs` is untouched** - `AttachContainer`/`DetachContainer` still reference
+`SelectedIndex`/`HighlightedIndex` exactly as they do today (now resolving `SelectedIndex` via
+inheritance), `OnPopupItemTap` still sets `SelectedIndex` the same way, `PositionPopup`/`OpenPopup`/
+`ClosePopup`/the nav handlers/`PopupItemsHost` are all identical. `UpdateSelectedValue()`'s own call now
+runs from `OnSelectionChanged()` instead of inline in the setter, at the exact same point in the sequence
+(right after `selectedItem` is assigned, before the container is stamped or `SelectionChanged` fires) - a
+`protected virtual` hook, not an event subscription, so there's no dependence on subscriber ordering.
+
+### 3. `WrapGrid`
+
+New file `sources/IcyUI/UI/Controls/WrapGrid.cs`, `public class WrapGrid : SelectingItemsControl`:
+
+- `float ItemWidth`, `float ItemHeight` - `[RegisterReference]`, `Guard.IsGreaterThan(value, 0f)`, default
+  `64f` each. Changing either invalidates measure/arrange and forces a re-realize.
+- `private int ColumnsPerRow => Math.Max(1, (int)(ContentBounds.Width / ItemWidth));`
+- Overrides `ComputeExtentHeight()`: `(int)Math.Ceiling(ItemCount / (float)ColumnsPerRow) * ItemHeight`.
+- Overrides `LocateViewportStart()`: `int row = (int)(verticalOffset / ItemHeight); int index =
+  Math.Clamp(row * ColumnsPerRow, 0, ItemCount - 1); return (index, row * ItemHeight);` - no anchor-walk,
+  exact arithmetic.
+- Overrides `RealizeRange(firstIndex, firstOffset)`: computes `lastRow`/`lastIndex` from `verticalOffset +
+  viewportHeight + ScrollAheadBuffer` the same way, then for each `index` in `[firstIndex, lastIndex]` calls
+  the (now-`protected`) inherited `EnsureRealized(index)`, computes `row = index / columnsPerRow; column =
+  index % columnsPerRow;`, and arranges it at `(ContentBounds.X + column*ItemWidth, ContentBounds.Y +
+  row*ItemHeight - verticalOffset, ItemWidth, ItemHeight)` - then calls the inherited `Derealize(index)` for
+  anything realized but outside the new range. Same overall shape as the base's own `RealizeRange`, just
+  exact-arithmetic instead of an accumulating walk.
+
+  **Worked example**: `ItemWidth = ItemHeight = 64`, `ContentBounds.Width = 400` → `ColumnsPerRow = 6`
+  (`400/64 = 6.25` floors to `6`). `ItemCount = 100` → `ExtentHeight = ceil(100/6)*64 = 17*64 = 1088`. With
+  `verticalOffset = 300`, `viewportHeight = 500`: `firstRow = 300/64 = 4` (floors) → `firstIndex = 24`;
+  `lastRow = (300+500+100)/64 = 14` (floors) → `lastIndex = min(99, 15*6-1) = 89`. Realizes indices 24-89
+  (11 rows × 6 columns).
+- `AttachContainer`/`DetachContainer`: call `base.AttachContainer`/`base.DetachContainer` (inherited
+  default `Parent = this; Canvas = Canvas;` wiring from `ItemsControl`) then stamp `IsSelected`, wire/unwire
+  `SelectorItem.Tapped` (§5), and maintain a small private `Dictionary<SelectorItem, int> containerIndices`
+  (own copy, same shape as `Selector`'s - not shared, see the Decisions table).
+- `Chrome` renders `Background`/`BorderBrush`/`BorderThickness`/`Padding` only (inherited `Control`
+  behavior, no override needed) - realized `SelectorItem`s live outside `Chrome`'s single-child slot,
+  positioned within `ContentBounds` directly, exactly like `ItemsControl`'s own default `RealizationBounds
+  => ContentBounds` (no override needed there either - `WrapGrid` has no popup-redirection need).
+- `GetVisualChildren`/`OnRender`/`MeasureContent`/`ArrangeContent`: **all inherited unchanged** from
+  `ItemsControl` - they already do exactly what `WrapGrid` needs (yield `Chrome` + realized containers,
+  measure to `(ExtentWidth, ExtentHeight)`, arrange `Chrome` to `ActualBounds`).
+
+**Inherited-but-unused overhead, noted explicitly**: `EnsureRealized`/`Derealize`'s bodies still call
+`RecordHeight(index, measuredHeight)` internally (they're shared, unmodified). For `WrapGrid`, every cell's
+measured height is always exactly `ItemHeight`, so after the first measurement `RecordHeight`'s `delta ==
+0` guard makes every subsequent call a no-op - harmless, slightly wasted bookkeeping into fields
+`ComputeExtentHeight()`'s override ignores entirely, not a correctness concern.
+
+### 4. `ListBox`
+
+New file `sources/IcyUI/UI/Controls/ListBox.cs`, `public class ListBox : SelectingItemsControl`:
+
+```csharp
+public class ListBox : SelectingItemsControl
+{
+    private readonly Dictionary<SelectorItem, int> containerIndices = [];
+
+    protected override void AttachContainer(ItemContainer container, int index)
+    {
+        base.AttachContainer(container, index);
+        var item = (SelectorItem)container;
+        item.IsSelected = index == SelectedIndex;
+        item.Tapped += Container_Tapped;
+        containerIndices[item] = index;
+    }
+
+    protected override void DetachContainer(ItemContainer container)
+    {
+        var item = (SelectorItem)container;
+        item.Tapped -= Container_Tapped;
+        containerIndices.Remove(item);
+        base.DetachContainer(container);
+    }
+
+    private void Container_Tapped(object? sender, EventArgs e)
+    {
+        if (sender is SelectorItem item && containerIndices.TryGetValue(item, out int index))
+            SelectedIndex = index;
+    }
+}
+```
+
+That's the entire class. No geometry override (`RealizeRange`/`LocateViewportStart`/`ComputeExtentHeight`
+all inherited as-is - a plain vertical list is exactly `ItemsControl`'s own default behavior), no new
+properties beyond what `SelectingItemsControl`/`ItemsControl` already provide. This is the direct payoff of
+the `SelectingItemsControl` extraction: the smallest possible realization of "an `ItemsControl` with
+click-to-select."
+
+### 5. `SelectorItem.Tapped`
+
+`sources/IcyUI/UI/Controls/SelectorItem.cs` gains (additive - `Selector`/`Dropdown`/`ComboBox` are
+unaffected, they don't subscribe to it):
 
 ```csharp
 public event EventHandler? Tapped;
@@ -205,124 +298,79 @@ protected internal override void OnTap()
 }
 ```
 
-### 4. `ItemsSource` and collection-change handling
+Verified against `Canvas.OnTap`'s actual dispatch (`Canvas.cs`): it `HitTest`s, then calls `.OnTap()` on
+the hit element and every ancestor via `SelfAndAncestors(hit)`. Since `WrapGrid`/`ListBox` parent their
+realized `SelectorItem`s into their own normal visual tree (via the inherited `AttachContainer` default,
+`Parent = this`), a tapped item's own `OnTap()` fires directly through this existing mechanism - no manual
+`HitTest` re-walk needed, unlike `Selector`'s popup items (which live outside the normal tree via
+`Canvas.Overlays`, hence its own existing `OnPopupItemTap` workaround - left untouched, not retrofitted to
+use `Tapped`, since it already works and this isn't its scope).
 
-Own `items`/`ResetItems`/`OnSourceCollectionChanged`, same *shape* as `ItemsControl`'s (snapshot
-`IEnumerable` into a `List<object>`, subscribe to `INotifyCollectionChanged` when the source implements it,
-unsubscribe on `OnDetached`/reassignment, re-subscribe on `OnAttached` for the same `Page.KeepAlive`
-re-attach reason `ItemsControl.OnAttached`'s own remarks document) - but every branch of
-`OnSourceCollectionChanged` (`Add`/`Remove`/`Replace`/`Move`/`Reset`) does the same thing: re-snapshot
-`items`, derealize every currently-realized container (pooled, not discarded), `InvalidateMeasure()`/
-`InvalidateArrange()`. The next `OnViewportChanged` re-realizes from scratch against the new `items`/
-`ItemCount`. No incremental index-shifting - see the Decisions table for why that's a deliberate
-simplification, not a missed optimization.
+### 6. Theming & samples
 
-### 5. Composition and layout plumbing
+No `ControlTemplate`/implicit `Style` needed for `WrapGrid`/`ListBox` themselves - `SelectorItem`'s existing
+`Selected`-state style (Phase 5) already applies to both controls' realized items with no changes.
 
-`WrapGrid : Control` - `Chrome` (the default `Border`) renders `Background`/`BorderBrush`/`BorderThickness`/
-`Padding` only, same as `ItemsControl`'s own use of `Chrome`; realized `SelectorItem`s are managed as extra
-children outside `Chrome`'s single-child slot, positioned directly within `ContentBounds` (`Chrome`'s own
-inset content area), mirroring `ItemsControl.RealizationBounds => ContentBounds` exactly (no override point
-needed here - `WrapGrid` doesn't have Phase 5's popup-redirection use case).
-
-```csharp
-protected override void ArrangeContent()
-{
-    Chrome.InvalidateArrange();
-    Chrome.Arrange(ActualBounds);
-}
-
-protected override IEnumerable<UIElement> GetVisualChildren()
-{
-    yield return Chrome;
-    foreach (int index in realizedContainers.Keys.OrderBy(i => i))
-        yield return realizedContainers[index];
-}
-
-protected override Size MeasureContent() => new((int)ExtentWidth, (int)ExtentHeight);
-
-protected override void OnRender(IRenderContext context)
-{
-    Chrome.Draw(context);
-    foreach (int index in realizedContainers.Keys.OrderBy(i => i))
-        realizedContainers[index].Draw(context);
-}
-```
-
-Identical in shape to `ItemsControl`'s own four overrides of the same names - this is boilerplate every
-`IVirtualizingScrollInfo`-implementing, `Control`-based container needs, not something worth a shared base
-for on its own (see the Decisions discussion on why a shared base wasn't chosen for this phase).
-
-Used the same way `ItemsControl` is - as a `ScrollViewer.Content` (its `ArrangeContent`'s virtualizing
-branch already delegates to any `IVirtualizingScrollInfo` generically, confirmed against `ScrollViewer.cs`
-directly - no `ScrollViewer` change needed). A `WrapGrid` placed directly inside a `Grid`/`StackPanel`
-instead never receives `OnViewportChanged` calls and silently renders empty, exactly like a bare
-`ItemsControl` would - worth the same doc-comment warning `ItemsControl`'s own class remarks already carry.
-
-### 6. Theming
-
-No `ControlTemplate`/implicit `Style` needed for `WrapGrid` itself in `DefaultTheme.xml` - it has no visual
-identity beyond its (optional) `Background`/`BorderBrush`, already themable via `Control`'s existing
-properties with no new markup required. `SelectorItem`'s existing `Selected`-state style (from Phase 5)
-already applies to `WrapGrid`'s realized items with no changes.
-
-### 7. Sample
-
-A `WrapGridDemo` added to Shared Samples (same precedent as `SplitPaneDemo`/`ExpanderDemo`/`SelectorDemo`) -
-a scrollable grid of a few dozen demo items (enough to exercise virtualization, e.g. colored icon-style
-tiles), demonstrating resizing (column count changing live) and click-to-select highlighting.
+Two new samples added to Shared Samples (same precedent as `SplitPaneDemo`/`ExpanderDemo`/`SelectorDemo`):
+`WrapGridDemo` (a scrollable grid of a few dozen icon-style tiles, exercising virtualization and resizing/
+reflow) and `ListBoxDemo` (a scrollable list of selectable rows).
 
 ## Testing
 
-- Defaults: `SelectedIndex == -1`, `SelectedItem == null`, `ItemWidth`/`ItemHeight` at their `64f` default.
-- `ItemWidth`/`ItemHeight` setters: `Guard.IsGreaterThan` rejects `<= 0`; changing either triggers a full
-  re-realize with correctly recomputed positions.
-- `ColumnsPerRow`/`RowCount`/`ExtentHeight` arithmetic across several `ContentBounds.Width`/`ItemCount`
-  combinations, including the exact worked example in §2 (a concrete regression anchor, not just a formula
-  restated as a test).
-- `OnViewportChanged` realizes exactly the expected index range for a given offset/viewport (matching §2's
-  worked example precisely) and de-realizes everything outside it on scroll.
-- Resizing `ContentBounds.Width` (e.g. simulating a container resize) changes `ColumnsPerRow` and correctly
-  re-flows already-realized items to their new row/column without requiring a scroll.
-- Selection: `SelectedIndex`/`SelectedItem` stay in sync both directions; `SelectorItem.IsSelected` is set/
-  cleared correctly on both the old and new selected container when realized, and survives a
-  derealize/re-realize (pool-and-reuse) cycle without re-selecting, matching `Selector`'s own precedent
-  test shape.
-- Tap-to-select: a simulated tap on a realized `SelectorItem` (via `Canvas`'s normal per-element `OnTap`
-  dispatch, not a manual `HitTest` workaround) sets `SelectedIndex` to that item's index.
-- `SelectorItem.Tapped`: fires on `OnTap()`, doesn't fire for an unrelated element's tap.
-- `ItemsSource` reactivity: `Add`/`Remove`/`Replace`/`Move`/`Reset` on an `ObservableCollection` source each
-  trigger a correct full re-realize (right `ItemCount`, right items at each index afterward) - deliberately
-  not testing "did it avoid re-realizing unaffected items," since it deliberately doesn't.
-- `PoolingEnabled`: a de-realized-then-re-realized-with-the-same-template item reuses a pooled container
-  rather than building a fresh one (same assertion shape `ItemsControlTests`' own pooling test uses).
-- Integration: hosted inside a real `ScrollViewer`, virtualization actually engages (only the visible range
-  is ever realized for a large `ItemsSource`), matching `ItemsControl`'s own `ScrollViewer`-hosted test
-  precedent.
-- Manual smoke test (both engines, per `[[feedback_smoke_test_notification]]`): scrolling a large item
-  count stays smooth with only the visible band realized, resizing the host reflows columns live, tap
-  selection highlights correctly, no visual seams/gaps between cells.
+- **`ItemsControl` regression**: the full existing `ItemsControlTests`/`SelectorTests`/`DropdownTests`/
+  `ComboBoxTests` suites pass unchanged after the visibility-widening changes in §1 - this is the primary
+  confirmation that §1 is truly behavior-preserving, not just an inspection claim.
+- **`SelectingItemsControl`** (own new test file, via a `TestSelectingItemsControl : SelectingItemsControl`
+  double mirroring `SelectorTests.TestSelector`'s existing pattern): defaults (`SelectedIndex == -1`,
+  `SelectedItem == null`); validated range guard; `SelectedIndex`/`SelectedItem` sync both directions;
+  `SelectionChanged` fires once per real change; `CreateContainer` realizes `SelectorItem`s; selection state
+  survives a pool-and-reuse cycle.
+- **`Selector`/`Dropdown`/`ComboBox`**: existing test suites re-run unchanged post-extraction (regression
+  coverage that the hoist didn't alter behavior) - `UpdateSelectedValue`'s new `OnSelectionChanged()`-driven
+  call path (§2) specifically covered by the existing `SelectedValuePath`-resolution tests still passing
+  unmodified, confirming the hook fires at the same point in the sequence the old inline call did.
+- **`WrapGrid`**: `ItemWidth`/`ItemHeight` validation; `ColumnsPerRow`/`ComputeExtentHeight` arithmetic
+  across several width/count combinations including the exact §3 worked example; `LocateViewportStart`/
+  `RealizeRange` realize exactly the expected index range for a given offset/viewport (matching the worked
+  example); resizing `ContentBounds.Width` reflows already-realized items without requiring a scroll;
+  selection sync + pool-survival; tap-to-select via `SelectorItem.Tapped`; `ItemsSource` `Add`/`Remove`/
+  `Replace`/`Move`/`Reset` each trigger a correct full re-realize; `PoolingEnabled` reuse; hosted inside a
+  real `ScrollViewer`, only the visible range is ever realized for a large source.
+- **`ListBox`**: defaults; selection sync + pool-survival (inherited `SelectingItemsControl` behavior,
+  confirmed working through `ListBox` specifically, not just assumed from `SelectingItemsControl`'s own
+  tests); tap-to-select; `ItemsSource` reactivity uses `ItemsControl`'s existing *incremental* Add/Remove/
+  Replace/Move handling correctly (unlike `WrapGrid`, this should NOT trigger a full re-realize - a
+  regression test confirming `ListBox` actually inherits the cheaper incremental path, not a full recompute).
+- Manual smoke test (both engines, per `[[feedback_smoke_test_notification]]`): `WrapGrid` scrolling/reflow/
+  selection as before; `ListBox` scrolling/selection; confirm the whole `Selector`/`Dropdown`/`ComboBox`
+  popup stack still behaves identically post-refactor (open/close, nav, filtering, typeahead).
 
 ## Critical files
 
-**New:** `sources/IcyUI/UI/Controls/WrapGrid.cs`, `sources/IcyUI.Tests/Controls/WrapGridTests.cs`,
-`sources/Shared Samples/WrapGridDemo.cs`.
+**New:** `sources/IcyUI/UI/Controls/SelectingItemsControl.cs`, `sources/IcyUI/UI/Controls/WrapGrid.cs`,
+`sources/IcyUI/UI/Controls/ListBox.cs`, `sources/IcyUI.Tests/Controls/SelectingItemsControlTests.cs`,
+`sources/IcyUI.Tests/Controls/WrapGridTests.cs`, `sources/IcyUI.Tests/Controls/ListBoxTests.cs`,
+`sources/Shared Samples/WrapGridDemo.cs`, `sources/Shared Samples/ListBoxDemo.cs`.
 
-**Modified:** `sources/IcyUI/UI/Controls/SelectorItem.cs` (new `Tapped` event + `OnTap()` override -
-additive, no behavior change for existing `Selector`/`Dropdown`/`ComboBox` consumers).
+**Modified:** `sources/IcyUI/UI/Controls/ItemsControl.cs` (§1 visibility widening),
+`sources/IcyUI/UI/Controls/Selector.cs` (§2 extraction - declarations removed, base type changed, nothing
+else), `sources/IcyUI/UI/Controls/SelectorItem.cs` (new `Tapped` event + `OnTap()` override),
+`sources/IcyUI.Tests/Controls/SelectorTests.cs` (regression re-verification, `SelectedValue`-timing test).
 
-**Untouched (confirmed, not just assumed):** `sources/IcyUI/UI/Controls/ItemsControl.cs`,
+**Untouched (confirmed, not just assumed):** `sources/IcyUI/UI/Controls/Dropdown.cs`,
+`sources/IcyUI/UI/Controls/ComboBox.cs`, `sources/IcyUI/UI/Controls/ItemContainer.cs`,
 `sources/IcyUI/UI/Controls/ScrollViewer.cs` (its existing generic `IVirtualizingScrollInfo` delegation
-already covers `WrapGrid` with no change), `sources/IcyUI/UI/Canvas.cs`.
+already covers `WrapGrid`/`ListBox` with no change), `sources/IcyUI/UI/Canvas.cs`.
 
 ## Open items for implementation planning (not blocking spec approval)
 
 - `ItemWidth`/`ItemHeight`'s `64f` default is a reasonable icon-grid-ish placeholder, not a carefully
   chosen constant - fine to adjust freely at implementation time, same status `DefaultEstimatedItemHeight`'s
   `40f` and `MaxDropDownHeight`'s `200f` had in their own specs.
-- The tap-vs-drag-start gesture disambiguation (Decisions table) should get a quick behavioral check once
-  a real `IDragSource`-implementing item exists to test against - expected to already work correctly given
-  the existing gesture pipeline, but not empirically confirmed as part of this design.
-- Keyboard/gamepad grid navigation (Decisions table) is explicitly deferred, not designed here - if a
-  concrete need shows up later, it gets its own design discussion rather than being retrofitted from this
-  spec's assumptions.
+- The tap-vs-drag-start gesture disambiguation for a future draggable grid item should get a quick
+  behavioral check once a real `IDragSource`-implementing item exists to test against - expected to already
+  work correctly given the existing gesture pipeline, not empirically confirmed as part of this design.
+- Keyboard/gamepad navigation (Decisions table) is explicitly deferred for both controls - if a concrete
+  need shows up later, it gets its own design discussion.
+- Whether `ListBox` should later gain `SelectionMode` (multi-select) is unscoped - v1 is single-select only,
+  matching what was actually asked for.
