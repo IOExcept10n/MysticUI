@@ -53,9 +53,25 @@ namespace Icy.UI.Controls
 
         private float sumOfKnownHeights;
         private int knownCount;
+
+        /// <summary>
+        /// The horizontal scroll offset, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
         protected float horizontalOffset;
+
+        /// <summary>
+        /// The vertical scroll offset, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
         protected float verticalOffset;
+
+        /// <summary>
+        /// The visible viewport width, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
         protected float viewportWidth;
+
+        /// <summary>
+        /// The visible viewport height, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
         protected float viewportHeight;
 
         // anchorIndex/anchorOffset track the item at the top of the viewport - anchorIndex is read by
@@ -107,6 +123,7 @@ namespace Icy.UI.Controls
         /// Computes <see cref="ExtentHeight"/> - the running-average single-column estimate by default. A subclass
         /// with different virtualization geometry (e.g. a uniform grid) overrides this with its own formula instead.
         /// </summary>
+        /// <returns>The total height of all items in the collection, estimated via a running average of known heights.</returns>
         protected virtual float ComputeExtentHeight() => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
 
         /// <summary>
@@ -335,6 +352,7 @@ namespace Icy.UI.Controls
         /// anchor for a small scroll delta, or a direct estimate for a big jump (spec §5).
         /// A subclass with different virtualization geometry overrides this to replace the algorithm entirely.
         /// </summary>
+        /// <returns>A tuple containing the index of the first item to realize and the pixel offset of its top edge.</returns>
         protected virtual (int Index, float Offset) LocateViewportStart()
         {
             float distanceFromAnchor = Math.Abs(verticalOffset - anchorOffset);
@@ -369,6 +387,8 @@ namespace Icy.UI.Controls
         /// realized container, and de-realizes anything realized but no longer in range.
         /// A subclass with different virtualization geometry overrides this to replace the algorithm entirely.
         /// </summary>
+        /// <param name="firstIndex">The index of the first item to realize in this range walk.</param>
+        /// <param name="firstOffset">The pixel offset of the top edge of the first item to realize.</param>
         protected virtual void RealizeRange(int firstIndex, float firstOffset)
         {
             const float ScrollAheadBuffer = 100f;
@@ -516,6 +536,7 @@ namespace Icy.UI.Controls
         /// Realizes <paramref name="index"/> if it isn't already, wiring it into the visual tree, measuring it,
         /// and folding its real height into the height cache (see <see cref="RecordHeight(int, float)"/>).
         /// </summary>
+        /// <param name="index">The index of the item to ensure is realized.</param>
         protected void EnsureRealized(int index)
         {
             if (realizedContainers.ContainsKey(index))
@@ -537,6 +558,7 @@ namespace Icy.UI.Controls
         /// any final size change into the height cache, see the Phase 2 design spec §6), detaches it, and returns
         /// it to its template's pool when <see cref="PoolingEnabled"/>.
         /// </summary>
+        /// <param name="index">The index of the item to derealize.</param>
         protected void Derealize(int index)
         {
             if (!realizedContainers.Remove(index, out ItemContainer? container))
