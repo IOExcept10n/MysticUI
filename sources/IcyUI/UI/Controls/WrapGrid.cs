@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup.Attributes;
 
@@ -79,5 +80,51 @@ namespace Icy.UI.Controls
         /// <inheritdoc/>
         protected override float ComputeExtentHeight() =>
             (float)Math.Ceiling(ItemCount / (float)ColumnsPerRow) * ItemHeight;
+
+        /// <inheritdoc/>
+        protected override (int Index, float Offset) LocateViewportStart()
+        {
+            if (ItemCount == 0)
+                return (0, 0f);
+
+            int row = (int)(verticalOffset / ItemHeight);
+            int index = Math.Clamp(row * ColumnsPerRow, 0, ItemCount - 1);
+            return (index, row * ItemHeight);
+        }
+
+        /// <inheritdoc/>
+        protected override void RealizeRange(int firstIndex, float firstOffset)
+        {
+            const float ScrollAheadBuffer = 100f;
+            int columnsPerRow = ColumnsPerRow;
+            float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
+            int lastRow = (int)(rangeEnd / ItemHeight);
+            int lastIndex = Math.Min(ItemCount - 1, ((lastRow + 1) * columnsPerRow) - 1);
+
+            var stillRealized = new HashSet<int>();
+            for (int index = firstIndex; index <= lastIndex; index++)
+            {
+                EnsureRealized(index);
+                stillRealized.Add(index);
+
+                int row = index / columnsPerRow;
+                int column = index % columnsPerRow;
+                var targetRect = new Rectangle(
+                    ContentBounds.X + (int)(column * ItemWidth),
+                    ContentBounds.Y + (int)((row * ItemHeight) - verticalOffset),
+                    (int)ItemWidth,
+                    (int)ItemHeight);
+
+                ItemContainer container = realizedContainers[index];
+                container.InvalidateArrange();
+                container.Arrange(targetRect);
+            }
+
+            foreach (int realizedIndex in realizedContainers.Keys.ToList())
+            {
+                if (!stillRealized.Contains(realizedIndex))
+                    Derealize(realizedIndex);
+            }
+        }
     }
 }
