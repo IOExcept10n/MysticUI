@@ -20,6 +20,14 @@ namespace Icy.UI.Controls
     /// </remarks>
     public abstract class SelectingItemsControl : ItemsControl
     {
+        /// <summary>
+        /// Reverse lookup from a realized <see cref="SelectorItem"/> back to the item index it's currently
+        /// showing, so <see cref="Container_Tapped"/> can turn a tap on the container into a
+        /// <see cref="SelectedIndex"/> assignment. Kept in sync by <see cref="AttachContainer(ItemContainer, int)"/>/
+        /// <see cref="DetachContainer(ItemContainer)"/>.
+        /// </summary>
+        private readonly Dictionary<SelectorItem, int> containerIndices = [];
+
         private int selectedIndex = -1;
         private object? selectedItem;
 
@@ -86,12 +94,36 @@ namespace Icy.UI.Controls
         /// pool-and-reuse cycle. <see cref="Selector"/> overrides this again itself, to route into its popup
         /// host instead of this base's default parenting.
         /// </summary>
+        /// <remarks>
+        /// Also wires up click-to-select: subscribes <see cref="SelectorItem.Tapped"/> (handled by
+        /// <see cref="Container_Tapped"/>) and records <paramref name="index"/> in <see cref="containerIndices"/>
+        /// so the handler can look it back up. This is inert for <see cref="Selector"/> and its subclasses
+        /// (<see cref="Dropdown"/>, <see cref="ComboBox"/>), since their own <c>AttachContainer</c> override
+        /// doesn't call this base implementation.
+        /// </remarks>
         /// <param name="container">The freshly realized container.</param>
         /// <param name="index">The item index <paramref name="container"/> was realized for.</param>
         protected override void AttachContainer(ItemContainer container, int index)
         {
             base.AttachContainer(container, index);
-            ((SelectorItem)container).IsSelected = index == SelectedIndex;
+            var item = (SelectorItem)container;
+            item.IsSelected = index == SelectedIndex;
+            item.Tapped += Container_Tapped;
+            containerIndices[item] = index;
+        }
+
+        /// <summary>
+        /// Exact inverse of <see cref="AttachContainer(ItemContainer, int)"/>'s click-to-select wiring -
+        /// unsubscribes <see cref="SelectorItem.Tapped"/> and forgets <paramref name="container"/>'s
+        /// <see cref="containerIndices"/> entry before deferring to the base detach.
+        /// </summary>
+        /// <param name="container">The container being de-realized.</param>
+        protected override void DetachContainer(ItemContainer container)
+        {
+            var item = (SelectorItem)container;
+            item.Tapped -= Container_Tapped;
+            containerIndices.Remove(item);
+            base.DetachContainer(container);
         }
 
         /// <summary>
@@ -104,6 +136,18 @@ namespace Icy.UI.Controls
         /// </summary>
         protected virtual void OnSelectionChanged()
         {
+        }
+
+        /// <summary>
+        /// Handles a realized <see cref="SelectorItem"/>'s <see cref="SelectorItem.Tapped"/> event by setting
+        /// <see cref="SelectedIndex"/> to the item's current index, looked up via <see cref="containerIndices"/>.
+        /// </summary>
+        /// <param name="sender">The tapped <see cref="SelectorItem"/>.</param>
+        /// <param name="e">Unused.</param>
+        private void Container_Tapped(object? sender, EventArgs e)
+        {
+            if (sender is SelectorItem item && containerIndices.TryGetValue(item, out int index))
+                SelectedIndex = index;
         }
     }
 }
