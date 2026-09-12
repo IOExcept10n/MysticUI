@@ -38,6 +38,53 @@ namespace Icy.Tests.Controls
             Assert.Throws<ArgumentOutOfRangeException>(() => grid.ItemHeight = 0f);
         }
 
+        [Fact]
+        public void ComputeExtentHeight_MatchesTheWorkedExampleInTheSpec()
+        {
+            // ItemWidth = ItemHeight = 64 (default), ContentBounds.Width = 400 -> ColumnsPerRow = 6 (400/64 = 6.25 floors
+            // to 6). ItemCount = 100 -> ExtentHeight = ceil(100/6)*64 = 17*64 = 1088.
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 100).Cast<object>().ToList(),
+                Width = 400,
+            };
+            ArrangeAtWidth(grid, 400);
+
+            Assert.Equal(6, InvokeColumnsPerRow(grid));
+            Assert.Equal(1088f, grid.ExtentHeight);
+        }
+
+        [Fact]
+        public void ComputeExtentHeight_ExactMultipleOfColumnsPerRow_NoPartialRow()
+        {
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 12).Cast<object>().ToList(),
+                Width = 400, // ColumnsPerRow = 6, 12 items = exactly 2 full rows
+            };
+            ArrangeAtWidth(grid, 400);
+
+            Assert.Equal(2 * 64f, grid.ExtentHeight);
+        }
+
+        [Fact]
+        public void ColumnsPerRow_NarrowerThanOneItem_ClampsToOne()
+        {
+            var grid = new WrapGrid { ItemsSource = new List<object> { "a" }, Width = 30 };
+            ArrangeAtWidth(grid, 30);
+
+            Assert.Equal(1, InvokeColumnsPerRow(grid));
+        }
+
+        private static void ArrangeAtWidth(UIElement element, int width)
+        {
+            element.Measure();
+            element.Arrange(new Rectangle(0, 0, width, 1000));
+        }
+
+        private static int InvokeColumnsPerRow(WrapGrid grid) =>
+            (int)typeof(WrapGrid).GetProperty("ColumnsPerRow", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(grid)!;
+
         private static DataTemplate LoadDataTemplate(string markup)
         {
             var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());

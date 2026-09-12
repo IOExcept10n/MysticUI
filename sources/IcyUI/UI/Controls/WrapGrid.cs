@@ -75,5 +75,9 @@ namespace Icy.UI.Controls
         /// <see cref="ItemWidth"/> exceeds the available width.
         /// </summary>
         private int ColumnsPerRow => Math.Max(1, (int)(ContentBounds.Width / ItemWidth));
+
+        /// <inheritdoc/>
+        protected override float ComputeExtentHeight() =>
+            (float)Math.Ceiling(ItemCount / (float)ColumnsPerRow) * ItemHeight;
     }
 }
