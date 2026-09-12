@@ -56,7 +56,7 @@ namespace Icy.Tests.Controls
             Assert.True(((SelectorItem)GetRealizedContainers(listBox)[0]).IsSelected);
         }
 
-        [Fact(Skip = "TODO: Debug canvas tap routing to SelectorItem.Tapped")]
+        [Fact]
         public void TappingARealizedItem_SelectsIt()
         {
             var (canvas, input) = CreateCanvas();
@@ -64,15 +64,12 @@ namespace Icy.Tests.Controls
             {
                 ItemsSource = new List<object> { "a", "b", "c" },
                 ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
-                Width = 100,
-                Height = 100,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
             };
-            canvas.Add(listBox);
+            var scrollViewer = new ScrollViewer { Content = listBox, Width = 100, Height = 100, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(scrollViewer);
             canvas.Render();
 
-            Point tapPoint = new(listBox.ActualBounds.X + 5, listBox.ActualBounds.Y + 25); // second row (20px each)
+            Point tapPoint = new(scrollViewer.ActualBounds.X + 5, scrollViewer.ActualBounds.Y + 25); // second row (20px each)
             input.Events.Touch.RaiseTap(new Icy.Input.Events.TouchInfo(tapPoint, 1));
 
             Assert.Equal(1, listBox.SelectedIndex);
