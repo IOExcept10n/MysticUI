@@ -403,3 +403,6 @@ FodyWeavers.xsd
 
 # Git worktrees (local scratch, not part of the repo)
 /.worktrees/
+
+# Subagent-driven-development scratch workspace (local scratch, not part of the repo)
+/.superpowers/
