@@ -155,12 +155,21 @@
   <!-- SelectorItem -->
   <Style TargetType="SelectorItem" Background="Transparent" Padding="8,6">
     <Style.StateGroups>
+      <!-- One shared group, not "Hovered" split off into its own group as before - every VisualState here sets
+           Background, and UIElement's VisualState-tier property storage is one flat slot per property shared
+           across every group on the element, not isolated per group. Two groups both touching Background meant
+           leaving the item (clearing the "Hovered" group's own state) cleared that shared slot outright, wiping
+           out "Selected"/"Highlighted"'s Background even though its own group's active state never changed -
+           SelectorItem's selection highlight visibly vanished the moment the pointer moved off a selected item.
+           Explicit Selected+Hovered/Highlighted+Hovered compound states (bit count 2, so ApplyBestMatchingState's
+           "largest subset wins" rule always prefers them over plain "Hovered" alone, bit count 1) keep the
+           selection color showing through hover instead of losing to whichever state a tie would pick. -->
       <VisualStateGroup Name="CommonStates">
         <VisualState Name="Hovered" State="Hovered" Background="#FF33333E"/>
-      </VisualStateGroup>
-      <VisualStateGroup Name="SelectionStates">
         <VisualState Name="Selected" State="Selected" Background="#FF3C78D8"/>
+        <VisualState Name="SelectedHovered" State="Selected,Hovered" Background="#FF3C78D8"/>
         <VisualState Name="Highlighted" State="Highlighted" Background="#FF46465A"/>
+        <VisualState Name="HighlightedHovered" State="Highlighted,Hovered" Background="#FF46465A"/>
       </VisualStateGroup>
     </Style.StateGroups>
   </Style>

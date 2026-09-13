@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Drawing;
 using System.Reflection;
 using Icy.Assets;
 using Icy.Configuration;
@@ -7,6 +8,7 @@ using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
@@ -94,6 +96,27 @@ namespace Icy.Tests.Controls
             AssertOpaque(comboBox.PopupBackground);
             AssertOpaque(comboBox.PopupBorderBrush);
             Assert.True(comboBox.PopupBorderThickness.Left > 0);
+        }
+
+        [Fact]
+        public void ThemedSelectorItem_KeepsSelectedBackground_AfterHoverLeaves()
+        {
+            // Regression: SelectorItem's theme used to put "Hovered" in its own VisualStateGroup, separate from
+            // "Selected"/"Highlighted" - clearing that group's own state when the pointer left cleared the single
+            // shared VisualState-tier slot Background lives in (see ApplyBestMatchingState's remarks), wiping out
+            // Selected's Background too even though the Selected group's own active state never changed and so
+            // never got a chance to reapply it.
+            var canvas = CreateThemedCanvas();
+            var item = new SelectorItem { IsSelected = true };
+            canvas.Add(item);
+            canvas.Render();
+
+            Color selectedBackground = Assert.IsType<SolidColorBrush>(item.Background).Color;
+
+            item.ControlState |= ControlState.Hovered;
+            item.ControlState &= ~ControlState.Hovered;
+
+            Assert.Equal(selectedBackground, Assert.IsType<SolidColorBrush>(item.Background).Color);
         }
 
         private static Canvas CreateThemedCanvas()
