@@ -68,8 +68,11 @@ namespace Icy.UI.Controls
             // restores focus for it, consuming the one-shot scopeReturnFocus entry as it does. So this handler
             // must NOT also call CloseFocusScope for the common case (that would find the entry already gone and
             // clear focus to null instead of leaving it restored) - and it must only react at all when THIS
-            // dialog is the topmost one, so one Escape press doesn't close every currently-open Dialog at once.
-            if (shownOnCanvas is { } canvas && canvas.Overlays.OfType<Dialog>().LastOrDefault() == this)
+            // dialog is the topmost overlay of any kind, so one Escape press doesn't close every currently-open
+            // Dialog at once, AND doesn't close this dialog out from under a nested ComboBox/Dropdown popup that
+            // Escape should only close by itself (popups are also Canvas.Overlays entries, added after this
+            // dialog - see Selector.cs's own AddOverlay call - so when one's open it's topmost, not this dialog).
+            if (shownOnCanvas is { } canvas && canvas.Overlays.LastOrDefault() == this)
                 Close(restoreFocus: false);
         }
 
@@ -163,8 +166,8 @@ namespace Icy.UI.Controls
                 return;
 
             completionSource = null;
-            source.SetResult(result);
             dialog.Close();
+            source.SetResult(result);
         }
     }
 }

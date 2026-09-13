@@ -1,10 +1,13 @@
+using System.Collections.Generic;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Input.Events;
+using Icy.Markup;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
@@ -230,6 +233,53 @@ namespace Icy.Tests.Controls
             Assert.True(first.IsOpen);
             Assert.Single(canvas.Overlays);
             Assert.Contains(first, canvas.Overlays);
+        }
+
+        [Fact]
+        public void CloseModal_WithOpenDropdownPopupInsideDialog_ClosesOnlyThePopup_NotTheDialog()
+        {
+            var (canvas, input) = CreateCanvas();
+
+            // An ItemTemplate is required here purely so the popup can realize its containers when opened below
+            // (Dropdown has no default ItemTemplate of its own - see DefaultTheme.xml's Dropdown Style - and this
+            // test uses the plain, unthemed CreateCanvas, so there's no theme-supplied one either); it has nothing
+            // to do with what this test is actually verifying (Escape closing the popup, not the dialog).
+            //
+            // IsFocusable starts false and is flipped to true (with an explicit Focus call) only after Show()
+            // returns - deliberately, not just for style: Dropdown defaults IsFocusable to true, and Dialog.Show
+            // auto-focuses the first focusable descendant of its content as part of the SAME call that later
+            // subscribes the dialog's own OnCloseModal handler - so if the dropdown were already focusable when
+            // Show() ran, its Selector base would auto-subscribe its own (focus-gated) CloseModal handler *before*
+            // Dialog's, making Selector's handler close the popup first and leaving Dialog's widened topmost-overlay
+            // check to observe a stale, already-collapsed Overlays list. Deferring focus until after Show() returns
+            // subscribes Dialog's handler first - matching the ordering a dialog with more than one focusable
+            // descendant (the common case) would naturally have - so this test observes the intended interaction:
+            // Dialog's check runs first (with the popup still topmost, so it does not close), then Selector's own
+            // handler runs and closes just the popup.
+            var dropdown = new Dropdown
+            {
+                ItemsSource = new List<object> { "One", "Two" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                IsFocusable = false,
+            };
+            var dialog = new Dialog { Content = dropdown };
+            dialog.Show(canvas);
+
+            dropdown.IsFocusable = true;
+            canvas.Focus(dropdown);
+            dropdown.IsOpen = true;
+
+            input.Events.Navigation.RaiseCloseModal();
+
+            Assert.False(dropdown.IsOpen);
+            Assert.True(dialog.IsOpen);
+        }
+
+        private static DataTemplate LoadDataTemplate(string markup)
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var loader = new MarkupLoader(configuration);
+            return (DataTemplate)loader.LoadObject(markup);
         }
 
         [Fact]

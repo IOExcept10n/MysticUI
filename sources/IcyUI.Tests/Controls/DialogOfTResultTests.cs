@@ -93,5 +93,27 @@ namespace Icy.Tests.Controls
             Assert.Equal(default, await task);
             Assert.False(dialog.IsOpen);
         }
+
+        [Fact]
+        public void Close_ChainedDialog_LeavesFocusInsideTheNewlyOpenedDialog()
+        {
+            var (canvas, _) = CreateCanvas();
+            var first = new Dialog<int>();
+            var second = new Dialog<int>();
+            var secondButton = new Button();
+            second.Content = secondButton;
+
+            var firstTask = first.ShowAsync(canvas);
+            // ExecuteSynchronously reproduces exactly what a real `await` continuation does when there's no
+            // SynchronizationContext (the common case for a MonoGame/Stride host): it runs inline, on the same
+            // thread, as part of SetResult - i.e. DURING Close(int), before Close(int) has finished tearing down
+            // `first`. This is deterministic regardless of the test runner's own ambient SynchronizationContext,
+            // unlike a real `await` chain would be.
+            firstTask.ContinueWith(_ => second.ShowAsync(canvas), TaskContinuationOptions.ExecuteSynchronously);
+
+            first.Close(1);
+
+            Assert.Same(secondButton, canvas.FocusedElement);
+        }
     }
 }
