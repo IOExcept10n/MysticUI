@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Markup;
@@ -117,6 +118,20 @@ namespace Icy.Tests.Controls
             InvokeEnsureRealized(control, 0);
 
             Assert.True(((SelectorItem)GetRealizedContainers(control)[0]).IsSelected);
+        }
+
+        [Fact]
+        public void SelectedIndex_ClearsWhenTheLiveCollectionShrinksPastIt()
+        {
+            var items = new ObservableCollection<object> { "a", "b", "c" };
+            var control = new TestSelectingItemsControl { ItemsSource = items };
+            control.SelectedIndex = 2;
+
+            items.RemoveAt(2);
+            items.RemoveAt(1);
+
+            Assert.Equal(-1, control.SelectedIndex);
+            Assert.Null(control.SelectedItem);
         }
 
         [Fact]

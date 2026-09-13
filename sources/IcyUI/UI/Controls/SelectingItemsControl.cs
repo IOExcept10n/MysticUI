@@ -24,9 +24,12 @@ namespace Icy.UI.Controls
         /// Reverse lookup from a realized <see cref="SelectorItem"/> back to the item index it's currently
         /// showing, so <see cref="Container_Tapped"/> can turn a tap on the container into a
         /// <see cref="SelectedIndex"/> assignment. Kept in sync by <see cref="AttachContainer(ItemContainer, int)"/>/
-        /// <see cref="DetachContainer(ItemContainer)"/>.
+        /// <see cref="DetachContainer(ItemContainer)"/>. <c>protected</c> rather than <see langword="private"/> so
+        /// <see cref="Selector"/> - whose own <c>AttachContainer</c>/<c>DetachContainer</c> override never calls
+        /// this base implementation - can reuse the same map for its own (differently-triggered) tap handling
+        /// instead of keeping a second, identically-shaped duplicate.
         /// </summary>
-        private readonly Dictionary<SelectorItem, int> containerIndices = [];
+        protected readonly Dictionary<SelectorItem, int> containerIndices = [];
 
         private int selectedIndex = -1;
         private object? selectedItem;
@@ -136,6 +139,19 @@ namespace Icy.UI.Controls
         /// </summary>
         protected virtual void OnSelectionChanged()
         {
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Clears <see cref="SelectedIndex"/> (and <see cref="SelectedItem"/> with it) when the item it pointed to
+        /// no longer exists because the live <see cref="ItemsControl.ItemsSource"/> shrank out from under it - the
+        /// setter's own <see cref="ArgumentOutOfRangeException"/> guard only catches a caller assigning an
+        /// out-of-range value directly, not a bound collection later removing the selected item.
+        /// </remarks>
+        protected override void OnItemsChanged()
+        {
+            if (SelectedIndex >= ItemCount)
+                SelectedIndex = -1;
         }
 
         /// <summary>

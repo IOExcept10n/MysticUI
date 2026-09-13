@@ -38,8 +38,13 @@ Three real findings shaped this design, each verified against the actual current
    (via the new `SelectingItemsControl` base) and click-to-select wiring on top - the smallest of the three
    new/changed classes here by a wide margin.
 
-**No cross-engine impact.** Pure core-`IcyUI` work, same as every prior Tier-2 phase - `IcyUI.MonoGame`/
-`IcyUI.Stride` untouched, `IcyUI.FNA` (still an unimplemented stub) needs no equivalent work.
+**Cross-engine impact.** `WrapGrid`/`SelectingItemsControl`/`ListBox` themselves are pure core-`IcyUI` work, same
+as every prior Tier-2 phase. The one engine-touching step is the final task, which registers `WrapGridDemo`/
+`ListBoxDemo` as selectable samples in both `IcyUI.MonoGame`'s and `IcyUI.Stride`'s sample hosts - each engine's
+own `SampleGame.cs`/`.csproj` gets the same two-demo addition independently, since neither shares code with the
+other. `IcyUI.FNA` is still an unimplemented stub with no sample host to register into, so it needs no equivalent
+work *now* - but it stands to reason it will need the same demo registration once `IcyUI.FNA` gains a real sample
+host of its own.
 
 ## Decisions
 

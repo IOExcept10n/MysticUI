@@ -288,6 +288,68 @@ namespace Icy.Tests.Controls
             Assert.True(realized.Count < 200, $"expected far fewer than 10000 realized, got {realized.Count}");
         }
 
+        [Fact]
+        public void ComputeExtentHeight_BeforeFirstArrange_ReturnsZero_NotASingleColumnGuess()
+        {
+            // ContentBounds.Width is still 0 before any Arrange has ever run - ColumnsPerRow must not silently
+            // assume a single column and report a wildly-oversized extent for that transient state.
+            var grid = new WrapGrid { ItemsSource = Enumerable.Range(0, 100).Cast<object>().ToList() };
+
+            Assert.Equal(0f, grid.ExtentHeight);
+        }
+
+        [Fact]
+        public void ColumnsPerRow_RoundingSafe_DoesNotUnderCountFromFloatingPointImprecision()
+        {
+            // 87 / 5.8 is mathematically exactly 15, but float32 division yields ~14.999999 - a naive (int)
+            // truncation would silently lose a column.
+            var grid = new WrapGrid { ItemsSource = new List<object> { "a" }, ItemWidth = 5.8f, Width = 87 };
+            ArrangeAtWidth(grid, 87);
+
+            Assert.Equal(15, InvokeColumnsPerRow(grid));
+        }
+
+        [Fact]
+        public void OnViewportChanged_NegativeVerticalOffset_StillRealizesTheFirstRow_InsteadOfGoingBlank()
+        {
+            var template = LoadDataTemplate("""<DataTemplate><Border/></DataTemplate>""");
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 20).Cast<object>().ToList(),
+                ItemTemplate = template,
+                ItemWidth = 50,
+                ItemHeight = 30,
+                Width = 200, // ColumnsPerRow = 4
+            };
+            ArrangeAtWidth(grid, 200);
+
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, -500f, 200, 100);
+
+            Assert.NotEmpty(GetRealizedContainers(grid).Keys);
+        }
+
+        [Fact]
+        public void RealizingItems_DoesNotPopulateTheInheritedSingleColumnHeightCache()
+        {
+            // Content taller than ItemHeight - if the base's single-column height-cache correction were still
+            // active for WrapGrid, this mismatch is exactly what would (mis)trigger it.
+            var template = LoadDataTemplate("""<DataTemplate><Border Height="200"/></DataTemplate>""");
+            var grid = new WrapGrid
+            {
+                ItemsSource = Enumerable.Range(0, 20).Cast<object>().ToList(),
+                ItemTemplate = template,
+                ItemWidth = 50,
+                ItemHeight = 30,
+                Width = 200, // ColumnsPerRow = 4
+            };
+            ArrangeAtWidth(grid, 200);
+
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 0, 200, 100);
+            ((IVirtualizingScrollInfo)grid).OnViewportChanged(0, 5000, 200, 100); // scroll far - derealizes the top rows
+
+            Assert.All(GetKnownHeights(grid), Assert.Null);
+        }
+
         private static (Canvas Canvas, FakeInputSystem Input) CreateCanvas(int viewportWidth = 800, int viewportHeight = 600)
         {
             var input = new FakeInputSystem();
@@ -299,6 +361,9 @@ namespace Icy.Tests.Controls
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
             (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
+
+        private static List<float?> GetKnownHeights(ItemsControl control) =>
+            (List<float?>)typeof(ItemsControl).GetField("knownHeights", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
 
         private static void ArrangeAtWidth(UIElement element, int width)
         {

@@ -248,14 +248,16 @@ namespace Icy.UI.Controls
                     matches.Add(item);
             }
 
-            base.ItemsSource = matches;
-
-            // Suppressed: this assignment reflects the filtered subset's own selection state (see the class
-            // remarks on ItemsSource), not a genuine user commit - without this guard, the SelectionChanged
+            // Suppressed starting here, not just around the SelectedItem assignment below: reassigning
+            // base.ItemsSource can itself clear a now-out-of-range SelectedIndex (see
+            // SelectingItemsControl.OnItemsChanged), which fires SelectionChanged just as unpromptedly as the
+            // restore assignment below - both reflect the filtered subset's own selection state (see the class
+            // remarks on ItemsSource), not a genuine user commit. Without suppressing both, the SelectionChanged
             // subscription above would overwrite lastCommittedItem with whatever this filtering pass happens to
             // leave selected (including null, on every keystroke that filters the committed item out), corrupting
             // the value RevertText/OnNavigationSelectElement rely on to restore full selection later.
             suppressSelectionChanged = true;
+            base.ItemsSource = matches;
             SelectedItem = lastCommittedItem != null && matches.Contains(lastCommittedItem) ? lastCommittedItem : null;
             suppressSelectionChanged = false;
 

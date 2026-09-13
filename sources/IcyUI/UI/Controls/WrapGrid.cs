@@ -2,7 +2,6 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
-using System.Linq;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup.Attributes;
 
@@ -75,11 +74,22 @@ namespace Icy.UI.Controls
         /// Gets how many cells fit per row at the control's current arranged width - at least <c>1</c>, even if
         /// <see cref="ItemWidth"/> exceeds the available width.
         /// </summary>
-        private int ColumnsPerRow => Math.Max(1, (int)(ContentBounds.Width / ItemWidth));
+        /// <remarks>
+        /// Adds a small epsilon before truncating: a width/<see cref="ItemWidth"/> ratio intended to land on an
+        /// exact integer (e.g. <c>87 / 5.8</c>) can otherwise come out a hair below it purely from float division
+        /// rounding, silently under-counting by one column.
+        /// </remarks>
+        private int ColumnsPerRow => Math.Max(1, (int)((ContentBounds.Width / ItemWidth) + 0.0001f));
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Returns <c>0</c> before this control's first <see cref="UIElement.Arrange(System.Drawing.Rectangle)"/> -
+        /// <see cref="Control.ContentBounds"/> is still empty then, and reporting <see cref="ColumnsPerRow"/>'s
+        /// single-column fallback as a real extent would wildly overstate it (e.g. ~5x too tall for a 5-column
+        /// grid) until the next layout pass corrects it.
+        /// </remarks>
         protected override float ComputeExtentHeight() =>
-            (float)Math.Ceiling(ItemCount / (float)ColumnsPerRow) * ItemHeight;
+            ContentBounds.Width <= 0 ? 0f : (float)Math.Ceiling(ItemCount / (float)ColumnsPerRow) * ItemHeight;
 
         /// <inheritdoc/>
         protected override (int Index, float Offset) LocateViewportStart()
@@ -93,19 +103,22 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <paramref name="firstOffset"/> is intentionally unused - unlike the base's variable-height walk, this
+        /// fixed-cell layout always re-derives the same value from <paramref name="firstIndex"/>/
+        /// <see cref="ItemHeight"/>/<c>ColumnsPerRow</c> directly (see the per-item <c>row</c> computation below),
+        /// so passing it through could only ever disagree with that computation, never usefully replace it.
+        /// </remarks>
         protected override void RealizeRange(int firstIndex, float firstOffset)
         {
-            const float ScrollAheadBuffer = 100f;
             int columnsPerRow = ColumnsPerRow;
             float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
-            int lastRow = (int)(rangeEnd / ItemHeight);
+            int lastRow = Math.Max(0, (int)(rangeEnd / ItemHeight));
             int lastIndex = Math.Min(ItemCount - 1, ((lastRow + 1) * columnsPerRow) - 1);
 
-            var stillRealized = new HashSet<int>();
             for (int index = firstIndex; index <= lastIndex; index++)
             {
                 EnsureRealized(index);
-                stillRealized.Add(index);
 
                 int row = index / columnsPerRow;
                 int column = index % columnsPerRow;
@@ -120,11 +133,20 @@ namespace Icy.UI.Controls
                 container.Arrange(targetRect);
             }
 
-            foreach (int realizedIndex in realizedContainers.Keys.ToList())
-            {
-                if (!stillRealized.Contains(realizedIndex))
-                    Derealize(realizedIndex);
-            }
+            DerealizeOutOfRange(index => index >= firstIndex && index <= lastIndex);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// No-op: this control's virtualization geometry (<see cref="ComputeExtentHeight"/>/
+        /// <see cref="LocateViewportStart"/>/<see cref="RealizeRange(int, float)"/>) never consults the base's
+        /// measured-height cache or its above-viewport anchor correction - every cell uses a fixed, known-upfront
+        /// <see cref="ItemWidth"/>x<see cref="ItemHeight"/> size instead. Folding a container's incidental measured
+        /// content height in here would misapply that correction to unrelated fixed-size geometry, causing spurious
+        /// scroll-position drift (see <see cref="ItemsControl.VerticalOffsetCorrectionRequested"/>).
+        /// </remarks>
+        protected override void RecordRealizedHeight(int index, float height)
+        {
         }
     }
 }

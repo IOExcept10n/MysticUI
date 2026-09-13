@@ -37,7 +37,6 @@ namespace Icy.UI.Controls
     {
         private const float DefaultMaxDropDownHeight = 200f;
 
-        private readonly Dictionary<SelectorItem, int> containerIndices = [];
         private readonly ToggleButton defaultToggle;
         private readonly Panel popupHost;
         private readonly Border popupRoot;

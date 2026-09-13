@@ -86,6 +86,14 @@ namespace Icy.UI.Controls
         // OnViewportChanged's own remarks for why the nested call must not re-enter the realize/de-realize logic.
         private bool isRealizingViewport;
 
+        /// <summary>
+        /// Scroll-ahead buffer, in pixels, added past the visible viewport before an item that's scrolled out is
+        /// de-realized - shared by this class's own <see cref="RealizeRange(int, float)"/> and any subclass that
+        /// overrides it with different geometry (e.g. a uniform grid), so the same forward-scroll headroom applies
+        /// everywhere without needing to be tuned in more than one place.
+        /// </summary>
+        protected const float ScrollAheadBuffer = 100f;
+
         /// <inheritdoc/>
         public event EventHandler<float>? VerticalOffsetCorrectionRequested;
 
@@ -391,7 +399,6 @@ namespace Icy.UI.Controls
         /// <param name="firstOffset">The pixel offset of the top edge of the first item to realize.</param>
         protected virtual void RealizeRange(int firstIndex, float firstOffset)
         {
-            const float ScrollAheadBuffer = 100f;
             float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
 
             var stillRealized = new HashSet<int>();
@@ -422,9 +429,21 @@ namespace Icy.UI.Controls
                 index++;
             }
 
+            DerealizeOutOfRange(stillRealized.Contains);
+        }
+
+        /// <summary>
+        /// De-realizes every currently realized index for which <paramref name="isStillInRange"/> returns
+        /// <see langword="false"/> - the shared trailing cleanup step of <see cref="RealizeRange(int, float)"/>,
+        /// factored out so a subclass with different virtualization geometry (e.g. a uniform grid) can reuse the
+        /// same de-realize sweep instead of re-implementing it.
+        /// </summary>
+        /// <param name="isStillInRange">Reports whether a currently realized index is still within range.</param>
+        protected void DerealizeOutOfRange(Func<int, bool> isStillInRange)
+        {
             foreach (int realizedIndex in realizedContainers.Keys.ToList())
             {
-                if (!stillRealized.Contains(realizedIndex))
+                if (!isStillInRange(realizedIndex))
                     Derealize(realizedIndex);
             }
         }
@@ -462,6 +481,18 @@ namespace Icy.UI.Controls
                 VerticalOffsetCorrectionRequested?.Invoke(this, delta);
             }
         }
+
+        /// <summary>
+        /// Folds a freshly measured (<see cref="EnsureRealized(int)"/>) or finally-measured
+        /// (<see cref="Derealize(int)"/>) item's height into the height cache via <see cref="RecordHeight(int, float)"/>
+        /// by default. A subclass whose virtualization geometry doesn't depend on measured content height (e.g. a
+        /// uniform grid, where every cell uses a fixed, known-upfront size) overrides this to no-op - honoring it
+        /// there would misapply the single-column height-cache's above-viewport anchor correction (see
+        /// <see cref="RecordHeight(int, float)"/>) to geometry it has no bearing on.
+        /// </summary>
+        /// <param name="index">The item index being realized or de-realized.</param>
+        /// <param name="height">The container's just-measured height.</param>
+        protected virtual void RecordRealizedHeight(int index, float height) => RecordHeight(index, height);
 
         /// <summary>
         /// Resolves the <see cref="DataTemplate"/> to use for <paramref name="item"/> -
@@ -550,7 +581,7 @@ namespace Icy.UI.Controls
             realizedContainers[index] = container;
 
             float measuredHeight = container.Measure().Height;
-            RecordHeight(index, measuredHeight);
+            RecordRealizedHeight(index, measuredHeight);
         }
 
         /// <summary>
@@ -566,7 +597,7 @@ namespace Icy.UI.Controls
 
             float finalHeight = container.Measure().Height;
             if (knownHeights[index] != finalHeight)
-                RecordHeight(index, finalHeight);
+                RecordRealizedHeight(index, finalHeight);
 
             DetachContainer(container);
 
@@ -578,6 +609,17 @@ namespace Icy.UI.Controls
             }
 
             containerTemplates.Remove(container);
+        }
+
+        /// <summary>
+        /// Called after <c>items</c> has been mutated by any means - a full <see cref="ItemsSource"/> reassignment
+        /// (<see cref="ResetItems"/>), a live incremental collection-change notification, or a full
+        /// <see cref="NotifyCollectionChangedAction.Reset"/> re-snapshot. Empty by default. A subclass with state
+        /// that depends on item identity/count (e.g. <see cref="SelectingItemsControl"/>'s
+        /// <see cref="SelectingItemsControl.SelectedIndex"/>) overrides this to keep it valid.
+        /// </summary>
+        protected virtual void OnItemsChanged()
+        {
         }
 
         private void ResetItems()
@@ -597,6 +639,7 @@ namespace Icy.UI.Controls
                 observedSource.CollectionChanged += OnSourceCollectionChanged;
 
             ResetRealization();
+            OnItemsChanged();
         }
 
         private void ResetRealization()
@@ -660,11 +703,13 @@ namespace Icy.UI.Controls
                     }
 
                     ResetRealization();
+                    OnItemsChanged();
                     return;
             }
 
             InvalidateMeasure();
             InvalidateArrange();
+            OnItemsChanged();
         }
 
         /// <summary>
