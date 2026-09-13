@@ -28,6 +28,7 @@
     <Compile Include="..\Shared Samples\SelectorDemo.cs" Link="SelectorDemo.cs" />
     <Compile Include="..\Shared Samples\WrapGridDemo.cs" Link="WrapGridDemo.cs" />
     <Compile Include="..\Shared Samples\ListBoxDemo.cs" Link="ListBoxDemo.cs" />
+    <Compile Include="..\Shared Samples\DialogDemo.cs" Link="DialogDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

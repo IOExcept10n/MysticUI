@@ -20,7 +20,7 @@ namespace Icy.StrideSample
     /// <see cref="StylesDemo"/>, <see cref="MarkupDemo"/>, <see cref="NavigationDemo"/>,
     /// <see cref="MarkupStylesDemo"/>, <see cref="ControlTemplateDemo"/>, <see cref="ItemsControlDemo"/>,
     /// <see cref="SplitPaneDemo"/>, <see cref="ExpanderDemo"/>, <see cref="SelectorDemo"/>, <see cref="WrapGridDemo"/>,
-    /// and <see cref="ListBoxDemo"/> - the same demos <c>MonoGame Sample</c>'s
+    /// <see cref="ListBoxDemo"/>, and <see cref="DialogDemo"/> - the same demos <c>MonoGame Sample</c>'s
     /// per-demo samples run - PageUp/PageDown/Shift+Tab
     /// cycles between them (Stride has no multi-sample runner like MonoGame's <c>SamplesRunner</c>, so this just
     /// toggles which demo root is visible).
@@ -47,6 +47,7 @@ namespace Icy.StrideSample
         private UIElement? selectorRoot;
         private UIElement? wrapGridRoot;
         private UIElement? listBoxRoot;
+        private UIElement? dialogRoot;
         private int selectedDemo;
 
         protected override void BeginRun()
@@ -90,6 +91,7 @@ namespace Icy.StrideSample
             selectorRoot = SelectorDemo.Build(configuration, "Airfool");
             wrapGridRoot = WrapGridDemo.Build(configuration, "Airfool");
             listBoxRoot = ListBoxDemo.Build(configuration, "Airfool");
+            dialogRoot = DialogDemo.Build(configuration, "Airfool");
             canvas.Add(controlsRoot);
             canvas.Add(stylesRoot);
             canvas.Add(markupRoot);
@@ -102,11 +104,12 @@ namespace Icy.StrideSample
             canvas.Add(selectorRoot);
             canvas.Add(wrapGridRoot);
             canvas.Add(listBoxRoot);
+            canvas.Add(dialogRoot);
             UpdateSelectedDemo();
 
             var switchDemo = new RelayCommand(() =>
             {
-                selectedDemo = (selectedDemo + 1) % 12;
+                selectedDemo = (selectedDemo + 1) % 13;
                 UpdateSelectedDemo();
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
@@ -145,6 +148,7 @@ namespace Icy.StrideSample
             selectorRoot!.IsVisible = selectedDemo == 9;
             wrapGridRoot!.IsVisible = selectedDemo == 10;
             listBoxRoot!.IsVisible = selectedDemo == 11;
+            dialogRoot!.IsVisible = selectedDemo == 12;
         }
     }
 }
