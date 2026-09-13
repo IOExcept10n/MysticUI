@@ -1,5 +1,6 @@
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Input.Events;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
@@ -17,6 +18,18 @@ namespace Icy.Tests.Controls
             var assets = new AssetConfiguration(AssetContext.ApplicationContext);
             var config = new IcyConfiguration(input, assets, renderContext, new ReflectionConfiguration());
             return (new Canvas(config), input);
+        }
+
+        private static (Canvas Canvas, FakeInputSystem Input) CreateThemedCanvas()
+        {
+            var input = new FakeInputSystem();
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(input)
+                   .ConfigureTypes()
+                   .ConfigureAssets();
+            var config = builder.Build().UseDefaultTheme();
+            return (new Canvas(config) { IsInputEnabled = true, IsVisible = true }, input);
         }
 
         [Fact]
@@ -217,6 +230,47 @@ namespace Icy.Tests.Controls
             Assert.True(first.IsOpen);
             Assert.Single(canvas.Overlays);
             Assert.Contains(first, canvas.Overlays);
+        }
+
+        [Fact]
+        public void ThemedDialog_AppliesWithoutThrowing()
+        {
+            var (canvas, _) = CreateThemedCanvas();
+            var dialog = new Dialog();
+
+            var exception = Record.Exception(() =>
+            {
+                dialog.Show(canvas);
+                canvas.Render();
+            });
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void ThemedDialog_BackdropBlocksTapsToContentBehindIt()
+        {
+            var (canvas, input) = CreateThemedCanvas();
+            var behind = new Button
+            {
+                Width = 100,
+                Height = 40,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(behind);
+            canvas.Render();
+
+            bool clicked = false;
+            behind.Click += (_, _) => clicked = true;
+
+            var dialog = new Dialog();
+            dialog.Show(canvas);
+            canvas.Render();
+
+            input.Events.Touch.RaiseTap(new TouchInfo(new System.Drawing.Point(50, 20), 1));
+
+            Assert.False(clicked);
         }
     }
 }

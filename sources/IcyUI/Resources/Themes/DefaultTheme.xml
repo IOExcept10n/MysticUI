@@ -217,5 +217,17 @@
   <Style TargetType="ScrollViewer" Background="Transparent" BorderBrush="#FF56566A" BorderThickness="0"/>
 
   <Style TargetType="Window" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
+
+  <!-- Dialog -->
+  <ControlTemplate x:Key="IcyDefaultDialogTemplate" TargetType="Dialog">
+    <Border Background="#AA000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="16"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ContentPresenter Content="{TemplateBinding Content}"/>
+      </Border>
+    </Border>
+  </ControlTemplate>
+
+  <Style TargetType="Dialog" Template="{StaticResource IcyDefaultDialogTemplate}"/>
   </Border.Resources>
 </Border>
