@@ -175,5 +175,48 @@ namespace Icy.Tests.Controls
             Assert.Single(canvas.Overlays);
             Assert.Contains(second, canvas.Overlays);
         }
+
+        [Fact]
+        public void CloseModal_AfterRender_RestoresFocusToOpener_NotNull()
+        {
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            var opener = new Button { IsFocusable = true };
+            canvas.Add(opener);
+            canvas.Focus(opener);
+            canvas.Render(); // wires up Canvas's own competing OnCloseModal handler, same as CanvasHitTestFocusTests does
+
+            var dialogButton = new Button();
+            var dialog = new Dialog { Content = dialogButton };
+            dialog.Show(canvas);
+            Assert.Same(dialogButton, canvas.FocusedElement);
+
+            input.Events.Navigation.RaiseCloseModal();
+
+            Assert.Same(opener, canvas.FocusedElement);
+            Assert.False(dialog.IsOpen);
+        }
+
+        [Fact]
+        public void CloseModal_TwoStackedDialogs_ClosesOnlyTheTopmost()
+        {
+            var (canvas, input) = CreateCanvas();
+            canvas.IsInputEnabled = true;
+            canvas.IsVisible = true;
+            canvas.Render();
+
+            var first = new Dialog();
+            var second = new Dialog();
+            first.Show(canvas);
+            second.Show(canvas);
+
+            input.Events.Navigation.RaiseCloseModal();
+
+            Assert.False(second.IsOpen);
+            Assert.True(first.IsOpen);
+            Assert.Single(canvas.Overlays);
+            Assert.Contains(first, canvas.Overlays);
+        }
     }
 }

@@ -16,7 +16,7 @@ namespace Icy.UI.Controls
     /// Reuses <see cref="Canvas.HitTest(System.Drawing.Point)"/>'s existing overlay-first, topmost-wins
     /// behavior for pointer modality - no new <see cref="Canvas"/> mechanism is needed. A backdrop click is
     /// swallowed (nothing behind the overlay is ever hit-tested) but never closes the dialog by itself; only
-    /// an explicit <see cref="Close"/> call (e.g. a button) or Escape does.
+    /// an explicit <see cref="Close()"/> call (e.g. a button) or Escape does.
     /// </remarks>
     public class Dialog : ContentControl
     {
@@ -32,7 +32,7 @@ namespace Icy.UI.Controls
         /// <summary>
         /// Shows this dialog as a modal overlay on <paramref name="canvas"/> - adds it to
         /// <see cref="Canvas.Overlays"/>, enters a focus scope (mirrors <see cref="Window.OnOpened"/>), and
-        /// subscribes Escape (<see cref="INavigationEvents.CloseModal"/>) to <see cref="Close"/>. A no-op if
+        /// subscribes Escape (<see cref="INavigationEvents.CloseModal"/>) to <see cref="Close()"/>. A no-op if
         /// already open.
         /// </summary>
         /// <param name="canvas">The canvas to show this dialog on.</param>
@@ -56,7 +56,23 @@ namespace Icy.UI.Controls
         /// Closes this dialog - removes the overlay, restores whatever was focused before <see cref="Show(Canvas)"/>,
         /// and raises <see cref="Closed"/>. A no-op if this dialog isn't currently open.
         /// </summary>
-        public void Close()
+        public void Close() => Close(restoreFocus: true);
+
+        private void OnCloseModal(object? sender, EventArgs e)
+        {
+            // Canvas's own generic OnCloseModal handler (see Canvas.cs's EnsureInputRoutingInitialized/
+            // OnCloseModal) is already subscribed to this same event, and - since it's subscribed once, lazily,
+            // on the canvas's first Render() call, which always happens well before any Dialog is ever shown in
+            // a real app - it always runs first. It already finds whatever focus scope is currently active and
+            // restores focus for it, consuming the one-shot scopeReturnFocus entry as it does. So this handler
+            // must NOT also call CloseFocusScope for the common case (that would find the entry already gone and
+            // clear focus to null instead of leaving it restored) - and it must only react at all when THIS
+            // dialog is the topmost one, so one Escape press doesn't close every currently-open Dialog at once.
+            if (shownOnCanvas is { } canvas && canvas.Overlays.OfType<Dialog>().LastOrDefault() == this)
+                Close(restoreFocus: false);
+        }
+
+        private void Close(bool restoreFocus)
         {
             if (shownOnCanvas == null)
                 return;
@@ -67,11 +83,11 @@ namespace Icy.UI.Controls
             Canvas canvas = shownOnCanvas;
             shownOnCanvas = null;
             canvas.RemoveOverlay(this);
-            canvas.CloseFocusScope(this);
 
             Closed?.Invoke(this, EventArgs.Empty);
-        }
 
-        private void OnCloseModal(object? sender, EventArgs e) => Close();
+            if (restoreFocus)
+                canvas.CloseFocusScope(this);
+        }
     }
 }
