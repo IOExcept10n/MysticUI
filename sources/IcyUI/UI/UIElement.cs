@@ -413,11 +413,12 @@ namespace Icy.UI
         /// <see cref="Styles.ControlState.Disabled"/> (for theming) and composes into <see cref="IsHitTestVisible"/>/
         /// <see cref="IsFocusable"/>'s own getters - a disabled element's entire subtree becomes unreachable by
         /// <see cref="UI.Canvas.HitTest(System.Drawing.Point)"/> (the exact subtree-skip <see cref="IsHitTestVisible"/>
-        /// already performs for a drag-and-drop preview ghost) and is excluded from
-        /// <see cref="UI.Canvas.MoveFocus(bool)"/>'s candidate list, with no change to either property's own stored
-        /// value - re-enabling restores whatever they were set to independently. Deliberately does not cascade a
-        /// visual "disabled" look to descendants; only this element's own <see cref="Styles.ControlState.Disabled"/>
-        /// flag (and therefore its own themed appearance) is affected.
+        /// already performs for a drag-and-drop preview ghost) and this element itself is excluded from
+        /// <see cref="UI.Canvas.MoveFocus(bool)"/>'s candidate list (but descendants that are independently
+        /// <see cref="IsFocusable"/> remain focusable, matching the non-cascading semantics of both properties),
+        /// with no change to either property's own stored value - re-enabling restores whatever they were set to
+        /// independently. Deliberately does not cascade a visual "disabled" look to descendants; only this element's
+        /// own <see cref="Styles.ControlState.Disabled"/> flag (and therefore its own themed appearance) is affected.
         /// </remarks>
         [Category("Behavior")]
         [DefaultValue(true)]
