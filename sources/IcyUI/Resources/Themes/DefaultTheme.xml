@@ -170,6 +170,7 @@
         <VisualState Name="SelectedHovered" State="Selected,Hovered" Background="#FF3C78D8"/>
         <VisualState Name="Highlighted" State="Highlighted" Background="#FF46465A"/>
         <VisualState Name="HighlightedHovered" State="Highlighted,Hovered" Background="#FF46465A"/>
+        <VisualState Name="Disabled" State="Disabled" Opacity="0.5"/>
       </VisualStateGroup>
     </Style.StateGroups>
   </Style>
@@ -217,6 +218,10 @@
   <Style TargetType="ScrollViewer" Background="Transparent" BorderBrush="#FF56566A" BorderThickness="0"/>
 
   <Style TargetType="Window" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
+
+  <!-- TabControl: untemplated, like TextBox/ScrollViewer/Window above - plain Border-level decoration is all
+       this control needs (its header row/content are managed directly, not via Chrome). -->
+  <Style TargetType="TabControl" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
 
   <!-- Dialog -->
   <ControlTemplate x:Key="IcyDefaultDialogTemplate" TargetType="Dialog">
