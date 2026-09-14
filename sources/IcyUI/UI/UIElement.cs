@@ -54,6 +54,7 @@ namespace Icy.UI
         private ControlState controlState;
         private object? dataContext;
         private bool hasDataContext;
+        private bool isEnabled = true;
         private bool isFocusable;
         private bool isFocused;
         private bool isFocusScope;
@@ -376,7 +377,7 @@ namespace Icy.UI
         [RegisterReference]
         public bool IsHitTestVisible
         {
-            get => isHitTestVisible;
+            get => isHitTestVisible && IsEnabled;
             set => SetProperty(ref isHitTestVisible, value);
         }
 
@@ -393,7 +394,7 @@ namespace Icy.UI
         [RegisterReference]
         public bool IsFocusable
         {
-            get => isFocusable;
+            get => isFocusable && IsEnabled;
             set => SetProperty(ref isFocusable, value);
         }
 
@@ -403,6 +404,34 @@ namespace Icy.UI
         [XmlIgnore]
         [JsonIgnore]
         public bool IsFocused => isFocused;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this element responds to input.
+        /// </summary>
+        /// <remarks>
+        /// <see langword="true"/> by default. Setting this to <see langword="false"/> sets
+        /// <see cref="Styles.ControlState.Disabled"/> (for theming) and composes into <see cref="IsHitTestVisible"/>/
+        /// <see cref="IsFocusable"/>'s own getters - a disabled element's entire subtree becomes unreachable by
+        /// <see cref="UI.Canvas.HitTest(System.Drawing.Point)"/> (the exact subtree-skip <see cref="IsHitTestVisible"/>
+        /// already performs for a drag-and-drop preview ghost) and is excluded from
+        /// <see cref="UI.Canvas.MoveFocus(bool)"/>'s candidate list, with no change to either property's own stored
+        /// value - re-enabling restores whatever they were set to independently. Deliberately does not cascade a
+        /// visual "disabled" look to descendants; only this element's own <see cref="Styles.ControlState.Disabled"/>
+        /// flag (and therefore its own themed appearance) is affected.
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(true)]
+        [RegisterReference]
+        public bool IsEnabled
+        {
+            get => isEnabled;
+            set
+            {
+                if (!SetProperty(ref isEnabled, value))
+                    return;
+                ControlState = value ? ControlState & ~ControlState.Disabled : ControlState | ControlState.Disabled;
+            }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether this element is a focus scope — a boundary that keyboard/gamepad
