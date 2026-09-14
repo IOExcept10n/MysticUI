@@ -70,9 +70,9 @@ namespace Icy.UI.Controls
         /// Skips raising <see cref="Tapped"/> while <see cref="UIElement.IsEnabled"/> is <see langword="false"/>.
         /// Normally redundant with <see cref="UIElement.IsEnabled"/>'s own effect on
         /// <see cref="UIElement.IsHitTestVisible"/> (a disabled item is never <see cref="Icy.UI.Canvas.HitTest(System.Drawing.Point)"/>'d
-        /// in the first place, so <see cref="Icy.UI.Canvas.OnTap"/>'s normal dispatch never reaches this method
-        /// for one) - guarded here too as well, defensively, so a caller invoking <see cref="OnTap"/> directly
-        /// (bypassing hit-testing entirely) still can't click-to-select a disabled item.
+        /// in the first place, so the dispatching <see cref="Icy.UI.Canvas"/>'s own tap handling never reaches
+        /// this method for one) - guarded here too as well, defensively, so a caller invoking <see cref="OnTap"/>
+        /// directly (bypassing hit-testing entirely) still can't click-to-select a disabled item.
         /// </remarks>
         protected internal override void OnTap()
         {

@@ -55,6 +55,15 @@ namespace Icy.UI.Controls
             // Never built - see the class remarks - only assigned so ItemsControl.EnsureRealized's unconditional
             // ResolveTemplate() call doesn't throw for want of an ItemTemplate.
             ItemTemplate = new DataTemplate();
+
+            // CreateContainer's header tree (below) has no {Binding} in it at all - unlike a markup-built
+            // DataTemplate's tree, nothing in it reacts to ItemsControl.RentContainer's pooled-reuse path
+            // reassigning Content.DataContext to the new item. Pooling a recycled header container across two
+            // different TabItems would therefore silently keep showing the first tab's header text/icon after a
+            // live ItemsSource replaces/re-adds a TabItem at the same index - disabled outright, for the same
+            // "a handful of tab headers never needs it" reasoning this control already gives for skipping
+            // virtualization.
+            PoolingEnabled = false;
         }
 
         /// <inheritdoc/>

@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Linq;
 using Icy.UI;
@@ -103,6 +104,37 @@ namespace Icy.Tests.Controls
             InvokeOnTap(disabledHeader);
 
             Assert.Equal(0, tabControl.SelectedIndex);
+        }
+
+        [Fact]
+        public void RemovingAndReAddingATabAtTheSameIndex_ShowsTheNewItemsHeader_NotAStalePooledOne()
+        {
+            // Regression test for a pooling/binding mismatch: TabControl.CreateContainer builds an unbound header
+            // tree (no {Binding}), so ItemsControl.RentContainer's pooled-reuse path - which only reassigns
+            // Content.DataContext - can't refresh it. Without PoolingEnabled = false, a recycled container here
+            // would keep showing a previous tab's header text.
+            var items = new ObservableCollection<TabItem>
+            {
+                new TabItem { Header = "First" },
+                new TabItem { Header = "Second" },
+            };
+            var tabControl = new TabControl { ItemsSource = items };
+            tabControl.Measure();
+
+            items.RemoveAt(0);
+            items.Insert(0, new TabItem { Header = "Replaced" });
+            tabControl.Measure();
+
+            string headerText = GetHeaderText(GetRealizedContainers(tabControl)[0]);
+            Assert.Equal("Replaced", headerText);
+        }
+
+        private static string GetHeaderText(ItemContainer container)
+        {
+            var stackPanel = (StackPanel)container.Content!;
+            var presenter = (ContentPresenter)stackPanel.Children.OfType<ContentPresenter>().Single();
+            var textBlock = (TextBlock)presenter.Content!;
+            return textBlock.Text;
         }
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
