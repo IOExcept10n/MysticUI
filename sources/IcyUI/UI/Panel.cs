@@ -166,13 +166,32 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Raises the <see cref="ChildrenResetting" /> event.
+        /// Raises the <see cref="ChildrenResetting" /> event, then - unless a subscriber cancels it - detaches
+        /// every current child (<see cref="UIElement.Parent"/>/<see cref="UIElement.Canvas"/> both cleared) before
+        /// <see cref="UIElementCollection.ClearItems"/> actually empties <see cref="Children"/>.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="CancelEventArgs" /> instance containing the event data.</param>
+        /// <remarks>
+        /// Detachment has to happen here, not in <see cref="OnChildrenUpdated"/>'s <see cref="NotifyCollectionChangedAction.Reset"/>
+        /// branch - <see cref="System.Collections.ObjectModel.ObservableCollection{T}.ClearItems"/> raises that
+        /// <see cref="NotifyCollectionChangedEventArgs"/> with a <see langword="null"/>
+        /// <see cref="NotifyCollectionChangedEventArgs.OldItems"/> (Reset never carries the removed items), so by
+        /// the time <see cref="OnChildrenUpdated"/> sees it, both that and <see cref="Children"/> itself are already
+        /// empty - this event fires beforehand, while <see cref="Children"/> still holds what's about to be
+        /// cleared.
+        /// </remarks>
         protected virtual void OnChildrenResetting(object? sender, CancelEventArgs e)
         {
             ChildrenResetting?.Invoke(this, e);
+            if (e.Cancel)
+                return;
+
+            foreach (UIElement child in Children)
+            {
+                child.Parent = null;
+                child.Canvas = null;
+            }
         }
 
         /// <summary>
@@ -180,17 +199,13 @@ namespace Icy.UI
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="NotifyCollectionChangedEventArgs" /> instance containing the event data.</param>
+        /// <remarks>
+        /// A <see cref="NotifyCollectionChangedAction.Reset"/> (i.e. <see cref="Children"/> cleared) needs no
+        /// per-item detachment here - see <see cref="OnChildrenResetting"/>'s remarks for why that already happened
+        /// before this ran.
+        /// </remarks>
         protected virtual void OnChildrenUpdated(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            if (e.Action == NotifyCollectionChangedAction.Reset)
-            {
-                foreach (UIElement child in e.OldItems!)
-                {
-                    child.Parent = null;
-                    child.Canvas = null;
-                }
-            }
-
             InvalidateMeasure();
             ChildrenUpdated?.Invoke(this, e);
         }

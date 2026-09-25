@@ -223,6 +223,10 @@
        this control needs (its header row/content are managed directly, not via Chrome). -->
   <Style TargetType="TabControl" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
 
+  <!-- ColorPicker: same reasoning as TabControl above - it composes its own TabControl/sliders/hex box directly
+       in code, so only Chrome-level decoration is needed here. -->
+  <Style TargetType="ColorPicker" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
+
   <!-- Dialog -->
   <ControlTemplate x:Key="IcyDefaultDialogTemplate" TargetType="Dialog">
     <Border Background="#AA000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
