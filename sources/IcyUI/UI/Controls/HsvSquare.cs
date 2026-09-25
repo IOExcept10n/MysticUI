@@ -164,8 +164,8 @@ namespace Icy.UI.Controls
             float newSaturation = bounds.Width > 0 ? float.Clamp(local.X / bounds.Width, 0f, 1f) : 0f;
             float newValue = bounds.Height > 0 ? 1f - float.Clamp(local.Y / bounds.Height, 0f, 1f) : 1f;
 
-            SetProperty(ref saturation, newSaturation);
-            SetProperty(ref value, newValue);
+            SetProperty(ref saturation, newSaturation, nameof(Saturation));
+            SetProperty(ref value, newValue, nameof(Value));
             SaturationValueChanged?.Invoke(this, EventArgs.Empty);
         }
     }
