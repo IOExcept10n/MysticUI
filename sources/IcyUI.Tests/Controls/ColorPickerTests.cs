@@ -69,6 +69,17 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void SettingHexBoxText_SixDigits_PreservesCurrentAlpha()
+        {
+            var picker = new ColorPicker { SelectedColor = Color.FromArgb(128, 1, 2, 3) };
+
+            GetHexBox(picker).Text = "#0A141E";
+
+            Assert.Equal(128, picker.SelectedColor.A);
+            Assert.Equal(Color.FromArgb(128, 0x0A, 0x14, 0x1E), picker.SelectedColor);
+        }
+
+        [Fact]
         public void SwatchColors_TappingASwatch_SetsSelectedColor()
         {
             var picker = new ColorPicker();

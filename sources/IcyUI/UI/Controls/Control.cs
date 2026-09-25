@@ -174,9 +174,10 @@ namespace Icy.UI.Controls
         /// their visual tree by name - such as <see cref="Slider"/> (<c>PART_Thumb</c>) or
         /// <see cref="ProgressBar"/> (<c>PART_Fill</c>) - are safe too, via named template parts: see
         /// <see cref="OnApplyTemplate"/>/<see cref="GetTemplateChild{T}(string)"/>. A control that hasn't been
-        /// retrofitted with an <see cref="OnApplyTemplate"/> override yet - currently <see cref="ScrollViewer"/>
-        /// and <see cref="TextBox"/> - still accepts a <see cref="Template"/> without throwing, but its own
-        /// behavior stays wired to its built-in default parts regardless of what the template actually provides.
+        /// retrofitted with an <see cref="OnApplyTemplate"/> override yet - currently <see cref="ScrollViewer"/>,
+        /// <see cref="TextBox"/>, and <see cref="ColorPicker"/> - still accepts a <see cref="Template"/> without
+        /// throwing, but its own behavior stays wired to its built-in default parts regardless of what the template
+        /// actually provides.
         /// </para>
         /// </remarks>
         /// <exception cref="ArgumentException">

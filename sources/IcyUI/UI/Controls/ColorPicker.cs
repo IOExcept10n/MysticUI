@@ -13,10 +13,19 @@ namespace Icy.UI.Controls
     /// an internal <see cref="TabControl"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// All sub-widgets stay synchronized to the single <see cref="SelectedColor"/> behind a re-entrancy guard -
     /// each sub-widget's own change handler checks the guard before writing back to <see cref="SelectedColor"/>,
     /// so <see cref="SelectedColor"/>'s own setter pushing the new value out to every sub-widget doesn't bounce
     /// back through them and loop.
+    /// </para>
+    /// <para>
+    /// Not currently template-safe (see <see cref="Control.Template"/>'s own remarks) - the internal
+    /// <see cref="TabControl"/> is composed directly into <see cref="Control.Chrome"/> once, at construction, with
+    /// no <see cref="Control.OnApplyTemplate"/> override to re-wire it, the same limitation
+    /// <see cref="ScrollViewer"/>/<see cref="TextBox"/> currently have. Setting <see cref="Control.Template"/> on a
+    /// <see cref="ColorPicker"/> silently orphans this whole visual tree instead of throwing.
+    /// </para>
     /// </remarks>
     public class ColorPicker : Control
     {
@@ -108,7 +117,6 @@ namespace Icy.UI.Controls
         /// mutating this collection - it isn't itself change-notifying.
         /// </summary>
         [Category("Content")]
-        [RegisterReference]
         public IList<Color> SwatchColors => swatchColors;
 
         /// <summary>
@@ -183,7 +191,13 @@ namespace Icy.UI.Controls
             SelectedColor = FromHsv(hsvSquare.Hue, hsvSquare.Saturation, hsvSquare.Value, SelectedColor.A);
         }
 
-        private static bool TryParseHex(string text, out Color color)
+        /// <remarks>
+        /// The 6-digit (no-alpha) branch preserves <see cref="SelectedColor"/>'s own current <see cref="Color.A"/>
+        /// rather than hardcoding full opacity - so trimming the hex box down to 6 digits (e.g. editing
+        /// <c>#800A141E</c> down to <c>#0A141E</c>) keeps whatever partial alpha was already selected instead of
+        /// silently snapping it back to <c>255</c>.
+        /// </remarks>
+        private bool TryParseHex(string text, out Color color)
         {
             color = default;
             string hex = text.TrimStart('#');
@@ -191,7 +205,7 @@ namespace Icy.UI.Controls
                 && byte.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out byte g6)
                 && byte.TryParse(hex[4..6], System.Globalization.NumberStyles.HexNumber, null, out byte b6))
             {
-                color = Color.FromArgb(255, r6, g6, b6);
+                color = Color.FromArgb(SelectedColor.A, r6, g6, b6);
                 return true;
             }
 
