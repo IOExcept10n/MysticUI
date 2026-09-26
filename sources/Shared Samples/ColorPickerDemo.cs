@@ -68,14 +68,10 @@ namespace Icy.SharedSamples
                 mainPicker.SwatchColors.Add(color);
             mainPicker.RefreshSwatches();
 
-            // ColorPickerButton.SwatchColors forwards to its internal ColorPicker's own SwatchColors, but
-            // ColorPickerButton exposes no equivalent RefreshSwatches() forwarder to rebuild that internal
-            // picker's swatch strip afterwards - so, unlike MainPicker above, PopupButton's swatch tab stays empty
-            // until a future change adds that forwarder. The palette is still assigned here so it's already wired
-            // up once that gap is closed.
             ColorPickerButton popupButton = root.FindRequiredControl<ColorPickerButton>("PopupButton");
             foreach (Color color in palette)
                 popupButton.SwatchColors.Add(color);
+            popupButton.RefreshSwatches();
 
             return root;
         }
