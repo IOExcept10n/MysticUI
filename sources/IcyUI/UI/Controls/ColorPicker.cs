@@ -56,6 +56,20 @@ namespace Icy.UI.Controls
             blueSlider.ValueChanged += (_, _) => OnRgbaSliderChanged();
             alphaSlider.ValueChanged += (_, _) => OnRgbaSliderChanged();
             hexBox.TextChanged += (_, _) => OnHexBoxChanged();
+            hexBox.FocusChanged += (_, _) =>
+            {
+                if (hexBox.IsFocused)
+                    return;
+                isSyncing = true;
+                try
+                {
+                    SyncHexBoxText();
+                }
+                finally
+                {
+                    isSyncing = false;
+                }
+            };
 
             var pickerTab = new StackPanel { Orientation = Orientation.Vertical };
             pickerTab.Children.Add(hsvSquare);
@@ -133,6 +147,11 @@ namespace Icy.UI.Controls
             }
         }
 
+        private void SyncHexBoxText()
+        {
+            hexBox.Text = $"#{SelectedColor.A:X2}{SelectedColor.R:X2}{SelectedColor.G:X2}{SelectedColor.B:X2}";
+        }
+
         private static GradientBrush BuildHueGradient()
         {
             var brush = new GradientBrush { Kind = GradientKind.Linear, Angle = 0f };
@@ -152,7 +171,14 @@ namespace Icy.UI.Controls
             greenSlider.Value = SelectedColor.G;
             blueSlider.Value = SelectedColor.B;
             alphaSlider.Value = SelectedColor.A;
-            hexBox.Text = $"#{SelectedColor.A:X2}{SelectedColor.R:X2}{SelectedColor.G:X2}{SelectedColor.B:X2}";
+
+            // Don't rewrite the hex box's Text while the user is actively typing in it - a SelectedColor change
+            // caused by the user's own in-progress edit (OnHexBoxChanged -> TryParseHex succeeds -> SelectedColor
+            // set -> back here) would otherwise reformat/jump the caret mid-edit whenever the partial text happens
+            // to already parse as a valid color. The FocusChanged subscription above resyncs it to the canonical
+            // format exactly once, when focus is lost.
+            if (!hexBox.IsFocused)
+                SyncHexBoxText();
 
             (float h, float s, float v) = ToHsv(SelectedColor);
             hueSlider.Value = h;

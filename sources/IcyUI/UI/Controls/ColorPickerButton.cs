@@ -102,6 +102,12 @@ namespace Icy.UI.Controls
         [RegisterReference]
         public IList<Color> SwatchColors => picker.SwatchColors;
 
+        /// <summary>
+        /// Rebuilds the popup's internal <see cref="Controls.ColorPicker"/>'s "Swatches" tab's buttons from the
+        /// current <see cref="SwatchColors"/>.
+        /// </summary>
+        public void RefreshSwatches() => picker.RefreshSwatches();
+
         /// <inheritdoc/>
         protected override void OnAttached()
         {

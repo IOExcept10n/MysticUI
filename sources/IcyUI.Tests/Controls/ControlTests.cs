@@ -134,6 +134,49 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Background_SetUntemplated_OutranksALaterAppliedStyle()
+        {
+            // Regression: Control.Background's untemplated setter used to forward straight into
+            // ((Border)Chrome).Background without notifying this Control's own PropertyChanged, so the
+            // value-precedence system never recorded this as a local value - a Style setter for the same property
+            // applied afterward would silently win and clobber it (e.g. ColorPicker's hue-slider gradient, set in
+            // its constructor before the slider is ever styled).
+            var localBrush = new SolidColorBrush(Color.Red);
+            var control = new Control { Background = localBrush };
+            var style = new Style(typeof(Control));
+            style.Setters["Background"] = new SolidColorBrush(Color.Blue);
+
+            control.Style = style;
+
+            Assert.Same(localBrush, control.Background);
+        }
+
+        [Fact]
+        public void BorderBrush_SetUntemplated_OutranksALaterAppliedStyle()
+        {
+            var localBrush = new SolidColorBrush(Color.Red);
+            var control = new Control { BorderBrush = localBrush };
+            var style = new Style(typeof(Control));
+            style.Setters["BorderBrush"] = new SolidColorBrush(Color.Blue);
+
+            control.Style = style;
+
+            Assert.Same(localBrush, control.BorderBrush);
+        }
+
+        [Fact]
+        public void BorderThickness_SetUntemplated_OutranksALaterAppliedStyle()
+        {
+            var control = new Control { BorderThickness = new Thickness(1, 2, 3, 4) };
+            var style = new Style(typeof(Control));
+            style.Setters["BorderThickness"] = new Thickness(9, 9, 9, 9);
+
+            control.Style = style;
+
+            Assert.Equal(new Thickness(1, 2, 3, 4), control.BorderThickness);
+        }
+
+        [Fact]
         public void Template_Set_ReplacesChromeWithTemplateContent()
         {
             var template = LoadTemplate("""<ControlTemplate TargetType="Control"><Image/></ControlTemplate>""");

@@ -61,9 +61,16 @@ namespace Icy.UI.Controls
             set
             {
                 if (Template == null)
+                {
+                    if (Equals(((Border)Chrome).Background, value))
+                        return;
                     ((Border)Chrome).Background = value;
+                    OnPropertyChanged(nameof(Background));
+                }
                 else
+                {
                     SetProperty(ref templatedBackground, value);
+                }
             }
         }
 
@@ -79,9 +86,16 @@ namespace Icy.UI.Controls
             set
             {
                 if (Template == null)
+                {
+                    if (Equals(((Border)Chrome).BorderBrush, value))
+                        return;
                     ((Border)Chrome).BorderBrush = value;
+                    OnPropertyChanged(nameof(BorderBrush));
+                }
                 else
+                {
                     SetProperty(ref templatedBorderBrush, value);
+                }
             }
         }
 
@@ -101,10 +115,14 @@ namespace Icy.UI.Controls
             {
                 if (Template == null)
                 {
+                    if (Equals(((Border)Chrome).BorderThickness, value))
+                        return;
+
                     // Border.BorderThickness's own setter already calls InvalidateMeasure/InvalidateArrange on
                     // Chrome, which propagates up to this control via UIElement.InvalidateMeasure's Parent walk
                     // (Chrome.Parent is this control) - no need to invalidate again here.
                     ((Border)Chrome).BorderThickness = value;
+                    OnPropertyChanged(nameof(BorderThickness));
                 }
                 else if (SetProperty(ref templatedBorderThickness, value))
                 {
@@ -142,9 +160,13 @@ namespace Icy.UI.Controls
             {
                 if (Template == null)
                 {
+                    if (Equals(Chrome.Padding, value))
+                        return;
+
                     // Same reasoning as BorderThickness above: Chrome's own Padding setter already invalidates
                     // Chrome, which propagates up to this control.
                     Chrome.Padding = value;
+                    OnPropertyChanged(nameof(Padding));
                 }
                 else if (SetProperty(ref templatedPadding, value))
                 {

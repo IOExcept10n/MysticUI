@@ -80,6 +80,33 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void HexBoxText_WhileFocused_IsNotRewrittenByTheResultingSelectedColorChange()
+        {
+            // Regression: SyncSubWidgets used to unconditionally rewrite hexBox.Text on every SelectedColor
+            // change - including a change caused by the user's own in-progress typing in hexBox itself - jumping
+            // the caret and fighting the user mid-edit whenever the partial text happened to already parse as a
+            // valid color.
+            var picker = new ColorPicker();
+            var configuration = new Icy.Configuration.IcyConfiguration(
+                new Icy.Tests.Input.FakeInputSystem(),
+                new Icy.Configuration.AssetConfiguration(Icy.Assets.AssetContext.ApplicationContext),
+                new Icy.Tests.Rendering.FakeRenderContext(),
+                new Icy.Configuration.ReflectionConfiguration());
+            var canvas = new Canvas(configuration);
+            TextBox hexBox = GetHexBox(picker);
+            canvas.Focus(hexBox);
+
+            hexBox.Text = "#112233";
+
+            Assert.Equal("#112233", hexBox.Text);
+            Assert.Equal(Color.FromArgb(255, 0x11, 0x22, 0x33), picker.SelectedColor);
+
+            canvas.Focus(null);
+
+            Assert.Equal("#FF112233", hexBox.Text);
+        }
+
+        [Fact]
         public void SwatchColors_TappingASwatch_SetsSelectedColor()
         {
             var picker = new ColorPicker();

@@ -61,5 +61,19 @@ namespace Icy.Tests.Controls
             var brush = (Icy.Rendering.Brushes.SolidColorBrush)toggle.Background;
             Assert.Equal(Color.FromArgb(255, 10, 20, 30), brush.Color);
         }
+
+        [Fact]
+        public void RefreshSwatches_ForwardsToTheInternalPicker_RebuildingItsSwatchStrip()
+        {
+            var button = new ColorPickerButton();
+            button.SwatchColors.Add(Color.FromArgb(255, 1, 2, 3));
+            button.SwatchColors.Add(Color.FromArgb(255, 4, 5, 6));
+
+            button.RefreshSwatches();
+
+            var picker = (ColorPicker)typeof(ColorPickerButton).GetField("picker", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(button)!;
+            var swatchStrip = (StackPanel)typeof(ColorPicker).GetField("swatchStrip", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(picker)!;
+            Assert.Equal(button.SwatchColors.Count, swatchStrip.Children.Count);
+        }
     }
 }
