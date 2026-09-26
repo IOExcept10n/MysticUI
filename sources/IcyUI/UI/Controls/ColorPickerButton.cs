@@ -36,6 +36,11 @@ namespace Icy.UI.Controls
         /// </summary>
         public ColorPickerButton()
         {
+            // A deliberate tradeoff, not an oversight: assigning Background here (while toggle.Template is still
+            // null) pins it as a local value - per Control's own value-precedence rules, that permanently outranks
+            // every tier below it, including DefaultTheme.xml's ToggleButton Hovered/Pressed/Checked Background
+            // VisualStates. This toggle is a colour-preview swatch, not a conventional button - always showing
+            // the exact picked colour matters more here than hover/press feedback.
             toggle.Background = new SolidColorBrush(picker.SelectedColor);
             toggle.IsCheckedChanged += (_, _) => IsOpen = toggle.IsChecked;
             picker.ColorChanged += (_, _) =>
@@ -95,8 +100,10 @@ namespace Icy.UI.Controls
         /// Gets the caller-supplied palette shown in the popup's "Swatches" tab.
         /// </summary>
         /// <remarks>
-        /// Forwards directly to <see cref="Controls.ColorPicker.SwatchColors"/> - see its own remarks re:
-        /// <see cref="Controls.ColorPicker.RefreshSwatches"/> needing to be called after mutating this collection.
+        /// Forwards directly to <see cref="Controls.ColorPicker.SwatchColors"/> - call this class's own
+        /// <see cref="RefreshSwatches"/> after mutating this collection (the internal <see cref="ColorPicker"/>
+        /// instance is private, so its own <see cref="Controls.ColorPicker.RefreshSwatches"/> isn't reachable from
+        /// outside this class).
         /// </remarks>
         [Category("Content")]
         [RegisterReference]

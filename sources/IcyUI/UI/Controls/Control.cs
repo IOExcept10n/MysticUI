@@ -32,6 +32,19 @@ namespace Icy.UI.Controls
     /// <c>(Border)Chrome</c>, a templated branch storing locally) - there is no generic mechanism that does this
     /// automatically, so it's easy to forget.
     /// </para>
+    /// <para>
+    /// The untemplated branch of that same dual-path treatment also participates in the value-precedence system
+    /// (see <see cref="Icy.Data.Markup.PropertyValuePrecedence"/>): a direct C# assignment to
+    /// <see cref="Background"/>/<see cref="BorderBrush"/>/<see cref="BorderThickness"/>/<see cref="Padding"/>
+    /// while untemplated now raises this control's own <see cref="System.ComponentModel.INotifyPropertyChanged.PropertyChanged"/>
+    /// (guarded by an equality check, so re-assigning the current value is a no-op), so it registers as a local
+    /// value that outranks a later-applied <see cref="Styles.Style"/>/<see cref="Styles.VisualState"/>/animation
+    /// setter for the same property - exactly like every other <c>[RegisterReference]</c> property on this class.
+    /// A local value blocks every precedence tier below it outright, not just <see cref="Styles.Style"/> - a
+    /// control that locally sets one of these four properties in its own constructor (the common pattern for a
+    /// custom-themed sub-widget, e.g. a <see cref="Slider"/>'s gradient-filled <see cref="Background"/>) permanently opts that
+    /// property out of its type's own theme, including any <see cref="Styles.VisualState"/> that targets it.
+    /// </para>
     /// </remarks>
     public class Control : UIElement, IContainerLayout
     {

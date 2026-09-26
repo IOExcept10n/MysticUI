@@ -60,6 +60,7 @@ namespace Icy.UI.Controls
             {
                 if (hexBox.IsFocused)
                     return;
+                bool wasSyncing = isSyncing;
                 isSyncing = true;
                 try
                 {
@@ -67,7 +68,7 @@ namespace Icy.UI.Controls
                 }
                 finally
                 {
-                    isSyncing = false;
+                    isSyncing = wasSyncing;
                 }
             };
 
@@ -176,7 +177,10 @@ namespace Icy.UI.Controls
             // caused by the user's own in-progress edit (OnHexBoxChanged -> TryParseHex succeeds -> SelectedColor
             // set -> back here) would otherwise reformat/jump the caret mid-edit whenever the partial text happens
             // to already parse as a valid color. The FocusChanged subscription above resyncs it to the canonical
-            // format exactly once, when focus is lost.
+            // format exactly once, when focus is lost. Corollary: a SelectedColor change from a source that
+            // doesn't steal focus away from hexBox (e.g. a caller setting SelectedColor directly) also leaves
+            // hexBox.Text stale until blur - not a concern for the other sub-widgets (dragging a slider/the HSV
+            // square focuses it via Canvas's own touch-down handling, which blurs hexBox and triggers the resync).
             if (!hexBox.IsFocused)
                 SyncHexBoxText();
 
