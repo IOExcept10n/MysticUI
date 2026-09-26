@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using Icy.Assets;
 using Icy.Configuration;
@@ -79,6 +80,35 @@ namespace Icy.Tests.Controls
 
             Assert.Equal(1f, square.Saturation, 2);
             Assert.Equal(0f, square.Value, 2);
+        }
+
+        [Fact]
+        public void OnRender_NestedAtANonZeroOffset_DrawsInLocalSpace_NotAbsoluteActualBounds()
+        {
+            // Regression: OnRender used to build its TextureRenderingOptions/marker position directly from
+            // ActualBounds, which is absolute/cumulative (see UIElement.UpdateTransformMatrix's own remarks) -
+            // context.Transform already carries this element's own screen-position contribution by the time
+            // OnRender runs, so using ActualBounds again here double-applied the offset, rendering the square (and
+            // its marker) away from its own, correctly hit-tested area. A parent-less square at (0,0) can't catch
+            // this (ActualBounds happens to equal local (0,0) there too) - nesting inside a padded Border, matching
+            // how ColorPicker actually nests HsvSquare a few levels deep, gives it a real non-zero ActualBounds.
+            var (canvas, _) = CreateCanvas();
+            var square = new HsvSquare { Width = 100, Height = 100 };
+            var border = new Border { Padding = new Thickness(20), Child = square };
+            canvas.Add(border);
+            canvas.Render();
+
+            Assert.NotEqual(0, square.ActualBounds.X);
+            Assert.NotEqual(0, square.ActualBounds.Y);
+
+            var context = (FakeRenderContext)canvas.Configuration.RenderContext;
+
+            // The square's own texture draw is the one sized to its full 100x100 bounds - DrawCircle's marker
+            // (drawn afterward, in the same OnRender call) produces several small 1x1-ish line-segment draws.
+            var squareDrawCall = context.DrawCalls.Single(call => call.Options.Destination is { Width: 100, Height: 100 });
+
+            Assert.Equal(0, squareDrawCall.Options.Destination.X);
+            Assert.Equal(0, squareDrawCall.Options.Destination.Y);
         }
 
         private static void InvokeOnDragStarted(UIElement element, Point screenPoint) =>

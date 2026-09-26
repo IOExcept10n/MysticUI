@@ -93,16 +93,25 @@ namespace Icy.UI.Controls
         protected override Size MeasureContent() => new(150, 150);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Draws in this element's own local space (destination/marker positions relative to its own top-left,
+        /// not <see cref="UIElement.ActualBounds"/>'s absolute/cumulative position) - <see cref="UIElement.Draw"/>
+        /// already applies this element's own screen-position transform before calling here (see
+        /// <see cref="UIElement.GetDefaultRenderOptions"/>'s own remarks), so drawing at <see cref="UIElement.ActualBounds"/>'s
+        /// own (non-zero) coordinates would double-apply this element's position - shifting the rendered square and
+        /// marker away from the actual, correctly hit-tested area (invisible, but still draggable, since dragging
+        /// goes through <see cref="UIElement.PointToLocal(Point)"/> instead, unaffected by this).
+        /// </remarks>
         protected override void OnRender(IRenderContext context)
         {
             Rectangle bounds = ActualBounds;
             EnsureTexture(context, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
-            context.Draw(cachedTexture!, new TextureRenderingOptions(bounds));
+            context.Draw(cachedTexture!, GetDefaultRenderOptions());
 
             const int MarkerSize = 6;
             var markerCenter = new Vector2(
-                bounds.X + (Saturation * bounds.Width),
-                bounds.Y + ((1f - Value) * bounds.Height));
+                Saturation * bounds.Width,
+                (1f - Value) * bounds.Height);
             context.DrawCircle(markerCenter, MarkerSize / 2f, 12, Color.White, 1.5f);
         }
 
