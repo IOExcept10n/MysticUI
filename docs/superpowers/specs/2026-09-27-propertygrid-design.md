@@ -66,9 +66,14 @@ public sealed class PropertyGridEntry
   `PropertyReferencesRegistration` only pre-parses `Category`/`DefaultValue` today, not the
   PropertyGrid-relevant attributes, so a registered property's own `IPropertyReference` cannot be trusted
   to already carry them.
-- **Implementation must first confirm `IPropertyReference`/`PropertyReference<T,V>` exposes its wrapped
-  `PropertyInfo` publicly** (survey step, not yet verified) — add a minimal accessor if missing rather
-  than re-resolving the same `PropertyInfo` a second time via `type.GetProperty(name)`.
+- **Confirmed via reading `PropertyReference<TTarget,TValue>` directly: `IPropertyReference` does not
+  expose its wrapped `PropertyInfo` publicly** (it's a private field on an `internal sealed` class). No
+  core-framework change needed to work around this, though — `IPropertyReference` already exposes
+  `OwnerType`/`Name`, so `EnumerateFor` simply recovers the `PropertyInfo` itself via
+  `entry.OwnerType.GetProperty(entry.Name, BindingFlags.Public | BindingFlags.Instance)` once per
+  enumeration (not per-frame) for the registered case — identical cost to what the reflection-only case
+  already does for every property. This removed the open question the first draft flagged about possibly
+  needing to modify `IPropertyReference`/`PropertyReference<T,V>`.
 - Filters `[Browsable(false)]`; groups by `Category`, preserving first-seen category order.
 
 ### 2. `EnumValueCache`
@@ -83,8 +88,22 @@ New file `sources/IcyUI/UI/Controls/PropertyGrid.cs`, `PropertyGrid : ItemsContr
 
 - `Target : object?` — setter calls `PropertyGridEntry.EnumerateFor(value)` and assigns the result to the
   inherited `ItemsSource`.
-- Overrides `AttachContainer`/`DetachContainer` to build/rebind a two-column `Grid` (Auto label | Star
-  editor) per realized row, dispatching the editor widget by `entry.PropertyType`:
+- **Correction from the first draft, found by reading `ItemsControl`'s actual pooling mechanism and the
+  branch's own immediately-prior `TabControl` fix commit ("Fix TabControl header pooling stale-content
+  bug"):** `ItemsControl.RentContainer`'s pooled-reuse path only reassigns `container.Content.DataContext`
+  — correct for a markup/`{Binding}`-built tree, but silently stale for a tree built in raw C# with no
+  bindings, which is exactly `PropertyGrid`'s row shape (per the "direct C# composition" decision above).
+  `TabControl` hit this identical bug for its own C#-built header tree and fixed it by setting
+  `PoolingEnabled = false` in its constructor. `PropertyGrid` adopts the same fix, for the same reason —
+  **not** a bespoke "detect editor-kind mismatch and rebuild" scheme (the first draft's approach, now
+  superseded): with pooling off, `RentContainer` always calls `CreateContainer` fresh, so a mismatched
+  reused widget can't occur by construction. Like `TabControl`, `ItemTemplate` is still assigned a dummy
+  `new DataTemplate()` purely so `EnsureRealized`'s unconditional `ResolveTemplate()` call doesn't throw —
+  it is never actually built. The only override needed is `CreateContainer(DataTemplate, object item)`,
+  where `item` is a `PropertyGridEntry` — no `AttachContainer`/`DetachContainer` override is needed since
+  rows attach as ordinary direct children (the base implementation already does this correctly).
+- `CreateContainer` builds a two-column `Grid` (Auto label | Star editor) per row, dispatching the editor
+  widget by `entry.PropertyType`:
 
   | Type | Editor |
   |---|---|
@@ -97,13 +116,6 @@ New file `sources/IcyUI/UI/Controls/PropertyGrid.cs`, `PropertyGrid : ItemsContr
   | `Vector2/3/4`, `Quaternion`, `Matrix3x2`, `Matrix4x4` | composite row: one labeled numeric `TextBox` per component (X/Y/Z/W, or `M11`.. for matrices); commit rebuilds the struct from every field and calls `entry.TrySetValue` |
   | anything else (incl. deferred nested/date/time/URI cases) | read-only `TextBlock` showing `value?.ToString()`, `// TODO` citing this spec |
 
-- **Pooled-container correctness is the sharpest risk area.** The immediately-prior commit on this branch
-  ("Fix TabControl header pooling stale-content bug") is the exact failure mode to guard against here: a
-  pooled row container reused for a *different* editor-widget shape (e.g. row 3 was a `TextBox` for object
-  A's string property, must become a `CheckBox` for object B's bool property at the same index) must
-  discard-and-rebuild the editor child, never attempt to rebind a mismatched widget. `AttachContainer`
-  must branch on "does the pooled container's existing editor-kind match this entry's needed editor-kind"
-  before deciding update-in-place vs. rebuild.
 - Category header dividers: a plain non-interactive row (e.g. a bold `TextBlock` in its own full-width
   `Grid` row) inserted immediately before the first row of each new `Category` encountered while walking
   the enumerated entries in order.
@@ -124,9 +136,10 @@ themed from prior phases — nothing new needed there.
 - `PropertyGrid`: one test per editor type in the dispatch table above, including the `[Range]`-present
   vs. absent numeric branch and every `System.Numerics` type; unrecognized-type fallback renders read-only
   `ToString()` and never throws.
-- **Pooled-container type-mismatch regression test**, mirroring the TabControl bug's own repro shape:
-  assign `Target` to object A, then to object B with a different property-type sequence at the same row
-  indices, confirm no stale widget survives and no value is bound to a mismatched editor.
+- `PoolingEnabled` is `false` after construction, and a regression test mirroring the `TabControl` bug's
+  own repro shape confirms it in practice: assign `Target` to object A, then to object B with a different
+  property-type sequence at the same row indices, confirm every row shows the correct editor type and
+  value for object B (no stale widget from object A survives).
 - Manual smoke test (both engines, per `[[feedback_smoke_test_notification]]`): the sample demonstrates
   every v1 editor type rendering and editing correctly, and specifically exercises the `Target`-swap
   pooling edge case visually, not just via unit test.
@@ -139,14 +152,11 @@ themed from prior phases — nothing new needed there.
 `sources/MonoGame Sample/Samples/PropertyGridSample.cs`.
 
 **Modified:** `sources/IcyUI/Resources/Themes/DefaultTheme.xml` (new `PropertyGrid` style),
-`sources/MonoGame Sample/SampleGame.cs` and `sources/Stride Sample/SampleGame.cs` (demo registration),
-possibly `sources/IcyUI/Data/Markup/IPropertyReference.cs`/`PropertyReference.cs` (minimal `PropertyInfo`
-accessor, pending the survey step in §1).
+`sources/MonoGame Sample/SampleGame.cs` and `sources/Stride Sample/SampleGame.cs` (demo registration). No
+core-framework files need modification (see §1's `PropertyInfo` recovery note).
 
 ## Open items for implementation planning (not blocking spec approval)
 
-- Whether `IPropertyReference` needs a new public accessor for its wrapped `PropertyInfo`, or already has
-  one — first thing to verify, not assumed here.
 - Exact category-header-divider visual treatment (§3) — cosmetic detail, not an architectural fork.
 - `[Range]`'s `Minimum`/`Maximum` are boxed `object` on the BCL attribute — assumed `Convert.ToDouble`
   converts cleanly for every numeric primitive type in scope; confirm during implementation.
