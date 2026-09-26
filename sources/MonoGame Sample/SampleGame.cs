@@ -52,7 +52,9 @@ namespace Icy.MonoGameSample
                 new SelectorSample(this, uiConfiguration, canvas),
                 new WrapGridSample(this, uiConfiguration, canvas),
                 new ListBoxSample(this, uiConfiguration, canvas),
-                new DialogSample(this, uiConfiguration, canvas)
+                new DialogSample(this, uiConfiguration, canvas),
+                new TabControlSample(this, uiConfiguration, canvas),
+                new ColorPickerSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);
