@@ -97,7 +97,7 @@ namespace Icy.UI.Controls
         /// Draws in this element's own local space (destination/marker positions relative to its own top-left,
         /// not <see cref="UIElement.ActualBounds"/>'s absolute/cumulative position) - <see cref="UIElement.Draw"/>
         /// already applies this element's own screen-position transform before calling here (see
-        /// <see cref="UIElement.GetDefaultRenderOptions"/>'s own remarks), so drawing at <see cref="UIElement.ActualBounds"/>'s
+        /// <see cref="UIElement.GetDefaultRenderOptions"/>'s own documentation), so drawing at <see cref="UIElement.ActualBounds"/>'s
         /// own (non-zero) coordinates would double-apply this element's position - shifting the rendered square and
         /// marker away from the actual, correctly hit-tested area (invisible, but still draggable, since dragging
         /// goes through <see cref="UIElement.PointToLocal(Point)"/> instead, unaffected by this).
