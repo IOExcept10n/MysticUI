@@ -103,6 +103,14 @@ namespace Icy.UI.Controls
         public IList<Color> SwatchColors => picker.SwatchColors;
 
         /// <inheritdoc/>
+        protected override void OnAttached()
+        {
+            base.OnAttached();
+            if (isOpen)
+                OpenPopup();
+        }
+
+        /// <inheritdoc/>
         protected override void OnDetached()
         {
             openedOnCanvas?.RemoveOverlay(popupRoot);

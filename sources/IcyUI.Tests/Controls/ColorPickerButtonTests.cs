@@ -38,6 +38,19 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void SettingIsOpen_BeforeAttaching_OpensThePopupOnceAttachedToACanvas()
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(configuration);
+            var button = new ColorPickerButton();
+
+            button.IsOpen = true;
+            canvas.Add(button);
+
+            Assert.Single(canvas.Overlays);
+        }
+
+        [Fact]
         public void SelectedColor_ChangesArea_TracksThroughToThePreviewSwatch()
         {
             var button = new ColorPickerButton();
