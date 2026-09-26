@@ -14,6 +14,7 @@ namespace Icy.UI.Controls
     /// A swatch-preview button that opens a full <see cref="Controls.ColorPicker"/> in a popup.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Mirrors <see cref="Selector"/>'s own relationship to <see cref="ToggleButton"/> exactly: this class derives
     /// from <see cref="Control"/> (not <see cref="ToggleButton"/>) and composes an internal <see cref="ToggleButton"/>
     /// as <see cref="Control.Chrome"/>'s child, since this control owns popup-lifecycle/<see cref="IsOpen"/>/
@@ -21,6 +22,14 @@ namespace Icy.UI.Controls
     /// <see cref="UI.Canvas.AddOverlay(UIElement)"/>/<see cref="UI.Canvas.RemoveOverlay(UIElement)"/> non-modal
     /// popup anchored under the button, with outside-click dismiss - the exact mechanism <see cref="Selector"/>
     /// already established for <see cref="Dropdown"/>/<see cref="ComboBox"/>, reused wholesale here.
+    /// </para>
+    /// <para>
+    /// Not currently template-safe (see <see cref="Control.Template"/>'s own remarks), for the same reason as
+    /// <see cref="Controls.ColorPicker"/> - the internal <see cref="ToggleButton"/> is composed directly into
+    /// <see cref="Control.Chrome"/> once, at construction, with no <see cref="Control.OnApplyTemplate"/> override
+    /// to re-wire it. Setting <see cref="Control.Template"/> on a <see cref="ColorPickerButton"/> silently orphans
+    /// this whole visual tree instead of throwing.
+    /// </para>
     /// </remarks>
     public class ColorPickerButton : Control
     {
@@ -46,6 +55,7 @@ namespace Icy.UI.Controls
             picker.ColorChanged += (_, _) =>
             {
                 toggle.Background = new SolidColorBrush(picker.SelectedColor);
+                OnPropertyChanged(nameof(SelectedColor));
                 ColorChanged?.Invoke(this, EventArgs.Empty);
             };
 
@@ -149,6 +159,12 @@ namespace Icy.UI.Controls
             PositionPopup();
             Canvas.AddOverlay(popupRoot);
 
+            // The first PositionPopup above sized/flipped the popup from popupRoot.Measure() before popupRoot was
+            // actually in the visual tree - its content (the internal ColorPicker) isn't fully measured/realized
+            // until after AddOverlay puts it there, so that first call's Measure() result can be a stale/estimated
+            // size. Re-run it now that the popup is realized, matching Selector.OpenPopup's own two-call pattern.
+            PositionPopup();
+
             subscribedTouch = Canvas.Configuration.Input.Events.Touch;
             subscribedTouch.TouchDown += OnOutsideTouchDown;
         }
@@ -170,8 +186,20 @@ namespace Icy.UI.Controls
             if (Canvas == null)
                 return;
 
+            Point topLeft = PointToScreen(Vector2.Zero);
             Point bottomLeft = PointToScreen(new Vector2(0, ActualBounds.Height));
-            popupRoot.Margin = new Thickness(bottomLeft.X, bottomLeft.Y, 0, 0);
+            Size viewport = Canvas.Configuration.RenderContext.ViewportSize;
+
+            // Mirrors Selector.PositionPopup's own below-vs-above flip, adapted for a popup whose height isn't
+            // item-count-driven (Selector's own ExtentHeight/MaxDropDownHeight don't apply here) - popupRoot's own
+            // natural/assigned size from Measure() stands in for that instead.
+            Size popupSize = popupRoot.Measure();
+            float spaceBelow = viewport.Height - bottomLeft.Y;
+            bool placeBelow = spaceBelow >= popupSize.Height;
+
+            popupRoot.Margin = placeBelow
+                ? new Thickness(bottomLeft.X, bottomLeft.Y, 0, 0)
+                : new Thickness(topLeft.X, (int)(topLeft.Y - popupSize.Height), 0, 0);
         }
 
         private void OnOutsideTouchDown(object? sender, GenericEventArgs<Point> e)

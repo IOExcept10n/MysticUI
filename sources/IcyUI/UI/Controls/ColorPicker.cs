@@ -184,10 +184,25 @@ namespace Icy.UI.Controls
             if (!hexBox.IsFocused)
                 SyncHexBoxText();
 
+            // ToHsv is lossy at the SV square's own degenerate edges, so only write back what it can actually
+            // recover - leaving hsvSquare's live Saturation/Hue (already correctly set by whatever drag/slider
+            // action is in progress) alone otherwise. At v == 0 (black), every saturation/hue maps to the exact
+            // same color, so ToHsv's s/h aren't real information there - writing them back would fight a live
+            // drag along the bottom row (each drag-move would set Saturation from the pointer, then this method
+            // would immediately stomp it back to 0). At s == 0 (white/grey), independent of v, hue is undefined -
+            // but v/s are still meaningful there (a light tint's position in the square is real even though its
+            // hue isn't), so only h/hueSlider.Value gets skipped, not hsvSquare.Saturation.
             (float h, float s, float v) = ToHsv(SelectedColor);
-            hueSlider.Value = h;
-            hsvSquare.Hue = h;
-            hsvSquare.Saturation = s;
+            if (v > 0f)
+            {
+                hsvSquare.Saturation = s;
+                if (s > 0f)
+                {
+                    hueSlider.Value = h;
+                    hsvSquare.Hue = h;
+                }
+            }
+
             hsvSquare.Value = v;
         }
 

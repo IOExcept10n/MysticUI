@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using Icy.Assets;
 using Icy.Configuration;
+using Icy.Rendering;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
@@ -111,10 +112,141 @@ namespace Icy.Tests.Controls
             Assert.Equal(0, squareDrawCall.Options.Destination.Y);
         }
 
+        [Fact]
+        public void EnsureTexture_DisposesThePreviousTexture_WhenTheHueChanges()
+        {
+            // Regression: EnsureTexture created a new ITexture whenever its cache key (Hue/width/height) changed,
+            // but never disposed the texture it was replacing - since the cache key includes Hue, dragging the hue
+            // slider allocates a fresh ~90KB texture on every value the drag passes through, leaking every one but
+            // the last.
+            var context = new DisposeTrackingRenderContext();
+            var config = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), context, new ReflectionConfiguration());
+            var canvas = new Canvas(config);
+            var square = new HsvSquare { Width = 10, Height = 10, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(square);
+
+            canvas.Render();
+            var first = (DisposeTrackingTexture)context.LastCreatedTexture!;
+
+            square.Hue = 120f;
+            canvas.Render();
+            var second = (DisposeTrackingTexture)context.LastCreatedTexture!;
+
+            Assert.NotSame(first, second);
+            Assert.True(first.IsDisposed);
+            Assert.False(second.IsDisposed);
+        }
+
+        [Fact]
+        public void OnDetached_DisposesTheCachedTexture()
+        {
+            // Regression: HsvSquare had no OnDetached override, so the final cached texture was never released
+            // when the element left the tree - nothing else would ever call EnsureTexture again to trigger the
+            // disposal-of-the-superseded-texture path added alongside this test.
+            var context = new DisposeTrackingRenderContext();
+            var config = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), context, new ReflectionConfiguration());
+            var canvas = new Canvas(config);
+            var square = new HsvSquare { Width = 10, Height = 10, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(square);
+            canvas.Render();
+            var texture = (DisposeTrackingTexture)context.LastCreatedTexture!;
+
+            canvas.Remove(square);
+
+            Assert.True(texture.IsDisposed);
+        }
+
         private static void InvokeOnDragStarted(UIElement element, Point screenPoint) =>
             typeof(UIElement).GetMethod("OnDragStarted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(element, [screenPoint]);
 
         private static void InvokeOnDragPerforming(UIElement element, Point screenPoint) =>
             typeof(UIElement).GetMethod("OnDragPerforming", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(element, [screenPoint]);
+
+        /// <summary>
+        /// A minimal <see cref="IRenderContext"/> test double that, unlike <see cref="FakeRenderContext"/>/
+        /// <see cref="Icy.Tests.Rendering.Brushes.RecordingFakeRenderContext"/>, returns textures that actually
+        /// record whether <see cref="ITexture.Dispose"/> was called - neither existing test double supports that,
+        /// and this is the minimum needed to assert on <see cref="HsvSquare"/>'s own texture-lifecycle fix.
+        /// </summary>
+        private sealed class DisposeTrackingRenderContext : IRenderContext
+        {
+            public event EventHandler? ViewportResize;
+
+            public IRenderOptions Options { get; } = new FakeOptions();
+
+            public ITexture WhiteTexture { get; } = new DisposeTrackingTexture(new Size(1, 1));
+
+            public Transform2D Transform { get; set; }
+
+            public Size ViewportSize { get; set; } = new(800, 600);
+
+            public ITexture? LastCreatedTexture { get; private set; }
+
+            public void ApplyEffect(IEffect effect)
+            {
+            }
+
+            public void Begin()
+            {
+            }
+
+            public void ClearEffects()
+            {
+            }
+
+            public ITexture CreateTexture<TColor>(int width, int height, TColor[] data)
+                where TColor : unmanaged
+            {
+                var texture = new DisposeTrackingTexture(new Size(width, height));
+                LastCreatedTexture = texture;
+                return texture;
+            }
+
+            public void Dispose()
+            {
+            }
+
+            public void Draw(ITexture texture, in TextureRenderingOptions options)
+            {
+            }
+
+            public void End()
+            {
+            }
+
+            public void Flush()
+            {
+            }
+
+            public IEffect GetBuiltInEffect(EffectCode code) => throw new NotImplementedException();
+
+            private sealed class FakeOptions : IRenderOptions
+            {
+                public float Opacity { get; set; } = 1f;
+
+                public Rectangle Scissor { get; set; }
+
+                public bool EnableEffects { get; set; }
+            }
+        }
+
+        private sealed class DisposeTrackingTexture(Size size) : ITexture
+        {
+            public Size Size { get; } = size;
+
+            public bool IsDisposed { get; private set; }
+
+            public void Dispose() => IsDisposed = true;
+
+            public void GetTextureData<TColor>(Rectangle? region, TColor[] buffer, int startIndex, int elementCount)
+                where TColor : struct
+            {
+            }
+
+            public void SetTextureData<TColor>(Rectangle? region, TColor[] buffer, int startIndex, int elementCount)
+                where TColor : struct
+            {
+            }
+        }
     }
 }

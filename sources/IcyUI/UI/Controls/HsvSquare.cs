@@ -132,10 +132,29 @@ namespace Icy.UI.Controls
                 }
             }
 
+            cachedTexture?.Dispose();
             cachedTexture = context.CreateTexture(width, height, pixels);
             cachedHue = Hue;
             cachedWidth = width;
             cachedHeight = height;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Releases the cached <see cref="ITexture"/> when this element leaves the tree, rather than leaving it to
+        /// be replaced (and disposed) the next time <see cref="EnsureTexture(IRenderContext, int, int)"/> happens to
+        /// run - a detached <see cref="HsvSquare"/> is never rendered again, so nothing would otherwise trigger that
+        /// replacement. <see cref="cachedWidth"/>/<see cref="cachedHeight"/> are reset to <c>0</c> alongside it (not
+        /// just the texture reference) so a stale cache-hit can't read <c>true</c> off a <see langword="null"/>
+        /// texture if this element is re-attached and re-rendered before its <see cref="Hue"/>/size change again.
+        /// </remarks>
+        protected override void OnDetached()
+        {
+            cachedTexture?.Dispose();
+            cachedTexture = null;
+            cachedWidth = 0;
+            cachedHeight = 0;
+            base.OnDetached();
         }
 
         private static Color BlendHsv(Color hueColor, float saturation, float value)

@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Tests.Input;
@@ -60,6 +61,93 @@ namespace Icy.Tests.Controls
             var toggle = (ToggleButton)typeof(ColorPickerButton).GetField("toggle", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(button)!;
             var brush = (Icy.Rendering.Brushes.SolidColorBrush)toggle.Background;
             Assert.Equal(Color.FromArgb(255, 10, 20, 30), brush.Color);
+        }
+
+        [Fact]
+        public void SelectedColor_Set_RaisesPropertyChanged()
+        {
+            // Regression: SelectedColor's setter was a pure forwarder (get => picker.SelectedColor;
+            // set => picker.SelectedColor = value;) with no OnPropertyChanged(nameof(SelectedColor)) call - the
+            // same defect class Control.cs's precedence fix (6c4cf38) addressed for Background/BorderBrush/
+            // BorderThickness/Padding, left unfixed on this sibling control. A direct assignment never raised
+            // change notification despite [RegisterReference] advertising this property as bindable/stylable.
+            var button = new ColorPickerButton();
+            string? raisedPropertyName = null;
+            button.PropertyChanged += (_, e) => raisedPropertyName = e.PropertyName;
+
+            button.SelectedColor = Color.FromArgb(255, 10, 20, 30);
+
+            Assert.Equal(nameof(ColorPickerButton.SelectedColor), raisedPropertyName);
+        }
+
+        [Fact]
+        public void OpeningNearViewportBottom_PlacesThePopupAboveInstead()
+        {
+            // Regression: PositionPopup only ever anchored below the trigger button, unlike Selector's own
+            // PositionPopup - a 360x260-ish ColorPicker popup opened from a button anywhere in the lower half of
+            // the window used to render mostly/fully off-screen. Mirrors
+            // SelectorTests.OpeningNearViewportBottom_PlacesThePopupAboveInstead's own setup.
+            var configuration = new IcyConfiguration(
+                new FakeInputSystem(),
+                new AssetConfiguration(AssetContext.ApplicationContext),
+                new FakeRenderContext { ViewportSize = new Size(800, 200) },
+                new ReflectionConfiguration());
+            var canvas = new Canvas(configuration) { IsInputEnabled = true, IsVisible = true };
+            var button = new ColorPickerButton
+            {
+                Width = 40,
+                Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+
+                // The button's own bottom edge (190 + 24 = 214) already sits below the 200px-tall viewport -
+                // spaceBelow is negative before the popup's own height even enters into it, so this forces the
+                // flip unconditionally, regardless of exactly how tall the popup's own natural size measures out
+                // to (as long as it's non-negative, which it always is).
+                Margin = new Thickness(0, 190, 0, 0),
+            };
+
+            // A default ColorPicker's "Swatches" tab (selected by default) with no swatches added, and this test
+            // environment's headers rendering without a real font system, both measure to a natural height of 0 -
+            // giving the popup a real (non-zero) height here so the "placed above" assertion below is a
+            // meaningful strict inequality rather than an accidental Y-coordinate coincidence.
+            button.SwatchColors.Add(Color.FromArgb(255, 1, 2, 3));
+            button.RefreshSwatches();
+
+            canvas.Add(button);
+            canvas.Render();
+
+            button.IsOpen = true;
+            canvas.Render();
+
+            UIElement popup = canvas.Overlays.Single();
+            Assert.True(popup.ActualBounds.Y < button.ActualBounds.Y);
+        }
+
+        [Fact]
+        public void OpeningWithRoomBelow_PlacesThePopupBelow()
+        {
+            var configuration = new IcyConfiguration(
+                new FakeInputSystem(),
+                new AssetConfiguration(AssetContext.ApplicationContext),
+                new FakeRenderContext { ViewportSize = new Size(800, 600) },
+                new ReflectionConfiguration());
+            var canvas = new Canvas(configuration) { IsInputEnabled = true, IsVisible = true };
+            var button = new ColorPickerButton
+            {
+                Width = 40,
+                Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(button);
+            canvas.Render();
+
+            button.IsOpen = true;
+            canvas.Render();
+
+            UIElement popup = canvas.Overlays.Single();
+            Assert.True(popup.ActualBounds.Y > button.ActualBounds.Y);
         }
 
         [Fact]
