@@ -227,6 +227,12 @@
        in code, so only Chrome-level decoration is needed here. -->
   <Style TargetType="ColorPicker" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
 
+  <!-- ColorPickerButton: untemplated, like ColorPicker/TabControl above - it composes its internal ToggleButton
+       directly in code. Background/BorderBrush/BorderThickness/Padding match Dropdown/ComboBox's own popup-trigger
+       conventions for visual consistency (no Popup* forwarding properties exist here, unlike Selector - the popup
+       it opens is a full ColorPicker, which already carries its own decoration). -->
+  <Style TargetType="ColorPickerButton" Background="#FF2E2E38" BorderBrush="#FF56566A" BorderThickness="1" Padding="8,6"/>
+
   <!-- Dialog -->
   <ControlTemplate x:Key="IcyDefaultDialogTemplate" TargetType="Dialog">
     <Border Background="#AA000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
