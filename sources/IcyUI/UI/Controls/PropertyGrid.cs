@@ -30,15 +30,52 @@ namespace Icy.UI.Controls
     /// recycled row could keep showing a previous <see cref="Target"/>'s editor widget/value.
     /// </para>
     /// <para>
-    /// Like <see cref="TabControl"/>, this control never participates in <see cref="IVirtualizingScrollInfo"/>'s
-    /// viewport-driven realize pipeline - a property list is expected to be short enough that eagerly realizing
+    /// This control never virtualizes: a property list is expected to be short enough that eagerly realizing
     /// every row (see <see cref="MeasureContent"/>/<see cref="ArrangeContent"/>, which lay rows out as a simple
-    /// vertical stack) is preferable to the complexity of virtualizing it. Host this inside a
-    /// <see cref="ScrollViewer"/> for scrolling when the target has more properties than fit on screen.
+    /// vertical stack) is preferable to the complexity of virtualizing it. Rows come and go in exactly one place -
+    /// <see cref="RealizeAllRows"/>, driven by a <see cref="Target"/> reassignment - and never because of where the
+    /// viewport happens to sit.
+    /// </para>
+    /// <para>
+    /// It does still take part in <see cref="IVirtualizingScrollInfo"/>, because <see cref="ItemsControl"/>
+    /// implements that interface and a hosting <see cref="ScrollViewer"/> therefore delegates to it
+    /// unconditionally - but only for the two halves of the contract that make sense here, both overridden to
+    /// replace the base's estimating/virtualizing behavior:
+    /// <list type="bullet">
+    /// <item>
+    /// <description>
+    /// extent reporting - <see cref="ComputeExtentHeight"/> returns the eagerly measured stack's real, exact
+    /// height, not <see cref="ItemsControl"/>'s running-average estimate over partially realized items;
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// offset-driven repositioning - <see cref="OnViewportChanged(float, float, float, float)"/> records the new
+    /// offsets/viewport and re-arranges, which <see cref="ArrangeContent"/> honors by shifting every row by the
+    /// current scroll offset. It deliberately does not call the base implementation, whose realize walk would
+    /// de-realize every row outside the viewport and leave <see cref="ArrangeContent"/>'s own loop over
+    /// <c>[0, <see cref="ItemsControl.ItemCount"/>)</c> looking up rows that no longer exist.
+    /// </description>
+    /// </item>
+    /// </list>
+    /// Host this inside a <see cref="ScrollViewer"/> for scrolling when the target has more properties than fit on
+    /// screen.
     /// </para>
     /// </remarks>
     public class PropertyGrid : ItemsControl
     {
+        /// <summary>
+        /// The fixed width, in pixels, of each per-component <see cref="TextBox"/> a
+        /// <see cref="BuildVectorEditor"/> row builds - see its remarks for why these don't size to content.
+        /// </summary>
+        private const float ComponentEditorWidth = 48f;
+
+        /// <summary>
+        /// The gap, in pixels, kept around each per-component label <see cref="BuildVectorEditor"/> builds, so the
+        /// components of a multi-component row stay visually separated.
+        /// </summary>
+        private const int ComponentLabelSpacing = 4;
+
         private object? target;
 
         /// <summary>
@@ -58,6 +95,13 @@ namespace Icy.UI.Controls
         /// every browsable property via <see cref="PropertyGridEntry.EnumerateFor(object)"/> and rebuilds every
         /// row; assigning <see langword="null"/> clears the grid.
         /// </summary>
+        /// <remarks>
+        /// This property owns <see cref="ItemsControl.ItemsSource"/> outright - every assignment here overwrites it
+        /// wholesale - so the inherited <see cref="ItemsControl.ItemsSource"/> should not be set directly on a
+        /// <see cref="PropertyGrid"/>. <see cref="CreateContainer"/> still falls back to a read-only display for an
+        /// item it doesn't recognize rather than throwing, but that path exists purely so a stray direct assignment
+        /// can't crash a layout pass - it is not a supported way to populate this control.
+        /// </remarks>
         [Category("Content")]
         [DefaultValue(null)]
         [RegisterReference]
@@ -74,43 +118,81 @@ namespace Icy.UI.Controls
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Eagerly realizes every row (this control never virtualizes - see the class remarks), then measures
-        /// the resulting vertical stack's own natural size directly instead of going through
-        /// <see cref="ItemsControl.ExtentWidth"/>/<see cref="ItemsControl.ExtentHeight"/> (which, with nothing
-        /// ever calling <see cref="ItemsControl.OnViewportChanged(float, float, float, float)"/> for this
-        /// control, never get populated) - mirrors <see cref="TabControl.MeasureContent"/>'s identical situation.
+        /// <para>
+        /// Records the offsets/viewport the host <see cref="ScrollViewer"/> reports and re-arranges (see
+        /// <see cref="ArrangeContent"/>, which offsets every row by them) - deliberately without calling
+        /// <see cref="ItemsControl.OnViewportChanged(float, float, float, float)"/>, and without any
+        /// realize/de-realize work of its own.
+        /// </para>
+        /// <para>
+        /// The base implementation's realize walk keeps only the rows intersecting the viewport (plus
+        /// <see cref="ItemsControl.ScrollAheadBuffer"/>) realized and de-realizes the rest, which directly
+        /// contradicts this control's eager, keep-everything-realized design: <see cref="ArrangeContent"/> walks
+        /// <c>[0, <see cref="ItemsControl.ItemCount"/>)</c> unconditionally, so any row dropped for sitting off
+        /// screen would leave it looking up a container that no longer exists. Rows are realized and de-realized in
+        /// exactly one place, <see cref="RealizeAllRows"/>, driven by <see cref="Target"/> - never by scrolling.
+        /// </para>
         /// </remarks>
-        protected override Size MeasureContent()
+        public override void OnViewportChanged(float newHorizontalOffset, float newVerticalOffset, float newViewportWidth, float newViewportHeight)
         {
-            RealizeAllRows();
-
-            int width = 0;
-            int height = 0;
-            for (int i = 0; i < ItemCount; i++)
+            if (horizontalOffset == newHorizontalOffset && verticalOffset == newVerticalOffset &&
+                viewportWidth == newViewportWidth && viewportHeight == newViewportHeight)
             {
-                Size rowSize = GetRealizedContainer(i).Measure();
-                width = Math.Max(width, rowSize.Width);
-                height += rowSize.Height;
+                return;
             }
 
-            return new Size(width, height);
+            horizontalOffset = newHorizontalOffset;
+            verticalOffset = newVerticalOffset;
+            viewportWidth = newViewportWidth;
+            viewportHeight = newViewportHeight;
+
+            InvalidateArrange();
         }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Eagerly realizes every row (this control never virtualizes - see the class remarks), then measures
+        /// the resulting vertical stack's own natural size directly (see <see cref="MeasureRowStack"/>) instead of
+        /// going through <see cref="ItemsControl.MeasureContent"/>'s
+        /// <see cref="ItemsControl.ExtentWidth"/>/<see cref="ItemsControl.ExtentHeight"/> pair, whose base
+        /// implementations describe a partially realized, estimated single-column stack rather than this fully
+        /// realized one - mirrors <see cref="TabControl.MeasureContent"/>'s identical situation.
+        /// </remarks>
+        protected override Size MeasureContent() => MeasureRowStack();
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Returns the eagerly realized row stack's real, exact total height (see <see cref="MeasureRowStack"/>) -
+        /// <see cref="ItemsControl"/>'s own running-average estimate over partially realized items would report a
+        /// height this control's layout never produces, which a hosting <see cref="ScrollViewer"/> would then clamp
+        /// <see cref="ScrollViewer.VerticalOffset"/> against (typically an underestimate, cutting the last rows out
+        /// of reach entirely). Realizes every row first, since this can be read - via
+        /// <see cref="ItemsControl.ExtentHeight"/>, e.g. by <see cref="ScrollViewer.ExtentHeight"/> - before this
+        /// control has ever been measured.
+        /// </remarks>
+        protected override float ComputeExtentHeight() => MeasureRowStack().Height;
 
         /// <inheritdoc/>
         /// <remarks>
         /// Arranges every realized row into a simple top-to-bottom vertical stack spanning
         /// <see cref="Control.ContentBounds"/>'s full width, each as tall as its own natural size - the
-        /// vertical-stack counterpart of <see cref="TabControl.ArrangeContent"/>'s horizontal header row.
+        /// vertical-stack counterpart of <see cref="TabControl.ArrangeContent"/>'s horizontal header row - shifted
+        /// by the scroll offsets a hosting <see cref="ScrollViewer"/> last reported through
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>, the same way
+        /// <see cref="ItemsControl.RealizeRange(int, float)"/> and <see cref="WrapGrid.RealizeRange(int, float)"/>
+        /// offset the containers they position. Both offsets are zero when this control isn't hosted in a
+        /// <see cref="ScrollViewer"/>, making this the plain unscrolled stack in that case.
         /// </remarks>
         protected override void ArrangeContent()
         {
-            int y = ContentBounds.Y;
+            int x = ContentBounds.X - (int)horizontalOffset;
+            int y = ContentBounds.Y - (int)verticalOffset;
             for (int i = 0; i < ItemCount; i++)
             {
                 ItemContainer row = GetRealizedContainer(i);
                 Size rowSize = row.Measure();
                 row.InvalidateArrange();
-                row.Arrange(new Rectangle(ContentBounds.X, y, ContentBounds.Width, rowSize.Height));
+                row.Arrange(new Rectangle(x, y, ContentBounds.Width, rowSize.Height));
                 y += rowSize.Height;
             }
 
@@ -123,15 +205,22 @@ namespace Icy.UI.Controls
         /// Dispatches to a category-header row for a <see cref="CategoryHeader"/> marker item, or a
         /// label+editor <see cref="Grid"/> row for a <see cref="PropertyGridEntry"/> - see
         /// <see cref="BuildEditor"/> for the editor-widget dispatch by <see cref="PropertyGridEntry.PropertyType"/>.
+        /// Anything else falls back to the same read-only <see cref="TextBlock"/> display <see cref="BuildEditor"/>
+        /// uses for a type it has no editor for, rather than throwing: <see cref="ItemsControl.ItemsSource"/> is
+        /// inherited and publicly settable, and a mismatched item assigned straight to it (see
+        /// <see cref="Target"/>'s remarks for why that isn't a supported way to populate this control) must not
+        /// crash row construction from inside a layout pass.
         /// </remarks>
         /// <param name="template">Unused - see the class remarks.</param>
-        /// <param name="item">Either a <see cref="CategoryHeader"/> or a <see cref="PropertyGridEntry"/>.</param>
+        /// <param name="item">Ideally a <see cref="CategoryHeader"/> or a <see cref="PropertyGridEntry"/>.</param>
         protected override ItemContainer CreateContainer(DataTemplate template, object item)
         {
             if (item is CategoryHeader header)
                 return new ItemContainer { Content = new TextBlock { Text = header.Name } };
 
-            var entry = (PropertyGridEntry)item;
+            if (item is not PropertyGridEntry entry)
+                return new ItemContainer { Content = new TextBlock { Text = item?.ToString() ?? string.Empty, VerticalAlignment = VerticalAlignment.Center } };
+
             object currentTarget = target ?? throw new InvalidOperationException(
                 $"'{nameof(PropertyGrid)}' realized a row with no '{nameof(Target)}' set.");
 
@@ -148,6 +237,32 @@ namespace Icy.UI.Controls
             row.Children.Add(editor);
 
             return new ItemContainer { Content = row };
+        }
+
+        /// <summary>
+        /// Realizes every row and measures the vertical stack they form - the widest row's width by the sum of
+        /// every row's height.
+        /// </summary>
+        /// <remarks>
+        /// The single measurement pass <see cref="MeasureContent"/> and <see cref="ComputeExtentHeight"/> share, so
+        /// this control's own desired size and the extent it reports to a hosting <see cref="ScrollViewer"/> can
+        /// never disagree about the same stack.
+        /// </remarks>
+        /// <returns>The realized row stack's total size.</returns>
+        private Size MeasureRowStack()
+        {
+            RealizeAllRows();
+
+            int width = 0;
+            int height = 0;
+            for (int i = 0; i < ItemCount; i++)
+            {
+                Size rowSize = GetRealizedContainer(i).Measure();
+                width = Math.Max(width, rowSize.Width);
+                height += rowSize.Height;
+            }
+
+            return new Size(width, height);
         }
 
         /// <summary>
@@ -258,6 +373,7 @@ namespace Icy.UI.Controls
         /// field for the identical pattern this one is modeled on.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// <see cref="Slider.Value"/>'s setter clamps to <see cref="Slider.Minimum"/>/<see cref="Slider.Maximum"/>
         /// internally, but a value typed into <see cref="TextBox.Text"/> is not otherwise bounded by
         /// <paramref name="range"/> at all. Both the initial <see cref="TextBox.Text"/> assignment and the
@@ -270,6 +386,24 @@ namespace Icy.UI.Controls
         /// <see cref="PropertyGridEntry.TrySetValue"/> while the <see cref="Slider"/> silently clamped its own
         /// display to <c>100</c> - the pair would permanently disagree, and <paramref name="range"/> would never
         /// actually be enforced through this path.
+        /// </para>
+        /// <para>
+        /// The one thing that clamping must not do is rewrite <see cref="TextBox.Text"/> out from under someone
+        /// mid-edit. Every keystroke raises <see cref="TextBox.TextChanged"/> against the partial text typed so far,
+        /// so writing the clamped result back on each one makes any range whose minimum needs more than one digit
+        /// untypable: on a <c>[Range(1000, 5000)]</c> property, the <c>2</c> of an intended <c>2500</c> clamps to
+        /// <c>1000</c> and replaces the text before a second digit can be typed (and a negative range like
+        /// <c>[Range(-10, -1)]</c> breaks the same way on the leading <c>-</c>). The clamped value is therefore still
+        /// pushed to <c>slider.Value</c> and <paramref name="target"/> on every keystroke, but
+        /// <see cref="TextBox.Text"/> itself is only rewritten while the box does not have focus - a
+        /// <see cref="UIElement.FocusChanged"/> handler performs that one rewrite on focus loss, settling the display
+        /// on the clamped value once the user is done typing.
+        /// </para>
+        /// <para>
+        /// That focus-loss rewrite goes through the same <c>isSyncing</c> guard as everything else here: assigning
+        /// <see cref="TextBox.Text"/> re-raises <see cref="TextBox.TextChanged"/>, which would otherwise re-run the
+        /// whole parse/clamp/write path a second time for a value that just came out of it.
+        /// </para>
         /// </remarks>
         /// <param name="entry">The numeric property this row edits.</param>
         /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
@@ -278,12 +412,26 @@ namespace Icy.UI.Controls
         /// <returns>A <see cref="StackPanel"/> containing the freshly built <see cref="Slider"/> and <see cref="TextBox"/>.</returns>
         private UIElement BuildRangedNumericEditor(PropertyGridEntry entry, object target, object? value, (double Min, double Max) range)
         {
-            var slider = new Slider
+            var slider = new Slider { IsEnabled = !entry.IsReadOnly };
+
+            // Both ends have to be assigned one at a time, and each setter immediately re-clamps Slider.Value
+            // through float.Clamp - which throws outright when handed min > max. The *transient* pair each
+            // assignment forms with the end that hasn't been assigned yet (Slider's own defaults, 0 and 100) must
+            // therefore stay ordered. Assigning the end furthest from those defaults first guarantees that: a
+            // Maximum >= 0 can never fall below the default Minimum of 0, and a wholly negative range's Minimum
+            // (<= its own negative Maximum) can never exceed the default Maximum of 100. An inverted range never
+            // reaches here at all - PropertyGridEntry.Range rejects one.
+            if (range.Max >= 0)
             {
-                Minimum = (float)range.Min,
-                Maximum = (float)range.Max,
-                IsEnabled = !entry.IsReadOnly,
-            };
+                slider.Maximum = (float)range.Max;
+                slider.Minimum = (float)range.Min;
+            }
+            else
+            {
+                slider.Minimum = (float)range.Min;
+                slider.Maximum = (float)range.Max;
+            }
+
             slider.Value = (float)Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
 
             // Re-read slider.Value (not the raw incoming `value`) for the initial text: the assignment above
@@ -334,10 +482,33 @@ namespace Icy.UI.Controls
                         slider.Value = (float)Convert.ToDouble(typed, System.Globalization.CultureInfo.InvariantCulture);
                         if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? clamped))
                         {
-                            textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
+                            // Never rewrite the text the user is still typing into - that's what made a range
+                            // like [Range(1000, 5000)] untypable. The clamped value still reaches the target
+                            // immediately; the display catches up on focus loss, below. See this method's remarks.
+                            if (!textBox.IsFocused)
+                                textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
                             entry.TrySetValue(target, clamped);
                         }
                     }
+                }
+                finally
+                {
+                    isSyncing = false;
+                }
+            };
+
+            textBox.FocusChanged += (_, _) =>
+            {
+                // Only on focus LOSS, and only the display: slider.Value already holds the clamped value every
+                // keystroke wrote, so this just settles the text on it. Goes through isSyncing because assigning
+                // Text re-raises TextChanged - see this method's remarks.
+                if (textBox.IsFocused || isSyncing)
+                    return;
+                isSyncing = true;
+                try
+                {
+                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? clamped))
+                        textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
                 }
                 finally
                 {
@@ -406,7 +577,18 @@ namespace Icy.UI.Controls
         /// <param name="componentNames">The component labels, in display order.</param>
         /// <param name="compose">Builds the struct value from the parsed component values, in the same order.</param>
         /// <param name="decompose">Reads the struct's current component values back out, in the same order.</param>
-        /// <returns>The freshly built <see cref="StackPanel"/> of per-component <see cref="TextBox"/>es.</returns>
+        /// <returns>
+        /// The freshly built <see cref="StackPanel"/> of per-component <see cref="TextBlock"/> label +
+        /// <see cref="TextBox"/> pairs.
+        /// </returns>
+        /// <remarks>
+        /// Each component gets its own <see cref="TextBlock"/> label immediately before its <see cref="TextBox"/>:
+        /// <c>X</c>/<c>Y</c>/<c>Z</c> is guessable from position alone, but a <see cref="Matrix4x4"/>'s sixteen
+        /// boxes are not. The boxes take a fixed <see cref="UIElement.Width"/>
+        /// (<see cref="ComponentEditorWidth"/>) rather than sizing to content, so that same sixteen-component row
+        /// stays a predictable width instead of growing with whatever digits its values happen to have; the labels
+        /// size to their own (short, known) text.
+        /// </remarks>
         private UIElement BuildVectorEditor(
             PropertyGridEntry entry,
             object target,
@@ -421,11 +603,17 @@ namespace Icy.UI.Controls
 
             for (int i = 0; i < componentNames.Length; i++)
             {
-                int index = i;
+                var label = new TextBlock
+                {
+                    Text = componentNames[i],
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(i == 0 ? 0 : ComponentLabelSpacing, 0, ComponentLabelSpacing, 0),
+                };
                 var box = new TextBox
                 {
                     Text = current[i].ToString(System.Globalization.CultureInfo.InvariantCulture),
                     IsEnabled = !entry.IsReadOnly,
+                    Width = ComponentEditorWidth,
                 };
                 boxes[i] = box;
                 box.TextChanged += (_, _) =>
@@ -439,6 +627,7 @@ namespace Icy.UI.Controls
 
                     entry.TrySetValue(target, compose(values));
                 };
+                panel.Children.Add(label);
                 panel.Children.Add(box);
             }
 
@@ -452,6 +641,7 @@ namespace Icy.UI.Controls
         /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix3x2"/>-typed property.
         /// </summary>
         /// <param name="v">The parsed component values, in the order above.</param>
+        /// <returns>The composed <see cref="Matrix3x2"/>.</returns>
         private static Matrix3x2 BuildMatrix3x2(double[] v) => new((float)v[0], (float)v[1], (float)v[2], (float)v[3], (float)v[4], (float)v[5]);
 
         /// <summary>
@@ -461,6 +651,7 @@ namespace Icy.UI.Controls
         /// <paramref name="value"/> is <see langword="null"/>.
         /// </summary>
         /// <param name="value">The property's current value.</param>
+        /// <returns>The six component values, in the order above.</returns>
         private static double[] DecomposeMatrix3x2(object? value)
         {
             var m = (Matrix3x2)(value ?? Matrix3x2.Identity);
@@ -473,6 +664,7 @@ namespace Icy.UI.Controls
         /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix4x4"/>-typed property.
         /// </summary>
         /// <param name="v">The parsed component values, in the order above.</param>
+        /// <returns>The composed <see cref="Matrix4x4"/>.</returns>
         private static Matrix4x4 BuildMatrix4x4(double[] v) => new(
             (float)v[0], (float)v[1], (float)v[2], (float)v[3],
             (float)v[4], (float)v[5], (float)v[6], (float)v[7],
@@ -486,6 +678,7 @@ namespace Icy.UI.Controls
         /// <paramref name="value"/> is <see langword="null"/>.
         /// </summary>
         /// <param name="value">The property's current value.</param>
+        /// <returns>The sixteen component values, in the order above.</returns>
         private static double[] DecomposeMatrix4x4(object? value)
         {
             var m = (Matrix4x4)(value ?? Matrix4x4.Identity);
@@ -542,7 +735,7 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Builds the flat, category-grouped row sequence <see cref="ItemsSource"/> is assigned from - a
+        /// Builds the flat, category-grouped row sequence <see cref="ItemsControl.ItemsSource"/> is assigned from - a
         /// <see cref="CategoryHeader"/> before the first row of each newly encountered
         /// <see cref="PropertyGridEntry.Category"/>, in the order <see cref="PropertyGridEntry.EnumerateFor(object)"/>
         /// already groups them in.
