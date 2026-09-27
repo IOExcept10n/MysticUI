@@ -159,7 +159,19 @@ namespace Icy.UI.Controls
         /// <returns>The freshly built editor widget.</returns>
         private UIElement BuildEditor(PropertyGridEntry entry, object target)
         {
-            object? value = entry.GetValue(target);
+            object? value;
+            try
+            {
+                value = entry.GetValue(target);
+            }
+            catch (Exception ex)
+            {
+                // A getter that throws (e.g. a lazily-computed property) must not crash the whole eager-realize
+                // pass over every row (see MeasureContent/RealizeAllRows) - just this one row's own display.
+                // Falls back to the same read-only-TextBlock treatment as an unmatched type, below, showing the
+                // failure instead of a value.
+                return new TextBlock { Text = $"(error: {ex.Message})", VerticalAlignment = VerticalAlignment.Center };
+            }
 
             if (entry.PropertyType == typeof(string))
             {
@@ -186,7 +198,8 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Builds a numeric editor for <paramref name="entry"/> - a plain <see cref="TextBox"/> when no
-        /// <see cref="PropertyGridEntry.Range"/> is present.
+        /// <see cref="PropertyGridEntry.Range"/> is present, or a <see cref="Slider"/>+<see cref="TextBox"/>
+        /// pair (see <see cref="BuildRangedNumericEditor"/>) when one is.
         /// </summary>
         /// <param name="entry">The numeric property this row edits.</param>
         /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
@@ -194,6 +207,9 @@ namespace Icy.UI.Controls
         /// <returns>The freshly built editor widget.</returns>
         private UIElement BuildNumericEditor(PropertyGridEntry entry, object target, object? value)
         {
+            if (entry.Range is { } range)
+                return BuildRangedNumericEditor(entry, target, value, range);
+
             var textBox = new TextBox
             {
                 Text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "0",
@@ -205,6 +221,82 @@ namespace Icy.UI.Controls
                     entry.TrySetValue(target, converted);
             };
             return textBox;
+        }
+
+        /// <summary>
+        /// Builds the <see cref="Slider"/>+<see cref="TextBox"/> pair used for a numeric property that declares
+        /// <paramref name="range"/> - mirrors <see cref="ColorPicker"/>'s hue-slider+hex-box pairing, including
+        /// its re-entrancy guard: a local <c>isSyncing</c> flag each widget's own changed handler checks before
+        /// writing back to the other widget/<paramref name="target"/>, so the <see cref="Slider"/> pushing its
+        /// new value into the <see cref="TextBox"/> (or vice versa) doesn't bounce back through the other
+        /// widget's own changed handler and loop - see <see cref="ColorPicker.SelectedColor"/>'s own <c>isSyncing</c>
+        /// field for the identical pattern this one is modeled on.
+        /// </summary>
+        /// <param name="entry">The numeric property this row edits.</param>
+        /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
+        /// <param name="value">The property's current value.</param>
+        /// <param name="range">The inclusive range <see cref="PropertyGridEntry.Range"/> declares.</param>
+        /// <returns>A <see cref="StackPanel"/> containing the freshly built <see cref="Slider"/> and <see cref="TextBox"/>.</returns>
+        private UIElement BuildRangedNumericEditor(PropertyGridEntry entry, object target, object? value, (double Min, double Max) range)
+        {
+            var slider = new Slider
+            {
+                Minimum = (float)range.Min,
+                Maximum = (float)range.Max,
+                IsEnabled = !entry.IsReadOnly,
+            };
+            slider.Value = (float)Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+
+            var textBox = new TextBox
+            {
+                Text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "0",
+                IsEnabled = !entry.IsReadOnly,
+            };
+
+            bool isSyncing = false;
+
+            slider.ValueChanged += (_, _) =>
+            {
+                if (isSyncing)
+                    return;
+                isSyncing = true;
+                try
+                {
+                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? converted))
+                    {
+                        textBox.Text = Convert.ToString(converted, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
+                        entry.TrySetValue(target, converted);
+                    }
+                }
+                finally
+                {
+                    isSyncing = false;
+                }
+            };
+
+            textBox.TextChanged += (_, _) =>
+            {
+                if (isSyncing)
+                    return;
+                isSyncing = true;
+                try
+                {
+                    if (TryConvertNumeric(textBox.Text, entry.PropertyType, out object? converted))
+                    {
+                        slider.Value = (float)Convert.ToDouble(converted, System.Globalization.CultureInfo.InvariantCulture);
+                        entry.TrySetValue(target, converted);
+                    }
+                }
+                finally
+                {
+                    isSyncing = false;
+                }
+            };
+
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            panel.Children.Add(slider);
+            panel.Children.Add(textBox);
+            return panel;
         }
 
         /// <summary>
@@ -229,9 +321,22 @@ namespace Icy.UI.Controls
         private static bool TryConvertNumeric(string text, Type targetType, out object? value)
         {
             value = null;
-            if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed))
-                return false;
+            return double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed)
+                && TryConvertNumeric(parsed, targetType, out value);
+        }
 
+        /// <summary>
+        /// Converts <paramref name="parsed"/> into <paramref name="targetType"/>, one of the numeric types
+        /// <see cref="IsNumericType"/> recognizes - the shared conversion step both <see cref="TryConvertNumeric(string, Type, out object?)"/>
+        /// (parsing a <see cref="TextBox"/> edit) and <see cref="BuildRangedNumericEditor"/> (converting a
+        /// <see cref="Slider.Value"/> change) funnel through.
+        /// </summary>
+        /// <param name="parsed">The numeric value to convert.</param>
+        /// <param name="targetType">The numeric type to convert into.</param>
+        /// <param name="value">The converted value, when this method returns <see langword="true"/>.</param>
+        private static bool TryConvertNumeric(double parsed, Type targetType, out object? value)
+        {
+            value = null;
             try
             {
                 value = Convert.ChangeType(parsed, targetType, System.Globalization.CultureInfo.InvariantCulture);

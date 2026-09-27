@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Icy.UI;
 using Icy.UI.Controls;
 using Xunit;
@@ -20,6 +21,17 @@ namespace Icy.Tests.Controls
             public bool Ready { get; set; } = true;
 
             public string Note { get; set; } = "hi";
+        }
+
+        private sealed class ThrowingTarget
+        {
+            public string Broken => throw new InvalidOperationException("boom");
+        }
+
+        private sealed class RangedTarget
+        {
+            [Range(0, 100)]
+            public int Volume { get; set; } = 50;
         }
 
         [Fact]
@@ -96,6 +108,45 @@ namespace Icy.Tests.Controls
             Assert.Equal("hi", textBox.Text);
 
             Assert.Null(FindEditor(grid, nameof(SampleTarget.Nickname)));
+        }
+
+        [Fact]
+        public void Target_PropertyGetterThrows_RealizesReadOnlyTextBlockFallbackInsteadOfThrowing()
+        {
+            var target = new ThrowingTarget();
+            var grid = new PropertyGrid { Target = target };
+
+            // Must not throw - a throwing getter (e.g. a lazily-computed property) is a per-row display
+            // failure, not a reason to crash the whole eager-realize pass over every row.
+            grid.Measure();
+
+            Assert.IsType<TextBlock>(FindEditor(grid, nameof(ThrowingTarget.Broken)));
+        }
+
+        [Fact]
+        public void Target_NumericPropertyWithRange_RealizesSliderAndTextBoxPairBoundToValueBothWays()
+        {
+            var target = new RangedTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var editor = FindEditor(grid, nameof(RangedTarget.Volume));
+            var panel = Assert.IsType<StackPanel>(editor);
+            var slider = Assert.IsType<Slider>(panel.Children.ElementAtOrDefault(0));
+            var textBox = Assert.IsType<TextBox>(panel.Children.ElementAtOrDefault(1));
+
+            Assert.Equal(0f, slider.Minimum);
+            Assert.Equal(100f, slider.Maximum);
+            Assert.Equal(50f, slider.Value);
+            Assert.Equal("50", textBox.Text);
+
+            slider.Value = 80f;
+            Assert.Equal(80, target.Volume);
+            Assert.Equal("80", textBox.Text);
+
+            textBox.Text = "20";
+            Assert.Equal(20, target.Volume);
+            Assert.Equal(20f, slider.Value);
         }
 
         /// <summary>
