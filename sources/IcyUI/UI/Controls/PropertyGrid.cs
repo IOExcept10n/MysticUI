@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
+using System.Numerics;
 using Icy.Data;
 using Icy.Data.Markup.Attributes;
 using Icy.UI.Styles;
@@ -190,6 +191,30 @@ namespace Icy.UI.Controls
             if (IsNumericType(entry.PropertyType))
                 return BuildNumericEditor(entry, target, value);
 
+            if (entry.PropertyType.IsEnum)
+                return BuildEnumEditor(entry, target, value);
+
+            if (entry.PropertyType == typeof(Color))
+                return BuildColorEditor(entry, target, value);
+
+            if (entry.PropertyType == typeof(Vector2))
+                return BuildVectorEditor(entry, target, ["X", "Y"], v => new Vector2((float)v[0], (float)v[1]), v => [((Vector2)v!).X, ((Vector2)v).Y]);
+
+            if (entry.PropertyType == typeof(Vector3))
+                return BuildVectorEditor(entry, target, ["X", "Y", "Z"], v => new Vector3((float)v[0], (float)v[1], (float)v[2]), v => [((Vector3)v!).X, ((Vector3)v).Y, ((Vector3)v).Z]);
+
+            if (entry.PropertyType == typeof(Vector4))
+                return BuildVectorEditor(entry, target, ["X", "Y", "Z", "W"], v => new Vector4((float)v[0], (float)v[1], (float)v[2], (float)v[3]), v => [((Vector4)v!).X, ((Vector4)v).Y, ((Vector4)v).Z, ((Vector4)v).W]);
+
+            if (entry.PropertyType == typeof(Quaternion))
+                return BuildVectorEditor(entry, target, ["X", "Y", "Z", "W"], v => new Quaternion((float)v[0], (float)v[1], (float)v[2], (float)v[3]), v => [((Quaternion)v!).X, ((Quaternion)v).Y, ((Quaternion)v).Z, ((Quaternion)v).W]);
+
+            if (entry.PropertyType == typeof(Matrix3x2))
+                return BuildVectorEditor(entry, target, ["M11", "M12", "M21", "M22", "M31", "M32"], v => BuildMatrix3x2(v), DecomposeMatrix3x2);
+
+            if (entry.PropertyType == typeof(Matrix4x4))
+                return BuildVectorEditor(entry, target, ["M11", "M12", "M13", "M14", "M21", "M22", "M23", "M24", "M31", "M32", "M33", "M34", "M41", "M42", "M43", "M44"], v => BuildMatrix4x4(v), DecomposeMatrix4x4);
+
             // TODO: nested/complex-object rows, and dedicated DateOnly/TimeOnly/DateTime/Uri editors, are out of
             // scope for v1 - see docs/superpowers/specs/2026-09-27-propertygrid-design.md. Every such type (and
             // any other type without a dedicated editor above) falls through to this read-only display.
@@ -324,6 +349,139 @@ namespace Icy.UI.Controls
             panel.Children.Add(slider);
             panel.Children.Add(textBox);
             return panel;
+        }
+
+        /// <summary>
+        /// Builds a <see cref="ComboBox"/> editor over every value of <paramref name="entry"/>'s enum type.
+        /// </summary>
+        /// <param name="entry">The enum-typed property this row edits.</param>
+        /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
+        /// <param name="value">The property's current value.</param>
+        /// <returns>The freshly built editor widget.</returns>
+        private UIElement BuildEnumEditor(PropertyGridEntry entry, object target, object? value)
+        {
+            var comboBox = new ComboBox
+            {
+                ItemsSource = EnumValueCache.GetValues(entry.PropertyType),
+                SelectedItem = value,
+                IsEnabled = !entry.IsReadOnly,
+            };
+            comboBox.SelectionChanged += (_, _) => entry.TrySetValue(target, comboBox.SelectedItem);
+            return comboBox;
+        }
+
+        /// <summary>
+        /// Builds a <see cref="ColorPickerButton"/> editor for a <see cref="Color"/>-typed property.
+        /// </summary>
+        /// <param name="entry">The color-typed property this row edits.</param>
+        /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
+        /// <param name="value">The property's current value.</param>
+        /// <returns>The freshly built editor widget.</returns>
+        private UIElement BuildColorEditor(PropertyGridEntry entry, object target, object? value)
+        {
+            var button = new ColorPickerButton
+            {
+                SelectedColor = value is Color color ? color : Color.White,
+                IsEnabled = !entry.IsReadOnly,
+            };
+            button.ColorChanged += (_, _) => entry.TrySetValue(target, button.SelectedColor);
+            return button;
+        }
+
+        /// <summary>
+        /// Builds a composite row of one labeled numeric <see cref="TextBox"/> per component for a
+        /// <c>System.Numerics</c> vector/quaternion/matrix-typed property - <paramref name="componentNames"/> in
+        /// display order, <paramref name="compose"/> rebuilding the struct from every field's parsed value on any
+        /// edit, <paramref name="decompose"/> reading the current per-component values back out.
+        /// </summary>
+        /// <param name="entry">The property this row edits.</param>
+        /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
+        /// <param name="componentNames">The component labels, in display order.</param>
+        /// <param name="compose">Builds the struct value from the parsed component values, in the same order.</param>
+        /// <param name="decompose">Reads the struct's current component values back out, in the same order.</param>
+        /// <returns>The freshly built <see cref="StackPanel"/> of per-component <see cref="TextBox"/>es.</returns>
+        private UIElement BuildVectorEditor(
+            PropertyGridEntry entry,
+            object target,
+            string[] componentNames,
+            Func<double[], object> compose,
+            Func<object?, double[]> decompose)
+        {
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            double[] current = decompose(entry.GetValue(target));
+            var boxes = new TextBox[componentNames.Length];
+
+            for (int i = 0; i < componentNames.Length; i++)
+            {
+                int index = i;
+                var box = new TextBox
+                {
+                    Text = current[i].ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    IsEnabled = !entry.IsReadOnly,
+                };
+                boxes[i] = box;
+                box.TextChanged += (_, _) =>
+                {
+                    var values = new double[componentNames.Length];
+                    for (int j = 0; j < componentNames.Length; j++)
+                    {
+                        if (!double.TryParse(boxes[j].Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out values[j]))
+                            return;
+                    }
+
+                    entry.TrySetValue(target, compose(values));
+                };
+                panel.Children.Add(box);
+            }
+
+            return panel;
+        }
+
+        /// <summary>
+        /// Builds a <see cref="Matrix3x2"/> from <paramref name="v"/>'s six components, in
+        /// <see cref="Matrix3x2.M11"/>/<see cref="Matrix3x2.M12"/>/<see cref="Matrix3x2.M21"/>/<see cref="Matrix3x2.M22"/>/
+        /// <see cref="Matrix3x2.M31"/>/<see cref="Matrix3x2.M32"/> order - the <c>compose</c> delegate
+        /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix3x2"/>-typed property.
+        /// </summary>
+        /// <param name="v">The parsed component values, in the order above.</param>
+        private static Matrix3x2 BuildMatrix3x2(double[] v) => new((float)v[0], (float)v[1], (float)v[2], (float)v[3], (float)v[4], (float)v[5]);
+
+        /// <summary>
+        /// Reads a <see cref="Matrix3x2"/>'s six components back out, in the same order
+        /// <see cref="BuildMatrix3x2"/> expects - the <c>decompose</c> delegate <see cref="BuildVectorEditor"/>
+        /// uses for a <see cref="Matrix3x2"/>-typed property. Falls back to <see cref="Matrix3x2.Identity"/> when
+        /// <paramref name="value"/> is <see langword="null"/>.
+        /// </summary>
+        /// <param name="value">The property's current value.</param>
+        private static double[] DecomposeMatrix3x2(object? value)
+        {
+            var m = (Matrix3x2)(value ?? Matrix3x2.Identity);
+            return [m.M11, m.M12, m.M21, m.M22, m.M31, m.M32];
+        }
+
+        /// <summary>
+        /// Builds a <see cref="Matrix4x4"/> from <paramref name="v"/>'s sixteen components, in row-major
+        /// <see cref="Matrix4x4.M11"/>.. <see cref="Matrix4x4.M44"/> order - the <c>compose</c> delegate
+        /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix4x4"/>-typed property.
+        /// </summary>
+        /// <param name="v">The parsed component values, in the order above.</param>
+        private static Matrix4x4 BuildMatrix4x4(double[] v) => new(
+            (float)v[0], (float)v[1], (float)v[2], (float)v[3],
+            (float)v[4], (float)v[5], (float)v[6], (float)v[7],
+            (float)v[8], (float)v[9], (float)v[10], (float)v[11],
+            (float)v[12], (float)v[13], (float)v[14], (float)v[15]);
+
+        /// <summary>
+        /// Reads a <see cref="Matrix4x4"/>'s sixteen components back out, in the same order
+        /// <see cref="BuildMatrix4x4"/> expects - the <c>decompose</c> delegate <see cref="BuildVectorEditor"/>
+        /// uses for a <see cref="Matrix4x4"/>-typed property. Falls back to <see cref="Matrix4x4.Identity"/> when
+        /// <paramref name="value"/> is <see langword="null"/>.
+        /// </summary>
+        /// <param name="value">The property's current value.</param>
+        private static double[] DecomposeMatrix4x4(object? value)
+        {
+            var m = (Matrix4x4)(value ?? Matrix4x4.Identity);
+            return [m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44];
         }
 
         /// <summary>

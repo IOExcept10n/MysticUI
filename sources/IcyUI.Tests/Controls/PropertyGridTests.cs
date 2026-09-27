@@ -14,6 +14,14 @@ namespace Icy.Tests.Controls
             public bool Active { get; set; } = true;
 
             public int Score { get; set; } = 10;
+
+            public DayOfWeek FavoriteDay { get; set; } = DayOfWeek.Monday;
+
+            public System.Drawing.Color TintColor { get; set; } = System.Drawing.Color.Red;
+
+            public System.Numerics.Vector3 Position { get; set; } = new(1f, 2f, 3f);
+
+            public object Unsupported { get; set; } = new();
         }
 
         private sealed class OtherTarget
@@ -168,6 +176,63 @@ namespace Icy.Tests.Controls
             Assert.Equal(100, target.Volume);
             Assert.Equal(100f, slider.Value);
             Assert.Equal("100", textBox.Text);
+        }
+
+        [Fact]
+        public void Target_EnumProperty_RealizesComboBoxWithAllEnumValues()
+        {
+            var target = new SampleTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var comboBox = Assert.IsType<ComboBox>(FindEditor(grid, nameof(SampleTarget.FavoriteDay)));
+            Assert.Equal(DayOfWeek.Monday, comboBox.SelectedItem);
+
+            comboBox.SelectedItem = DayOfWeek.Friday;
+            Assert.Equal(DayOfWeek.Friday, target.FavoriteDay);
+        }
+
+        [Fact]
+        public void Target_ColorProperty_RealizesColorPickerButtonBoundToValue()
+        {
+            var target = new SampleTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var button = Assert.IsType<ColorPickerButton>(FindEditor(grid, nameof(SampleTarget.TintColor)));
+            Assert.Equal(System.Drawing.Color.Red, button.SelectedColor);
+
+            button.SelectedColor = System.Drawing.Color.Blue;
+            Assert.Equal(System.Drawing.Color.Blue, target.TintColor);
+        }
+
+        [Fact]
+        public void Target_Vector3Property_RealizesThreeComponentTextBoxesBoundToValue()
+        {
+            var target = new SampleTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var editor = Assert.IsType<StackPanel>(FindEditor(grid, nameof(SampleTarget.Position)));
+            var boxes = editor.Children.OfType<TextBox>().ToList();
+            Assert.Equal(3, boxes.Count);
+            Assert.Equal("1", boxes[0].Text);
+            Assert.Equal("2", boxes[1].Text);
+            Assert.Equal("3", boxes[2].Text);
+
+            boxes[0].Text = "9";
+            Assert.Equal(9f, target.Position.X);
+        }
+
+        [Fact]
+        public void Target_UnrecognizedType_RealizesReadOnlyTextBlockAndDoesNotThrow()
+        {
+            var target = new SampleTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var display = Assert.IsType<TextBlock>(FindEditor(grid, nameof(SampleTarget.Unsupported)));
+            Assert.False(string.IsNullOrEmpty(display.Text));
         }
 
         /// <summary>
