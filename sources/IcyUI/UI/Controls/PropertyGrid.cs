@@ -232,6 +232,20 @@ namespace Icy.UI.Controls
         /// widget's own changed handler and loop - see <see cref="ColorPicker.SelectedColor"/>'s own <c>isSyncing</c>
         /// field for the identical pattern this one is modeled on.
         /// </summary>
+        /// <remarks>
+        /// <see cref="Slider.Value"/>'s setter clamps to <see cref="Slider.Minimum"/>/<see cref="Slider.Maximum"/>
+        /// internally, but a value typed into <see cref="TextBox.Text"/> is not otherwise bounded by
+        /// <paramref name="range"/> at all. Both the initial <see cref="TextBox.Text"/> assignment and the
+        /// <see cref="TextBox.TextChanged"/> handler below therefore always route the value through
+        /// <c>slider.Value</c> first and re-read it back out afterwards, using that already-clamped result - never
+        /// the raw incoming value - as the single source of truth for what actually reaches
+        /// <paramref name="target"/> (via <see cref="PropertyGridEntry.TrySetValue"/>) and what's redisplayed in
+        /// <see cref="TextBox.Text"/>. Without this, typing an out-of-range value (e.g. <c>150</c> on a
+        /// <c>[Range(0, 100)]</c> property) would write the unclamped value straight through
+        /// <see cref="PropertyGridEntry.TrySetValue"/> while the <see cref="Slider"/> silently clamped its own
+        /// display to <c>100</c> - the pair would permanently disagree, and <paramref name="range"/> would never
+        /// actually be enforced through this path.
+        /// </remarks>
         /// <param name="entry">The numeric property this row edits.</param>
         /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
         /// <param name="value">The property's current value.</param>
@@ -247,9 +261,14 @@ namespace Icy.UI.Controls
             };
             slider.Value = (float)Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
 
+            // Re-read slider.Value (not the raw incoming `value`) for the initial text: the assignment above
+            // already clamped it to range, so this starts the TextBox in agreement with the Slider even when
+            // the target's current value sits outside its declared Range before the user ever touches either
+            // widget - see the class remarks.
+            object? initialValue = TryConvertNumeric(slider.Value, entry.PropertyType, out object? convertedInitial) ? convertedInitial : value;
             var textBox = new TextBox
             {
-                Text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "0",
+                Text = Convert.ToString(initialValue, System.Globalization.CultureInfo.InvariantCulture) ?? "0",
                 IsEnabled = !entry.IsReadOnly,
             };
 
@@ -281,10 +300,18 @@ namespace Icy.UI.Controls
                 isSyncing = true;
                 try
                 {
-                    if (TryConvertNumeric(textBox.Text, entry.PropertyType, out object? converted))
+                    if (TryConvertNumeric(textBox.Text, entry.PropertyType, out object? typed))
                     {
-                        slider.Value = (float)Convert.ToDouble(converted, System.Globalization.CultureInfo.InvariantCulture);
-                        entry.TrySetValue(target, converted);
+                        // slider.Value's setter clamps to [Minimum, Maximum] - re-read it afterwards as the
+                        // clamped result, rather than trusting `typed` (the raw, possibly out-of-range parse),
+                        // for both what gets written to the target and what's redisplayed in the TextBox - see
+                        // the class remarks.
+                        slider.Value = (float)Convert.ToDouble(typed, System.Globalization.CultureInfo.InvariantCulture);
+                        if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? clamped))
+                        {
+                            textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
+                            entry.TrySetValue(target, clamped);
+                        }
                     }
                 }
                 finally

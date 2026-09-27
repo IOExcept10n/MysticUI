@@ -149,6 +149,27 @@ namespace Icy.Tests.Controls
             Assert.Equal(20f, slider.Value);
         }
 
+        [Fact]
+        public void Target_OutOfRangeTextBoxEdit_ClampsTargetSliderAndTextBoxToRangeConsistently()
+        {
+            var target = new RangedTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var editor = FindEditor(grid, nameof(RangedTarget.Volume));
+            var panel = Assert.IsType<StackPanel>(editor);
+            var slider = Assert.IsType<Slider>(panel.Children.ElementAtOrDefault(0));
+            var textBox = Assert.IsType<TextBox>(panel.Children.ElementAtOrDefault(1));
+
+            textBox.Text = "150";
+
+            // All three must agree on the clamped value (100, the declared Maximum) - not 150, and not a
+            // Slider/TextBox/target that each disagree with each other.
+            Assert.Equal(100, target.Volume);
+            Assert.Equal(100f, slider.Value);
+            Assert.Equal("100", textBox.Text);
+        }
+
         /// <summary>
         /// Finds the realized row's editor widget (the row <see cref="Grid"/>'s second child) whose label
         /// (first child, a <see cref="TextBlock"/>) matches <paramref name="propertyDisplayName"/> - none of
