@@ -1,4 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using Icy.Configuration;
+using Icy.Tests.Input;
+using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
 using Xunit;
@@ -460,6 +463,45 @@ namespace Icy.Tests.Controls
 
             var display = Assert.IsType<TextBlock>(FindEditor(grid, nameof(SampleTarget.Unsupported)));
             Assert.False(string.IsNullOrEmpty(display.Text));
+        }
+
+        [Fact]
+        public void ThemedPropertyGrid_PropertyRow_MeasuresNonZeroHeight()
+        {
+            // End-to-end regression (real font, matching ExpanderTests.cs's own "real font/theme" precedent for a
+            // layout bug only visible with real text metrics) for a manual-smoke-test bug: PropertyGrid rendered
+            // its category headers but nothing else. Root cause: the row Grid built in CreateContainer only ever
+            // added ColumnDefinitions, never RowDefinitions - Grid.ResolveTracks treats a missing RowDefinitions
+            // list as a single implicit Star track, which measures to 0 height whenever no available-space
+            // constraint is known (exactly the case at this row's own natural-size Measure time). Every property
+            // row therefore measured - and arranged - at zero height and never actually rendered, while a bare
+            // TextBlock category header (no Grid involved) rendered fine. A bare `new PropertyGrid()` test (no
+            // configured font) can't tell this apart from TextBlock.MeasureContent's own font==null->Size.Empty
+            // path, since both label and editor text would measure zero regardless of the Grid fix - hence the
+            // real font/theme setup here.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+
+            var target = new SampleTarget();
+            var grid = new PropertyGrid { Target = target };
+            canvas.Add(grid);
+            grid.Measure();
+
+            ItemContainer? row = GetRealizedContainers(grid).Values.FirstOrDefault(c =>
+                c.Content is Grid g &&
+                g.Children.ElementAtOrDefault(0) is TextBlock label &&
+                label.Text == nameof(SampleTarget.Nickname));
+
+            Assert.NotNull(row);
+            Assert.True(row!.Measure().Height > 0, "A property row must measure a nonzero height or it never renders.");
         }
 
         /// <summary>

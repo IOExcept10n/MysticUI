@@ -228,6 +228,13 @@ namespace Icy.UI.Controls
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
 
+            // A Grid with no RowDefinitions falls back to a single implicit Star track (Grid.ResolveTracks), which
+            // measures to 0 height with no available-space constraint - exactly the case at this row's own
+            // natural-size Measure time (PropertyGrid.MeasureRowStack calls row.Measure() directly, no ancestor
+            // ever hands this Grid a known height). An explicit Auto row instead sizes to its children's natural
+            // height, the same way every other hand-built Grid in this codebase declares its rows.
+            row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
             var label = new TextBlock { Text = entry.DisplayName, VerticalAlignment = VerticalAlignment.Center };
             UIElement editor = BuildEditor(entry, currentTarget);
 
