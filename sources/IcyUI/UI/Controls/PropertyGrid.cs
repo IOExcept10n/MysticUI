@@ -198,22 +198,22 @@ namespace Icy.UI.Controls
                 return BuildColorEditor(entry, target, value);
 
             if (entry.PropertyType == typeof(Vector2))
-                return BuildVectorEditor(entry, target, ["X", "Y"], v => new Vector2((float)v[0], (float)v[1]), v => [((Vector2)v!).X, ((Vector2)v).Y]);
+                return BuildVectorEditor(entry, target, value, ["X", "Y"], v => new Vector2((float)v[0], (float)v[1]), v => [((Vector2)v!).X, ((Vector2)v).Y]);
 
             if (entry.PropertyType == typeof(Vector3))
-                return BuildVectorEditor(entry, target, ["X", "Y", "Z"], v => new Vector3((float)v[0], (float)v[1], (float)v[2]), v => [((Vector3)v!).X, ((Vector3)v).Y, ((Vector3)v).Z]);
+                return BuildVectorEditor(entry, target, value, ["X", "Y", "Z"], v => new Vector3((float)v[0], (float)v[1], (float)v[2]), v => [((Vector3)v!).X, ((Vector3)v).Y, ((Vector3)v).Z]);
 
             if (entry.PropertyType == typeof(Vector4))
-                return BuildVectorEditor(entry, target, ["X", "Y", "Z", "W"], v => new Vector4((float)v[0], (float)v[1], (float)v[2], (float)v[3]), v => [((Vector4)v!).X, ((Vector4)v).Y, ((Vector4)v).Z, ((Vector4)v).W]);
+                return BuildVectorEditor(entry, target, value, ["X", "Y", "Z", "W"], v => new Vector4((float)v[0], (float)v[1], (float)v[2], (float)v[3]), v => [((Vector4)v!).X, ((Vector4)v).Y, ((Vector4)v).Z, ((Vector4)v).W]);
 
             if (entry.PropertyType == typeof(Quaternion))
-                return BuildVectorEditor(entry, target, ["X", "Y", "Z", "W"], v => new Quaternion((float)v[0], (float)v[1], (float)v[2], (float)v[3]), v => [((Quaternion)v!).X, ((Quaternion)v).Y, ((Quaternion)v).Z, ((Quaternion)v).W]);
+                return BuildVectorEditor(entry, target, value, ["X", "Y", "Z", "W"], v => new Quaternion((float)v[0], (float)v[1], (float)v[2], (float)v[3]), v => [((Quaternion)v!).X, ((Quaternion)v).Y, ((Quaternion)v).Z, ((Quaternion)v).W]);
 
             if (entry.PropertyType == typeof(Matrix3x2))
-                return BuildVectorEditor(entry, target, ["M11", "M12", "M21", "M22", "M31", "M32"], v => BuildMatrix3x2(v), DecomposeMatrix3x2);
+                return BuildVectorEditor(entry, target, value, ["M11", "M12", "M21", "M22", "M31", "M32"], v => BuildMatrix3x2(v), DecomposeMatrix3x2);
 
             if (entry.PropertyType == typeof(Matrix4x4))
-                return BuildVectorEditor(entry, target, ["M11", "M12", "M13", "M14", "M21", "M22", "M23", "M24", "M31", "M32", "M33", "M34", "M41", "M42", "M43", "M44"], v => BuildMatrix4x4(v), DecomposeMatrix4x4);
+                return BuildVectorEditor(entry, target, value, ["M11", "M12", "M13", "M14", "M21", "M22", "M23", "M24", "M31", "M32", "M33", "M34", "M41", "M42", "M43", "M44"], v => BuildMatrix4x4(v), DecomposeMatrix4x4);
 
             // TODO: nested/complex-object rows, and dedicated DateOnly/TimeOnly/DateTime/Uri editors, are out of
             // scope for v1 - see docs/superpowers/specs/2026-09-27-propertygrid-design.md. Every such type (and
@@ -396,6 +396,13 @@ namespace Icy.UI.Controls
         /// </summary>
         /// <param name="entry">The property this row edits.</param>
         /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
+        /// <param name="value">
+        /// The property's current value, already fetched by <see cref="BuildEditor"/>'s own guarded
+        /// <see cref="PropertyGridEntry.GetValue(object)"/> call - reused here instead of calling it a second,
+        /// unguarded time, so a getter that throws (succeeding once inside that guard, then throwing again were
+        /// this to re-fetch it) can't crash this row's build the way <see cref="BuildEditor"/>'s try/catch exists
+        /// to prevent.
+        /// </param>
         /// <param name="componentNames">The component labels, in display order.</param>
         /// <param name="compose">Builds the struct value from the parsed component values, in the same order.</param>
         /// <param name="decompose">Reads the struct's current component values back out, in the same order.</param>
@@ -403,12 +410,13 @@ namespace Icy.UI.Controls
         private UIElement BuildVectorEditor(
             PropertyGridEntry entry,
             object target,
+            object? value,
             string[] componentNames,
             Func<double[], object> compose,
             Func<object?, double[]> decompose)
         {
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
-            double[] current = decompose(entry.GetValue(target));
+            double[] current = decompose(value);
             var boxes = new TextBox[componentNames.Length];
 
             for (int i = 0; i < componentNames.Length; i++)
