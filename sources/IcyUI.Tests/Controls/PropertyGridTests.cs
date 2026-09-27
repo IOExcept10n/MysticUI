@@ -257,11 +257,47 @@ namespace Icy.Tests.Controls
             var grid = new PropertyGrid { Target = target };
             grid.Measure();
 
-            var comboBox = Assert.IsType<ComboBox>(FindEditor(grid, nameof(SampleTarget.FavoriteDay)));
+            // IsAssignableFrom, not IsType: BuildEnumEditor realizes a private ComboBox subclass (see its own
+            // remarks) to work around ItemTemplate's markup-only construction - still a real, fully-functional
+            // ComboBox as far as any consumer of this row's editor widget is concerned.
+            var comboBox = Assert.IsAssignableFrom<ComboBox>(FindEditor(grid, nameof(SampleTarget.FavoriteDay)));
             Assert.Equal(DayOfWeek.Monday, comboBox.SelectedItem);
 
             comboBox.SelectedItem = DayOfWeek.Friday;
             Assert.Equal(DayOfWeek.Friday, target.FavoriteDay);
+        }
+
+        [Fact]
+        public void ThemedPropertyGrid_OpeningEnumComboBoxPopup_DoesNotThrow()
+        {
+            // BuildEnumEditor's ComboBox never had an ItemTemplate set. ItemsControl.EnsureRealized calls
+            // ResolveTemplate(item) unconditionally before CreateContainer ever runs, and throws
+            // InvalidOperationException for want of an ItemTemplate/ItemTemplateSelector - which none of this
+            // file's other enum tests exercise, since none of them ever actually open the popup (Selector.IsOpen
+            // -> OpenPopup -> OnViewportChanged -> RealizeRange -> EnsureRealized is the only path that realizes
+            // the popup's own items). OpenPopup also silently no-ops without a real Canvas, so this needs the same
+            // real font/theme/Canvas harness as the RowDefinitions fix's own regression test.
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+
+            var target = new SampleTarget();
+            var grid = new PropertyGrid { Target = target };
+            canvas.Add(grid);
+            grid.Measure();
+
+            var comboBox = Assert.IsAssignableFrom<ComboBox>(FindEditor(grid, nameof(SampleTarget.FavoriteDay)));
+
+            Exception? exception = Record.Exception(() => comboBox.IsOpen = true);
+
+            Assert.Null(exception);
         }
 
         [Fact]
