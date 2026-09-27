@@ -155,6 +155,10 @@ namespace Icy.Data
             if (range == null)
                 return null;
 
+            // Only apply Range to numeric types
+            if (!IsNumericType(property.PropertyType))
+                return null;
+
             try
             {
                 return (Convert.ToDouble(range.Minimum), Convert.ToDouble(range.Maximum));
@@ -163,6 +167,16 @@ namespace Icy.Data
             {
                 return null;
             }
+        }
+
+        private static bool IsNumericType(Type type)
+        {
+            return type == typeof(byte) || type == typeof(sbyte) ||
+                   type == typeof(short) || type == typeof(ushort) ||
+                   type == typeof(int) || type == typeof(uint) ||
+                   type == typeof(long) || type == typeof(ulong) ||
+                   type == typeof(float) || type == typeof(double) ||
+                   type == typeof(decimal);
         }
     }
 }

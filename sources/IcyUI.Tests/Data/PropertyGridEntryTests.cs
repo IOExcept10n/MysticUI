@@ -29,6 +29,9 @@ namespace Icy.Tests.Data
 
             [ReadOnly(true)]
             public string ExplicitlyReadOnly { get; set; } = "locked";
+
+            [Range(0, 100)]
+            public string RangeOnString { get; set; } = "text";
         }
 
         private sealed class RegisteredTarget : Icy.Data.Markup.DependencyObject
@@ -125,6 +128,39 @@ namespace Icy.Tests.Data
             int healthIndex = categories.IndexOf("Stats");
             int miscIndex = categories.IndexOf("Misc");
             Assert.True(healthIndex >= 0 && miscIndex >= 0);
+        }
+
+        [Fact]
+        public void EnumerateFor_RangeOnNonNumericProperty_DoesNotThrowAndReturnsNullRange()
+        {
+            var target = new PlainPoco();
+            var entries = PropertyGridEntry.EnumerateFor(target);
+
+            var rangeOnString = Assert.Single(entries, e => e.Name == nameof(PlainPoco.RangeOnString));
+            Assert.Null(rangeOnString.Range);
+        }
+
+        [Fact]
+        public void EnumerateFor_DuplicateDisplayNameDifferentProperties_DedupsOnPropertyInfoNotDisplayName()
+        {
+            var target = new WithDuplicateDisplayNames();
+            var entries = PropertyGridEntry.EnumerateFor(target);
+
+            var property1 = Assert.Single(entries, e => e.Name == nameof(WithDuplicateDisplayNames.Property1));
+            var property2 = Assert.Single(entries, e => e.Name == nameof(WithDuplicateDisplayNames.Property2));
+
+            Assert.Equal("Same Label", property1.DisplayName);
+            Assert.Equal("Same Label", property2.DisplayName);
+            Assert.NotEqual(property1.Name, property2.Name);
+        }
+
+        private sealed class WithDuplicateDisplayNames
+        {
+            [DisplayName("Same Label")]
+            public string Property1 { get; set; } = "first";
+
+            [DisplayName("Same Label")]
+            public string Property2 { get; set; } = "second";
         }
     }
 }
