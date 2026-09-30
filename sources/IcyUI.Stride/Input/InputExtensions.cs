@@ -13,8 +13,8 @@ namespace Icy.Stride.Input
     /// <remarks>
     /// Unlike MonoGame's <c>InputExtensions</c> (a hand-written ~150-entry lookup table), key and button remapping
     /// here is name-based: <see cref="Icy.Input.Devices.Keys"/>/<see cref="MouseButtons"/>/<see cref="GamePadButtons"/>
-    /// share most member names with Stride's own <see cref="Stride.Input.Keys"/>/<see cref="Stride.Input.MouseButton"/>/
-    /// <see cref="Stride.Input.GamePadButton"/>, so parsing by name avoids a large, easy-to-typo manual table and
+    /// share most member names with Stride's own <see cref="global::Stride.Input.Keys"/>/<see cref="global::Stride.Input.MouseButton"/>/
+    /// <see cref="global::Stride.Input.GamePadButton"/>, so parsing by name avoids a large, easy-to-typo manual table and
     /// degrades gracefully (to "unmapped") for the handful of names that don't line up, rather than failing to compile.
     /// </remarks>
     public static class InputExtensions

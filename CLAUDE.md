@@ -23,6 +23,8 @@ The built-in theme lives in `sources/IcyUI/Resources/Themes/DefaultTheme.xml` (e
 
 ## Build & test
 
+Everything targets `net10.0` (the sample hosts use `net10.0-windows`). The SDK is pinned via the root `global.json` (10.0.x, `latestFeature`). Shared properties live in `sources/Directory.Build.props` (`IcyTargetFramework`, `Nullable`, `ImplicitUsings`), and **all package versions** in `sources/Directory.Packages.props` (Central Package Management). Never put `Version=` on a `PackageReference`.
+
 No CI and no build scripts. Use plain `dotnet` commands:
 
 ```
@@ -31,14 +33,17 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 ```
 
 - `MonoGame Sample` has a space in its path, so always quote it. It restores `dotnet-mgcb` via a local tool manifest on first build.
-- StyleCop and `EnforceCodeStyleInBuild` are wired only into `IcyUI` and `IcyUI.MonoGame`.
-- Development happens on both x64 and Windows-on-ARM64 machines. Engine package versions must provide `win-arm64` natives.
+- StyleCop is wired into the shipped libraries (`IcyUI`, `IcyUI.MonoGame`, `IcyUI.Stride`), not into tests/samples.
+- `MonoGame Sample` opts out of `ImplicitUsings`/`Nullable`: with `UseWindowsForms`, implicit usings pull in `System.Windows.Forms`/`System.Drawing`, which clash with Icy/XNA type names.
+- The MonoGame packages and the `mgcb` tools in `MonoGame Sample/.config/dotnet-tools.json` must stay on the same version.
+- Development happens on both x64 and Windows-on-ARM64 machines. Engine package versions must provide `win-arm64` natives (Stride >= 4.3; MonoGame DesktopGL/WindowsDX 3.8.5 do). Missing natives fail only at runtime, not at build time.
 
 ## Conventions
 
 - **Every public API gets complete XML documentation.** The DocFX site (`docfx/`) is generated from it. Use `<see cref>`/`<see langword>`, `<list>`, `<para>`, etc.
 - Keep engine-specific code inside its `IcyUI.<Engine>` project. Core changes to rendering, input or public API must be checked against both MonoGame and Stride.
-- Match surrounding code style: StyleCop rules, file-scoped types, existing naming.
+- Match surrounding code style: StyleCop rules, block-scoped `namespace X { }` declarations, file copyright header, existing naming.
+- Layout limits (`Width`, `MinWidth`, `MaxWidth`, ...) use `float.NaN` as "unset". Don't pass them to `float.Clamp`/`Math.Min`/`Math.Max` directly: since .NET 9, `float.Clamp` propagates `NaN` bounds. Use `UIElement.ClampToLimits`-style handling.
 
 ## Process
 
@@ -48,6 +53,11 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 4. Implement, then do a whole-branch review before calling a phase done.
 5. Ivan runs manual smoke tests of the sample apps himself. Never claim a smoke test that didn't happen.
 6. Pooled item containers (`ItemsControl` descendants) are a recurring source of stale-content bugs. Test re-targeting and re-binding behaviorally.
+
+## Known issues
+
+- **High priority, scheduled for the graphics-API discussion right after Tier-2:** on Windows-on-ARM64, MonoGame DesktopGL deadlocks on shutdown. `Game.Dispose()` → `SdlGameWindow.Dispose` never returns, because OpenGL there runs through Microsoft's `OpenGLOn12` layer (Snapdragon has no native GL driver). The window closes but the process stays alive. Stride (D3D11) is unaffected.
+- IcyUI has no DPI awareness yet. On HiDPI screens, a DPI-aware host (e.g. the MonoGame Sample's `app.manifest`) renders the UI at physical-pixel size.
 
 ## Naming history
 

@@ -26,6 +26,10 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj" --filter "FullyQualifiedNam
 ## Gotchas
 
 - `sources/MonoGame Sample/` has a space in its directory and project name — always quote the path when referencing `MonoGame Sample.csproj` on the command line.
-- `MonoGame Sample.csproj` targets `net8.0-windows` and has a custom `RestoreDotnetTools` MSBuild target that runs `dotnet tool restore` (installs `dotnet-mgcb` via `sources/MonoGame Sample/.config/dotnet-tools.json`) before `Restore` — building it standalone may take longer on first run.
+- Everything targets `net10.0` (sample hosts: `net10.0-windows`) through `sources/Directory.Build.props`; the SDK is pinned by the root `global.json`. To try another TFM without editing files, pass `-p:IcyTargetFramework=net8.0` (useful for bisecting runtime-behavior changes).
+- Package versions live only in `sources/Directory.Packages.props` (Central Package Management) — a `Version=` attribute on a `PackageReference` is a build error.
+- `MonoGame Sample.csproj` has a custom `RestoreDotnetTools` MSBuild target that runs `dotnet tool restore` (installs `dotnet-mgcb` via `sources/MonoGame Sample/.config/dotnet-tools.json`) before `Restore` — building it standalone may take longer on first run. Keep those tool versions equal to the MonoGame package version.
 - `IcyUI.FNA` only contains the default SDK-template `Class1.cs` — it builds but has no real implementation; don't expect it to exercise any FNA-specific behavior.
-- Style is enforced via StyleCop.Analyzers + `EnforceCodeStyleInBuild=True`, but only wired into the `IcyUI` and `IcyUI.MonoGame` project files — building `IcyUI.Stride`, `IcyUI.FNA`, `IcyUI.Tests`, or `MonoGame Sample` alone will not surface style warnings even though `sources/.editorconfig` applies solution-wide.
+- StyleCop.Analyzers runs only in the shipped libraries (`IcyUI`, `IcyUI.MonoGame`, `IcyUI.Stride`) — building tests or samples alone won't surface style warnings.
+- Warnings are not replayed for up-to-date projects; use `--no-incremental` when counting warnings.
+- On Windows-on-ARM64, a successful build doesn't prove the samples run: engine natives are resolved from `runtimes/win-arm64/native` at runtime only.

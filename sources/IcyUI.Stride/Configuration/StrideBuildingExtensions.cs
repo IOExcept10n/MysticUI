@@ -68,7 +68,9 @@ namespace Icy.Stride.Configuration
         /// <returns>The updated configuration builder instance for fluent configuration.</returns>
         public static IConfigurationBuilder WithDefaultStrideConfiguration(this IConfigurationBuilder builder, Game game) =>
             builder.ConfigureRendering(new Rendering.RenderContext(game.GraphicsDevice))
-                   .ConfigureInput(new Input.InputSystem(game.Services.GetService<global::Stride.Input.InputManager>()))
+                   .ConfigureInput(new Input.InputSystem(
+                       game.Services.GetService<global::Stride.Input.InputManager>()
+                       ?? ThrowHelper.ThrowInvalidOperationException<global::Stride.Input.InputManager>("The game has no InputManager service registered. Configure IcyUI after the game has been initialized.")))
                    .ConfigureTypes()
                    .ConfigureAssets()
                    .WithAssetContextFactory(new StrideAssetContextFactory(game))

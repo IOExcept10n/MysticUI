@@ -17,7 +17,7 @@ namespace Icy.Stride.Rendering
         /// </summary>
         /// <param name="texture">An instance of the <see cref="Texture"/> to wrap.</param>
         /// <param name="renderContext">
-        /// The owning <see cref="RenderContext"/>, if any, whose frame-scoped <see cref="Stride.Graphics.GraphicsContext"/>
+        /// The owning <see cref="RenderContext"/>, if any, whose frame-scoped <see cref="global::Stride.Graphics.GraphicsContext"/>
         /// the wrapped texture reuses for reading/writing its data (see <see cref="TextureAdapter"/>'s remarks).
         /// Pass this whenever <paramref name="texture"/> may have its data read or written later (e.g. a dynamic
         /// font atlas page); omit it for textures that are only ever drawn.
@@ -26,11 +26,11 @@ namespace Icy.Stride.Rendering
         public static ITexture Wrap(this Texture texture, RenderContext? renderContext = null) => new TextureAdapter(texture, renderContext);
 
         /// <summary>
-        /// Tries to unwrap an instance of the texture that has been wrapped using <see cref="Wrap(Texture)"/>.
+        /// Tries to unwrap an instance of the texture that has been wrapped using <see cref="Wrap(Texture, RenderContext)"/>.
         /// </summary>
-        /// <param name="texture">An instance of the <see cref="ITexture"/> that has been made by calling <see cref="Wrap(Texture)"/>.</param>
+        /// <param name="texture">An instance of the <see cref="ITexture"/> that has been made by calling <see cref="Wrap(Texture, RenderContext)"/>.</param>
         /// <returns>An instance of the <see cref="Texture"/> that has been wrapped to create <paramref name="texture"/>.</returns>
-        /// <exception cref="InvalidOperationException">Occurs when <paramref name="texture"/> wasn't wrapped using <see cref="Wrap(Texture)"/> before.</exception>
+        /// <exception cref="InvalidOperationException">Occurs when <paramref name="texture"/> wasn't wrapped using <see cref="Wrap(Texture, RenderContext)"/> before.</exception>
         public static Texture Unwrap(this ITexture texture) =>
             (texture as TextureAdapter)?.Texture ??
             ThrowHelper.ThrowInvalidOperationException<Texture>("Couldn't find wrapped texture instance.");

@@ -8,14 +8,14 @@ using Icy.Input.Devices;
 namespace Icy.Stride.Input.Devices
 {
     /// <summary>
-    /// Stride touch device listener, backed by the shared <see cref="Stride.Input.InputManager"/>.
+    /// Stride touch device listener, backed by the shared <see cref="global::Stride.Input.InputManager"/>.
     /// </summary>
     /// <remarks>
     /// Unlike MonoGame (which delegates gesture recognition to <c>TouchPanel.ReadGesture()</c>), Stride's
-    /// <see cref="Stride.Input.InputManager"/> only exposes raw pointer down/move/up events - it has no built-in
+    /// <see cref="global::Stride.Input.InputManager"/> only exposes raw pointer down/move/up events - it has no built-in
     /// gesture recognizer. Per the v1 scope decision, actual gesture recognition (tap/hold/swipe/drag) is deferred;
     /// this class exists so the <see cref="ITouchInput"/> contract is implemented and wired into
-    /// <see cref="Stride.Input.Devices.InputSystem"/> now, ready for that work later without further architecture
+    /// <see cref="InputSystem"/> now, ready for that work later without further architecture
     /// changes - none of its events are raised yet.
     /// </remarks>
     internal class TouchInput : ITouchInput, IUpdateableInput

@@ -1,7 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>$(IcyTargetFramework)-windows</TargetFramework>
+    <!-- Opt out of the solution-wide defaults: with UseWindowsForms, implicit usings import
+         System.Windows.Forms/System.Drawing, whose types clash with Icy and XNA ones. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
@@ -13,8 +17,8 @@
     <RootNamespace>Icy.MonoGameSample</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.1.303" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IcyUI.MonoGame\IcyUI.MonoGame.csproj" />

@@ -1,0 +1,37 @@
+<Project>
+  <!-- Central Package Management: every package version used in the solution lives here.
+       Keep the Stride packages on one version and the MonoGame packages in sync with the mgcb tools
+       in "MonoGame Sample/.config/dotnet-tools.json". -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <StrideVersion>4.3.0.2507</StrideVersion>
+    <MonoGameVersion>3.8.5.1</MonoGameVersion>
+    <CommunityToolkitVersion>8.4.2</CommunityToolkitVersion>
+  </PropertyGroup>
+
+  <ItemGroup Label="Core">
+    <PackageVersion Include="CommunityToolkit.Diagnostics" Version="$(CommunityToolkitVersion)" />
+    <PackageVersion Include="CommunityToolkit.HighPerformance" Version="$(CommunityToolkitVersion)" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="$(CommunityToolkitVersion)" />
+    <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
+  </ItemGroup>
+
+  <ItemGroup Label="MonoGame">
+    <PackageVersion Include="MonoGame.Framework.DesktopGL" Version="$(MonoGameVersion)" />
+    <PackageVersion Include="MonoGame.Framework.WindowsDX" Version="$(MonoGameVersion)" />
+    <PackageVersion Include="MonoGame.Content.Builder.Task" Version="$(MonoGameVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="Stride">
+    <PackageVersion Include="Stride.Core" Version="$(StrideVersion)" />
+    <PackageVersion Include="Stride.Engine" Version="$(StrideVersion)" />
+    <PackageVersion Include="Stride.Graphics" Version="$(StrideVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+  </ItemGroup>
+</Project>

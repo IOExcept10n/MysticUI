@@ -15,10 +15,10 @@ namespace Icy.Stride.Configuration
     /// </summary>
     /// <remarks>
     /// Unlike MonoGame (a simple <c>Game.Draw()</c> override is enough there), Stride's <c>SpriteBatch.Begin</c>
-    /// needs a frame-scoped <see cref="Stride.Graphics.GraphicsContext"/>, which is only available from within the
+    /// needs a frame-scoped <see cref="global::Stride.Graphics.GraphicsContext"/>, which is only available from within the
     /// compositor's own draw callback - so drawing lives here as a dedicated render stage, added into the
-    /// compositor's renderer graph by <see cref="StrideBuildingExtensions.UseIcyUI(Stride.Engine.Game)"/>, rather
-    /// than piggybacking on a <see cref="Stride.Games.GameSystemBase"/> the way <see cref="IcyUIGameSystem"/> (input
+    /// compositor's renderer graph by <see cref="StrideBuildingExtensions.UseIcyUI(global::Stride.Engine.Game)"/>, rather
+    /// than piggybacking on a <see cref="global::Stride.Games.GameSystemBase"/> the way <see cref="IcyUIGameSystem"/> (input
     /// pumping) does.
     /// </remarks>
     public class IcyUISceneRenderer : SceneRendererBase
@@ -35,7 +35,7 @@ namespace Icy.Stride.Configuration
 
         /// <summary>
         /// Gets or sets the configuration whose <see cref="IcyConfiguration.RenderContext"/> this render stage
-        /// refreshes with the current frame's <see cref="Stride.Graphics.GraphicsContext"/> before drawing.
+        /// refreshes with the current frame's <see cref="global::Stride.Graphics.GraphicsContext"/> before drawing.
         /// </summary>
         [DataMemberIgnore]
         public IcyConfiguration? Configuration { get; set; }

@@ -126,11 +126,5 @@ namespace Icy.MonoGameSample
             canvas.Render();
             base.Draw(gameTime);
         }
-
-        protected override void OnExiting(object sender, EventArgs args)
-        {
-            // Save anything.
-            base.OnExiting(sender, args);
-        }
     }
 }

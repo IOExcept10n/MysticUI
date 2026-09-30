@@ -1,0 +1,10 @@
+<Project>
+  <!-- Settings shared by every project in the solution. Projects override locally where needed
+       (e.g. the Windows-only sample hosts append "-windows" to the target framework). -->
+  <PropertyGroup>
+    <IcyTargetFramework>net10.0</IcyTargetFramework>
+    <TargetFramework>$(IcyTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>

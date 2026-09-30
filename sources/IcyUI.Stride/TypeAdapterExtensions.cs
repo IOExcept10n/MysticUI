@@ -29,7 +29,7 @@ namespace Icy.Stride
     /// </summary>
     /// <remarks>
     /// Mirrors <c>Icy.MonoGame.TypeAdapterExtensions</c> - same method names/shapes, targeting Stride's
-    /// <see cref="Stride.Core.Mathematics"/> types instead of MonoGame's.
+    /// <see cref="N:Stride.Core.Mathematics"/> types instead of MonoGame's.
     /// </remarks>
     public static class TypeAdapterExtensions
     {

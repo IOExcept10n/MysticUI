@@ -11,7 +11,7 @@ namespace Icy.Stride.Rendering
     /// Represents the Stride implementation of the <see cref="IRenderContext"/> interface.
     /// </summary>
     /// <remarks>
-    /// Unlike MonoGame's <c>SpriteBatch.Begin</c>, Stride's requires a <see cref="Stride.Graphics.GraphicsContext"/>
+    /// Unlike MonoGame's <c>SpriteBatch.Begin</c>, Stride's requires a <see cref="global::Stride.Graphics.GraphicsContext"/>
     /// (frame-scoped command-submission state), not just a <see cref="GraphicsDevice"/>. Since this render context
     /// is constructed once but the render stage that drives it (see the Configuration namespace) only receives a
     /// valid <see cref="GraphicsContext"/> while it is actually being drawn (through
@@ -46,7 +46,7 @@ namespace Icy.Stride.Rendering
         public event EventHandler? ViewportResize;
 
         /// <summary>
-        /// Gets or sets the frame-scoped Stride <see cref="Stride.Graphics.GraphicsContext"/> to render with.
+        /// Gets or sets the frame-scoped Stride <see cref="global::Stride.Graphics.GraphicsContext"/> to render with.
         /// </summary>
         /// <remarks>
         /// The render stage that owns this context must set this once per frame, before any drawing happens
@@ -210,6 +210,8 @@ namespace Icy.Stride.Rendering
 
         private class RenderOptions(RenderContext context) : IRenderOptions
         {
+            private System.Drawing.Rectangle scissor;
+
             public float Opacity { get; set; } = 1f;
 
             public System.Drawing.Rectangle Scissor
@@ -224,8 +226,6 @@ namespace Icy.Stride.Rendering
             }
 
             public bool EnableEffects { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-
-            private System.Drawing.Rectangle scissor;
         }
     }
 }

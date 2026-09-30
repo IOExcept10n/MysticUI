@@ -13,7 +13,7 @@ namespace Icy.Stride.Configuration
     /// </summary>
     /// <remarks>
     /// This is the input-pumping counterpart to <see cref="IcyUISceneRenderer"/>, which does the actual drawing
-    /// through the <see cref="Stride.Rendering.Compositing.GraphicsCompositor"/> - see the remarks there for why
+    /// through the <see cref="global::Stride.Rendering.Compositing.GraphicsCompositor"/> - see the remarks there for why
     /// the two are split. Mirrors <c>Icy.MonoGame.Configuration.MonoGameIcyRenderer</c>'s role as configuration
     /// holder plus per-frame <see cref="IInputSystem"/> pump, minus the drawing (MonoGame's component doesn't draw
     /// anything either - see that class).

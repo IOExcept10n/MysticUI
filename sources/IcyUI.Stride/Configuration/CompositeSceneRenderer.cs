@@ -17,7 +17,9 @@ namespace Icy.Stride.Configuration
     /// </remarks>
     /// <param name="inner">The renderer that was previously in <see cref="GraphicsCompositor.Game"/>, or <see langword="null"/> if there wasn't one.</param>
     /// <param name="overlay">The IcyUI render stage to draw after <paramref name="inner"/>.</param>
+#pragma warning disable STRDIAG010 // No parameterless constructor: this type is created at runtime by UseIcyUI and never serialized.
     internal sealed class CompositeSceneRenderer(ISceneRenderer? inner, IcyUISceneRenderer overlay) : SceneRendererBase
+#pragma warning restore STRDIAG010
     {
         /// <summary>
         /// Gets the IcyUI render stage this composite draws on top of the inner renderer.
