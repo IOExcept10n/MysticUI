@@ -406,3 +406,5 @@ FodyWeavers.xsd
 
 # Subagent-driven-development scratch workspace (local scratch, not part of the repo)
 /.superpowers/
+/.claude/settings.local.json
+/.claude/worktrees/
