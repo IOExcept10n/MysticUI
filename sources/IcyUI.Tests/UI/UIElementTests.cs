@@ -114,6 +114,28 @@ namespace Icy.Tests.UI
             Assert.Equal(110, size.Height); // 50 + 20 + 40
         }
 
+        // Min*/Max* default to NaN ("unset"). Since .NET 9, float.Clamp propagates a NaN bound instead of
+        // ignoring it, so these guard the "an unset bound imposes no limit" semantics independently of the runtime.
+        [Fact]
+        public void Measure_WithOnlyMaxSet_ClampsToMaxAndIgnoresUnsetMin()
+        {
+            var element = new TestElement { ContentSize = new Size(100, 50), MaxWidth = 60, MaxHeight = 20 };
+
+            var size = element.Measure();
+
+            Assert.Equal(new Size(60, 20), size);
+        }
+
+        [Fact]
+        public void Measure_WithOnlyMinSet_ClampsToMinAndIgnoresUnsetMax()
+        {
+            var element = new TestElement { ContentSize = new Size(10, 5), MinWidth = 40, MinHeight = 30 };
+
+            var size = element.Measure();
+
+            Assert.Equal(new Size(40, 30), size);
+        }
+
         [Fact]
         public void Arrange_WithStretchAlignment_ReturnsZeroBoundsOnEmptySpace()
         {

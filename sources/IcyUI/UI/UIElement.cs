@@ -1367,8 +1367,8 @@ namespace Icy.UI
                     s.Width = (int)Width;
                 if (!float.IsNaN(Height))
                     s.Height = (int)Height;
-                float resultWidth = float.Clamp(s.Width, MinWidth, MaxWidth);
-                float resultHeight = float.Clamp(s.Height, MinHeight, MaxHeight);
+                float resultWidth = ClampToLimits(s.Width, MinWidth, MaxWidth);
+                float resultHeight = ClampToLimits(s.Height, MinHeight, MaxHeight);
                 var internalThickness = Padding;
                 resultWidth += internalThickness.Width;
                 resultHeight += internalThickness.Height;
@@ -1554,6 +1554,29 @@ namespace Icy.UI
             }
 
             Attached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Clamps a size to optional layout limits such as <see cref="MinWidth"/>/<see cref="MaxWidth"/>, where
+        /// <see cref="float.NaN"/> means "no limit".
+        /// </summary>
+        /// <remarks>
+        /// <see cref="float.Clamp(float, float, float)"/> can't be used directly: since .NET 9 it propagates a
+        /// <see cref="float.NaN"/> bound into the result instead of ignoring it, which would turn every size with an
+        /// unset limit into <see cref="float.NaN"/> (and <c>0</c> once cast to <see cref="int"/>).
+        /// </remarks>
+        /// <param name="value">The size to clamp.</param>
+        /// <param name="min">The lower limit, or <see cref="float.NaN"/> for none.</param>
+        /// <param name="max">The upper limit, or <see cref="float.NaN"/> for none.</param>
+        /// <returns><paramref name="value"/> constrained to whichever of the limits are set.</returns>
+        /// <exception cref="ArgumentException">Both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>.</exception>
+        private static float ClampToLimits(float value, float min, float max)
+        {
+            if (float.IsNaN(min))
+                return float.IsNaN(max) ? value : float.Min(value, max);
+            if (float.IsNaN(max))
+                return float.Max(value, min);
+            return float.Clamp(value, min, max);
         }
 
         /// <summary>
@@ -1853,16 +1876,16 @@ namespace Icy.UI
             if (HorizontalAlignment == HorizontalAlignment.Stretch && float.IsNaN(Width))
             {
                 // A container smaller than this element's margins yields a negative availableWidth - floor at 0
-                // (MinWidth defaults to NaN, which float.Clamp passes through unchanged rather than enforcing a
+                // (MinWidth defaults to NaN, which ClampToLimits treats as "no limit" rather than enforcing a
                 // floor) so stretching never produces a negative size, while still honoring an explicit MinWidth.
-                effectiveSize.Width = (int)float.Clamp(Math.Max(availableWidth, 0), MinWidth, MaxWidth);
+                effectiveSize.Width = (int)ClampToLimits(Math.Max(availableWidth, 0), MinWidth, MaxWidth);
             }
             else if (totalWidth > containerBounds.Width)
             {
                 // Handle width overflow
                 if (availableWidth >= MinWidth)
                 {
-                    effectiveSize.Width = (int)float.Clamp(availableWidth, MinWidth, MaxWidth);
+                    effectiveSize.Width = (int)ClampToLimits(availableWidth, MinWidth, MaxWidth);
                 }
                 else
                 {
@@ -1879,14 +1902,14 @@ namespace Icy.UI
             if (VerticalAlignment == VerticalAlignment.Stretch && float.IsNaN(Height))
             {
                 // See the matching floor in the horizontal branch above for why Math.Max(..., 0) is needed here.
-                effectiveSize.Height = (int)float.Clamp(Math.Max(availableHeight, 0), MinHeight, MaxHeight);
+                effectiveSize.Height = (int)ClampToLimits(Math.Max(availableHeight, 0), MinHeight, MaxHeight);
             }
             else if (totalHeight > containerBounds.Height)
             {
                 // Handle vertical overflow
                 if (availableHeight >= MinHeight)
                 {
-                    effectiveSize.Height = (int)float.Clamp(availableHeight, MinHeight, MaxHeight);
+                    effectiveSize.Height = (int)ClampToLimits(availableHeight, MinHeight, MaxHeight);
                 }
                 else
                 {
