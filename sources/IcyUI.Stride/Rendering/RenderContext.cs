@@ -140,6 +140,22 @@ namespace Icy.Stride.Rendering
                 size = new Vector2(tex.Width, tex.Height);
             }
 
+            if (PixelSnapping.TrySnap(Transform, options.Destination, options.Rotation, options.Origin, out System.Numerics.Vector2 snappedPosition, out System.Numerics.Vector2 snappedSize))
+            {
+                spriteBatch.Draw(
+                    tex,
+                    snappedPosition.AsEngineVector(),
+                    options.Source?.AsEngineRectangle(),
+                    options.Color.AsEngineColor() * Options.Opacity,
+                    0f,
+                    Vector2.Zero,
+                    new Vector2(snappedSize.X / size.X, snappedSize.Y / size.Y),
+                    SpriteEffects.None,
+                    ImageOrientation.AsIs,
+                    options.Depth);
+                return;
+            }
+
             var pos = new Vector2(options.Destination.X, options.Destination.Y);
             var scale = new Vector2(options.Destination.Width / size.X, options.Destination.Height / size.Y);
 
