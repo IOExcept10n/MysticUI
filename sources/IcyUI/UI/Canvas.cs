@@ -26,6 +26,7 @@ namespace Icy.UI
     /// </remarks>
     public class Canvas : ObservableDispatcherObject, IContainerLayout
     {
+        private const float ScaleEpsilon = 0.0001f;
         private readonly Diagnostics.DebugHudHost debugHudHost;
         private readonly Stopwatch frameTime = new();
         private readonly List<UIElement> overlayElements = [];
@@ -35,6 +36,7 @@ namespace Icy.UI
         private DragDropSession? dragDropSession;
         private UIElement? hoveredElement;
         private bool inputRoutingInitialized;
+        private float effectiveScale = 1f;
         private Transform2D inverseTransform;
         private bool isInputEnabled;
         private bool isTransformInvalid = true;
@@ -43,8 +45,11 @@ namespace Icy.UI
         private float opacity = 1f;
         private UIElement? draggedElement;
         private UIElement? pressedElement;
+        private ReferenceFit? referenceFit;
+        private Size? referenceSize;
         private float rotation;
         private Vector2 scale = Vector2.One;
+        private UIScaleMode? scaleMode;
         private Transform2D transform;
         private Vector2 transformOrigin;
 
@@ -126,9 +131,83 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Gets the bounds of the content area of the canvas.
+        /// Gets the bounds of the content area of the canvas, in surface units (see <see cref="SurfaceSize"/>).
         /// </summary>
-        public Rectangle ContentBounds => new(Point.Empty, Configuration.RenderContext.ViewportSize);
+        public Rectangle ContentBounds => new(Point.Empty, SurfaceSize);
+
+        /// <summary>
+        /// Gets the scale factor between surface units and physical pixels, as computed by the last
+        /// <see cref="RefreshScale"/> call.
+        /// </summary>
+        /// <remarks>
+        /// <c>EffectiveScale = base × </c><see cref="ScalingConfiguration.UserScale"/>, where the base factor comes from
+        /// <see cref="ScaleMode"/> (or <see cref="ScalingConfiguration.Mode"/> when unset):
+        /// <list type="bullet">
+        /// <item><description><see cref="UIScaleMode.None"/>: <c>1</c>.</description></item>
+        /// <item><description><see cref="UIScaleMode.Dpi"/>: <see cref="IRenderContext.DisplayScale"/>.</description></item>
+        /// <item><description><see cref="UIScaleMode.ReferenceResolution"/>: the viewport-to-<see cref="ReferenceSize"/> ratio picked by <see cref="ReferenceFit"/>.</description></item>
+        /// </list>
+        /// Recomputed at the start of every <see cref="Render"/>. Raises <see cref="System.ComponentModel.INotifyPropertyChanged.PropertyChanged"/> when it changes.
+        /// </remarks>
+        public float EffectiveScale => effectiveScale;
+
+        /// <summary>
+        /// Gets the size of the logical drawing surface: the physical viewport divided by <see cref="EffectiveScale"/>,
+        /// rounded down to whole units.
+        /// </summary>
+        /// <remarks>
+        /// Root elements, overlays and the debug HUD are all laid out against this size.
+        /// </remarks>
+        public Size SurfaceSize
+        {
+            get
+            {
+                Size physical = Configuration.RenderContext.ViewportSize;
+                return new((int)MathF.Floor(physical.Width / effectiveScale), (int)MathF.Floor(physical.Height / effectiveScale));
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the scale mode of this canvas, overriding <see cref="ScalingConfiguration.Mode"/>.
+        /// <see langword="null"/> (the default) inherits the configuration value.
+        /// </summary>
+        public UIScaleMode? ScaleMode
+        {
+            get => scaleMode;
+            set
+            {
+                if (SetProperty(ref scaleMode, value))
+                    RefreshScale();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the reference resolution of this canvas, overriding <see cref="ScalingConfiguration.ReferenceSize"/>.
+        /// <see langword="null"/> (the default) inherits the configuration value.
+        /// </summary>
+        public Size? ReferenceSize
+        {
+            get => referenceSize;
+            set
+            {
+                if (SetProperty(ref referenceSize, value))
+                    RefreshScale();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the reference fit policy of this canvas, overriding <see cref="ScalingConfiguration.ReferenceFit"/>.
+        /// <see langword="null"/> (the default) inherits the configuration value.
+        /// </summary>
+        public ReferenceFit? ReferenceFit
+        {
+            get => referenceFit;
+            set
+            {
+                if (SetProperty(ref referenceFit, value))
+                    RefreshScale();
+            }
+        }
 
         /// <summary>
         /// Gets the element currently holding input focus, or <see langword="null"/> if none does.
@@ -266,6 +345,41 @@ namespace Icy.UI
         public void InvalidateTransform()
         {
             isTransformInvalid = true;
+        }
+
+        /// <summary>
+        /// Recomputes <see cref="EffectiveScale"/> from the current configuration, display scale, viewport and overrides,
+        /// and re-arranges all content if it changed.
+        /// </summary>
+        /// <remarks>
+        /// Called automatically at the start of every <see cref="Render"/> and when an override changes. The canvas
+        /// deliberately doesn't subscribe to configuration or render-context events: it has no disposal point, and a
+        /// subscription would keep every discarded canvas alive.
+        /// </remarks>
+        public void RefreshScale()
+        {
+            ScalingConfiguration scaling = Configuration.Scaling;
+            IRenderContext context = Configuration.RenderContext;
+            float newScale = UIScaleCalculator.Compute(
+                ScaleMode ?? scaling.Mode,
+                context.DisplayScale,
+                context.ViewportSize,
+                ReferenceSize ?? scaling.ReferenceSize,
+                ReferenceFit ?? scaling.ReferenceFit,
+                scaling.UserScale);
+
+            if (MathF.Abs(newScale - effectiveScale) < ScaleEpsilon)
+                return;
+
+            effectiveScale = newScale;
+            InvalidateTransform();
+            foreach (UIElement element in rootElements)
+                element.InvalidateArrange();
+            foreach (UIElement overlay in overlayElements)
+                overlay.InvalidateArrange();
+
+            OnPropertyChanged(nameof(EffectiveScale));
+            OnPropertyChanged(nameof(SurfaceSize));
         }
 
         /// <summary>
@@ -419,6 +533,7 @@ namespace Icy.UI
         public void Render()
         {
             frameTime.Stop();
+            RefreshScale();
             if (isTransformInvalid)
                 UpdateTransform();
 
@@ -752,7 +867,7 @@ namespace Icy.UI
 
         private void UpdateTransform()
         {
-            transform = Transform2D.Create(Offset, Rotation, TransformOrigin * Configuration.RenderContext.ViewportSize.AsVector(), Scale);
+            transform = Transform2D.Create(Offset, Rotation, TransformOrigin * SurfaceSize.AsVector(), Scale);
             if (Matrix3x2.Invert(transform.Matrix, out Matrix3x2 inverse))
                 inverseTransform = Transform2D.Create(inverse);
             isTransformInvalid = false;

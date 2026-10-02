@@ -18,6 +18,20 @@ namespace Icy.Rendering
         event EventHandler? ViewportResize;
 
         /// <summary>
+        /// Occurs when <see cref="DisplayScale"/> changes, e.g. when the window moves to a monitor with a different DPI.
+        /// </summary>
+        /// <remarks>
+        /// Provided for application code. <see cref="UI.Canvas"/> doesn't subscribe to it; it re-reads
+        /// <see cref="DisplayScale"/> on every <see cref="UI.Canvas.Render"/> call instead.
+        /// The default implementation never raises the event.
+        /// </remarks>
+        event EventHandler? DisplayScaleChanged
+        {
+            add { }
+            remove { }
+        }
+
+        /// <summary>
         /// Gets the current rendering options.
         /// </summary>
         IRenderOptions Options { get; }
@@ -39,6 +53,15 @@ namespace Icy.Rendering
         /// Typically, the viewport size represent the actual size of the graphics device back buffer.
         /// </remarks>
         Size ViewportSize { get; }
+
+        /// <summary>
+        /// Gets the operating system display scale of the surface this context renders into.
+        /// </summary>
+        /// <remarks>
+        /// <c>1.0</c> means 96 DPI (100 %), <c>2.0</c> means 192 DPI (200 %). A host process that isn't DPI-aware
+        /// always reports <c>1.0</c>, because the OS scales its window itself. The default implementation returns <c>1.0</c>.
+        /// </remarks>
+        float DisplayScale => 1f;
 
         /// <summary>
         /// Applies an effect to the next draw calls.

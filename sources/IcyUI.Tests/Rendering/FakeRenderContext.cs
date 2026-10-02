@@ -33,6 +33,12 @@ namespace Icy.Tests.Rendering
         public Size ViewportSize { get; set; } = new(800, 600);
 
         /// <inheritdoc/>
+        public event EventHandler? DisplayScaleChanged;
+
+        /// <inheritdoc/>
+        public float DisplayScale { get; set; } = 1f;
+
+        /// <inheritdoc/>
         public void ApplyEffect(IEffect effect)
         {
         }
@@ -75,6 +81,11 @@ namespace Icy.Tests.Rendering
         /// Raises <see cref="ViewportResize"/>, for tests that need to exercise resize handling.
         /// </summary>
         public void NotifyViewportResize() => ViewportResize?.Invoke(this, EventArgs.Empty);
+
+        /// <summary>
+        /// Raises <see cref="DisplayScaleChanged"/>, for tests that exercise display-scale change notifications.
+        /// </summary>
+        public void NotifyDisplayScaleChanged() => DisplayScaleChanged?.Invoke(this, EventArgs.Empty);
 
         private sealed class FakeRenderOptions : IRenderOptions
         {
