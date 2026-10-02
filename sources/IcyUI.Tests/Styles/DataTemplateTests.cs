@@ -44,6 +44,26 @@ namespace Icy.Tests.Styles
         }
 
         [Fact]
+        public void Build_BindingANonStringValueIntoAStringProperty_CoercesItToString()
+        {
+            var template = LoadTemplate("""<DataTemplate><TextBlock Text="{Binding Count}"/></DataTemplate>""");
+
+            var root = (TextBlock)template.Build(new { Count = 42 });
+
+            Assert.Equal("42", root.Text);
+        }
+
+        [Fact]
+        public void Build_BindingAnEnumItemIntoText_ShowsItsName()
+        {
+            var template = LoadTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
+
+            var root = (TextBlock)template.Build(DayOfWeek.Friday);
+
+            Assert.Equal("Friday", root.Text);
+        }
+
+        [Fact]
         public void Build_TwoCallsProduceIndependentTrees()
         {
             var template = LoadTemplate("""<DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate>""");

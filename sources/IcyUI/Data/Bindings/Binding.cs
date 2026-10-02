@@ -3,6 +3,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup;
 using Icy.UI;
@@ -311,6 +312,19 @@ namespace Icy.Data.Bindings
             return result;
         }
 
+        /// <summary>
+        /// Formats a non-<see langword="string"/> value as text when the target property is <see langword="string"/>-typed
+        /// (e.g. an <see langword="enum"/> or a number bound into <see cref="UI.Controls.TextBlock.Text"/>), using the
+        /// converter culture when one is set, otherwise <see cref="CultureInfo.CurrentCulture"/>. Any other value passes through unchanged.
+        /// </summary>
+        private object? CoerceToTargetType(object? value)
+        {
+            if (value is null or string || TargetProperty.PropertyType != typeof(string))
+                return value;
+
+            return Convert.ToString(value, ConverterParameters?.Culture ?? CultureInfo.CurrentCulture);
+        }
+
         private object? ConvertValueToTarget(object? value)
         {
             object? result = value;
@@ -363,6 +377,7 @@ namespace Icy.Data.Bindings
             var value = Source == null ? null : Path.GetValue(Source);
             object? result = ConvertValueToTarget(value);
             result ??= TargetNullValue;
+            result = CoerceToTargetType(result);
             var validation = TargetProperty.ValidationCallback?.Invoke(result!);
             if (validation == ValidationResult.Success)
             {
