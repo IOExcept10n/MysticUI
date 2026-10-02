@@ -22,13 +22,18 @@ namespace Icy.Configuration
         /// The default-theme configuration used by the library. Defaults to an empty <see cref="ThemeConfiguration"/>
         /// (no theme applied) when omitted.
         /// </param>
-        public IcyConfiguration(IInputSystem input, AssetConfiguration assets, IRenderContext renderContext, ReflectionConfiguration types, ThemeConfiguration? theme = null)
+        /// <param name="scaling">
+        /// The UI scaling defaults used by the library. Defaults to a new <see cref="ScalingConfiguration"/>
+        /// (<see cref="UI.UIScaleMode.Dpi"/>) when omitted.
+        /// </param>
+        public IcyConfiguration(IInputSystem input, AssetConfiguration assets, IRenderContext renderContext, ReflectionConfiguration types, ThemeConfiguration? theme = null, ScalingConfiguration? scaling = null)
         {
             Input = input;
             Assets = assets;
             RenderContext = renderContext;
             Types = types;
             Theme = theme ?? new();
+            Scaling = scaling ?? new();
             Fonts = new(this);
         }
 
@@ -61,5 +66,10 @@ namespace Icy.Configuration
         /// Gets the default-theme configuration used by the library.
         /// </summary>
         public ThemeConfiguration Theme { get; }
+
+        /// <summary>
+        /// Gets the application-wide UI scaling defaults used by every <see cref="UI.Canvas"/> built against this configuration.
+        /// </summary>
+        public ScalingConfiguration Scaling { get; }
     }
 }

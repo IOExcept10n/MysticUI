@@ -17,7 +17,8 @@ namespace Icy.Configuration
         IInputConfigurationBuilder,
         IRenderingConfigurationBuilder,
         IReflectionConfigurationBuilder,
-        IThemeConfigurationBuilder
+        IThemeConfigurationBuilder,
+        IScalingConfigurationBuilder
     {
         /// <inheritdoc/>
         [NotNull]
@@ -40,6 +41,10 @@ namespace Icy.Configuration
         public ThemeConfiguration? Theme { get; private set; }
 
         /// <inheritdoc/>
+        [NotNull]
+        public ScalingConfiguration? Scaling { get; private set; }
+
+        /// <inheritdoc/>
         public IcyConfiguration Build()
         {
             Guard.IsNotNull(InputSystem);
@@ -47,7 +52,8 @@ namespace Icy.Configuration
             ConfigureTypes();
             ConfigureAssets();
             ConfigureTheme();
-            return new IcyConfiguration(InputSystem, Assets, RenderContext, Types, Theme);
+            ConfigureScaling();
+            return new IcyConfiguration(InputSystem, Assets, RenderContext, Types, Theme, Scaling);
         }
 
         /// <inheritdoc/>
@@ -117,6 +123,20 @@ namespace Icy.Configuration
         public IThemeConfigurationBuilder ConfigureTheme()
         {
             Theme ??= new ThemeConfiguration();
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public IScalingConfigurationBuilder ConfigureScaling(ScalingConfiguration scalingConfiguration)
+        {
+            Scaling = scalingConfiguration;
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public IScalingConfigurationBuilder ConfigureScaling()
+        {
+            Scaling ??= new ScalingConfiguration();
             return this;
         }
     }

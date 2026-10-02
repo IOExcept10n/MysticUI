@@ -96,5 +96,18 @@ namespace Icy.Configuration
         /// </summary>
         /// <returns>An instance of <see cref="IThemeConfigurationBuilder"/> to further configure the default theme.</returns>
         IThemeConfigurationBuilder ConfigureTheme();
+
+        /// <summary>
+        /// Sets the UI scaling configuration to be used by the library.
+        /// </summary>
+        /// <param name="scalingConfiguration">The scaling configuration instance.</param>
+        /// <returns>The current builder instance for fluent configuration.</returns>
+        IScalingConfigurationBuilder ConfigureScaling(ScalingConfiguration scalingConfiguration);
+
+        /// <summary>
+        /// Configures the default UI scaling settings with additional settings.
+        /// </summary>
+        /// <returns>An instance of <see cref="IScalingConfigurationBuilder"/> to further configure UI scaling.</returns>
+        IScalingConfigurationBuilder ConfigureScaling();
     }
 }

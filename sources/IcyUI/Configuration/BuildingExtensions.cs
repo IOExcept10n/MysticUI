@@ -270,6 +270,25 @@ namespace Icy.Configuration
         }
 
         /// <summary>
+        /// Configures the UI scaling facet - the defaults every <see cref="UI.Canvas"/> uses to compute
+        /// <see cref="UI.Canvas.EffectiveScale"/>.
+        /// </summary>
+        /// <param name="builder">The scaling configuration builder instance.</param>
+        /// <param name="configure">The configuration action applied to <see cref="ScalingConfiguration"/>.</param>
+        /// <returns>The current scaling configuration builder instance for fluent configuration.</returns>
+        /// <example>
+        /// <code language="csharp">
+        /// builder.ConfigureScaling().ConfigureScaling(s => s.Mode = UIScaleMode.ReferenceResolution);
+        /// </code>
+        /// </example>
+        public static IScalingConfigurationBuilder ConfigureScaling(this IScalingConfigurationBuilder builder, Action<ScalingConfiguration> configure)
+        {
+            ArgumentNullException.ThrowIfNull(configure);
+            configure(builder.Scaling);
+            return builder;
+        }
+
+        /// <summary>
         /// Loads IcyUI's own bundled default theme and assigns it to <see cref="IcyConfiguration.Theme"/>'s
         /// <see cref="ThemeConfiguration.Theme"/> property, so a <see cref="UI.Canvas"/> built against
         /// <paramref name="configuration"/> gives every Tier-1 control (<see cref="UI.Controls.Button"/>,
