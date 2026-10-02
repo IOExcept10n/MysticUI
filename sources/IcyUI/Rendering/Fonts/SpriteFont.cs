@@ -399,7 +399,7 @@ namespace Icy.Rendering.Fonts
                     Transform2D.Create(options.Position, options.Rotation, options.Origin, (options.Scale ?? Vector2.One) * RenderSizeMultiplier);
 
         private bool IsTranslationOnly(in FontRenderingOptions options) =>
-            options.Rotation == 0 && (options.Scale ?? Vector2.One) == Vector2.One && RenderSizeMultiplier == 1f;
+            options.Rotation == 0 && options.Origin == Vector2.Zero && (options.Scale ?? Vector2.One) == Vector2.One && RenderSizeMultiplier == 1f;
 
         /// <summary>
         /// Processes text by iterating over codepoints and handling glyphs.

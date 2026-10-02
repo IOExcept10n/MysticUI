@@ -79,6 +79,21 @@ namespace Icy.Tests.Rendering
         }
 
         [Fact]
+        public void DrawString_WithNonZeroOrigin_DrawsLogicalGlyphsUnderTheOuterTransform()
+        {
+            // The device path emits origin-less, device-unit quads; text with its own Origin must keep the logical path,
+            // which passes Origin through to the engine.
+            var (font, context) = LoadFont();
+            context.DrawCalls.Clear();
+            context.Transform = Transform2D.Create(Matrix3x2.CreateScale(2f));
+
+            font.DrawString(context, "Hi", Options() with { Origin = new Vector2(5, 5) });
+
+            Assert.All(context.DrawCalls, call => Assert.Equal(2f, call.TransformAtDrawTime.Scale.X, 3));
+            Assert.All(context.DrawCalls, call => Assert.Equal(new Vector2(5, 5), call.Options.Origin));
+        }
+
+        [Fact]
         public void DrawString_MultiLine_KeepsLinePositionsAtScale()
         {
             var (font, context) = LoadFont();
