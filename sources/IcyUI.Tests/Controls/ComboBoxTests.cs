@@ -343,6 +343,34 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void CodeBuiltEnumComboBox_WithoutItemTemplate_OpensAndShowsEachMembersName()
+        {
+            // Regression: ScalingDemo's code-built ComboBox over Enum.GetValues<UIScaleMode>() threw
+            // "'ItemsControl' has no 'ItemTemplate' or 'ItemTemplateSelector' to build item 'None' from." on open.
+            var comboBox = new ComboBox { ItemsSource = Enum.GetValues<DayOfWeek>(), Width = 240 };
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new Icy.Tests.Rendering.FakeRenderContext())
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            var config = builder.Build();
+            config.Fonts.ImportFont(config.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            config.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(comboBox);
+            canvas.Render();
+
+            comboBox.IsOpen = true;
+            canvas.Render();
+
+            string[] shown = [.. canvas.Overlays.Single().EnumerateVisualSubtree().OfType<SelectorItem>()
+                .Select(item => item.EnumerateVisualSubtree().OfType<TextBlock>().First().Text)];
+            Assert.Equal("Sunday", shown[0]);
+            Assert.Equal("Monday", shown[1]);
+        }
+
+        [Fact]
         public void ThemedComboBox_InternalTextBox_DoesNotGetItsOwnBorderOrPadding()
         {
             // Regression: an implicit (keyless, type-targeted) style applies to ANY element of a matching type

@@ -83,10 +83,7 @@ namespace Icy.UI.Controls
         /// </summary>
         public PropertyGrid()
         {
-            // Never built - CreateContainer below never calls DataTemplate.Build - only assigned so
-            // ItemsControl.EnsureRealized's unconditional ResolveTemplate() call doesn't throw for want of an
-            // ItemTemplate. See the class remarks for why pooling is also disabled here.
-            ItemTemplate = new DataTemplate();
+            // See the class remarks for why pooling is disabled here.
             PoolingEnabled = false;
         }
 
@@ -538,7 +535,8 @@ namespace Icy.UI.Controls
         /// <returns>The freshly built editor widget.</returns>
         private UIElement BuildEnumEditor(PropertyGridEntry entry, object target, object? value)
         {
-            var comboBox = new ValueComboBox
+            // No ItemTemplate: ItemsControl's built-in default shows each enum member's name.
+            var comboBox = new ComboBox
             {
                 ItemsSource = EnumValueCache.GetValues(entry.PropertyType),
                 SelectedItem = value,
@@ -546,37 +544,6 @@ namespace Icy.UI.Controls
             };
             comboBox.SelectionChanged += (_, _) => entry.TrySetValue(target, comboBox.SelectedItem);
             return comboBox;
-        }
-
-        /// <summary>
-        /// A <see cref="ComboBox"/> specialized for a plain-value list (an <see langword="enum"/>'s members) -
-        /// realizes each popup row as a bare <see cref="TextBlock"/> showing <see cref="object.ToString"/>
-        /// directly in code, the same way <see cref="PropertyGrid"/> itself sidesteps <see cref="ItemTemplate"/>
-        /// for its own code-built rows (see the class remarks).
-        /// </summary>
-        /// <remarks>
-        /// A real <see cref="DataTemplate"/> can only be built from markup - <see cref="DataTemplate.Build(object)"/>
-        /// throws unless its content was set via <see cref="Icy.Markup.MarkupLoader"/>, and this control is built
-        /// entirely in C#, with no markup document to load one from. A <c>{Binding}</c>-based item template would
-        /// fail regardless: binding this row's boxed, non-<see langword="string"/> item (an <see langword="enum"/>
-        /// value) into a <see cref="TextBlock.Text"/> binding does a raw reflection assignment with no
-        /// <see langword="string"/> coercion (<see cref="Icy.Data.Markup.IPropertyReference.SetRawValue(object, object?)"/>),
-        /// which throws for a type mismatch just as surely as the missing <see cref="ItemTemplate"/> itself did.
-        /// </remarks>
-        private sealed class ValueComboBox : ComboBox
-        {
-            public ValueComboBox()
-            {
-                // Never built - CreateContainer below never calls DataTemplate.Build - only assigned so
-                // ItemsControl.EnsureRealized's unconditional ResolveTemplate() call doesn't throw for want of one.
-                ItemTemplate = new DataTemplate();
-            }
-
-            /// <inheritdoc/>
-            /// <param name="template">Unused - see the class remarks.</param>
-            /// <param name="item">The enum member this popup row displays.</param>
-            protected override ItemContainer CreateContainer(DataTemplate template, object item) =>
-                new SelectorItem { Content = new TextBlock { Text = item.ToString() ?? string.Empty, VerticalAlignment = VerticalAlignment.Center } };
         }
 
         /// <summary>

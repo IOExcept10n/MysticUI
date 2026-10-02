@@ -274,6 +274,31 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void EnsureRealized_WithoutItemTemplate_FallsBackToTheItemsText()
+        {
+            var control = new ItemsControl { ItemsSource = new List<object> { DayOfWeek.Monday } };
+
+            InvokeEnsureRealized(control, 0);
+
+            var text = Assert.IsType<TextBlock>(GetRealizedContainers(control)[0].Content);
+            Assert.Equal("Monday", text.Text);
+        }
+
+        [Fact]
+        public void DefaultTemplate_PooledContainerReusedForAnotherItem_ShowsTheNewItemsText()
+        {
+            var control = new ItemsControl { ItemsSource = new List<object> { "a", "b" } };
+            InvokeEnsureRealized(control, 0);
+            ItemContainer original = GetRealizedContainers(control)[0];
+            InvokeDerealize(control, 0);
+
+            InvokeEnsureRealized(control, 1);
+
+            Assert.Same(original, GetRealizedContainers(control)[1]);
+            Assert.Equal("b", Assert.IsType<TextBlock>(original.Content).Text);
+        }
+
+        [Fact]
         public void Derealize_PooledContainer_IsDetachedThenReattachedOnReuse()
         {
             var template = LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>""");
@@ -299,15 +324,6 @@ namespace Icy.Tests.Controls
             InvokeEnsureRealized(control, 1);
 
             Assert.NotSame(original, GetRealizedContainers(control)[1]);
-        }
-
-        [Fact]
-        public void EnsureRealized_NoTemplate_Throws()
-        {
-            var control = new ItemsControl { ItemsSource = new List<object> { "a" } };
-
-            var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() => InvokeEnsureRealized(control, 0));
-            Assert.IsType<InvalidOperationException>(ex.InnerException);
         }
 
         private static DataTemplate LoadDataTemplate(string markup)

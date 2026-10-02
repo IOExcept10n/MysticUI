@@ -138,6 +138,10 @@ namespace Icy.UI.Controls
         /// Gets or sets the template used to build each item's visual tree, when <see cref="ItemTemplateSelector"/>
         /// doesn't resolve one for a given item.
         /// </summary>
+        /// <remarks>
+        /// When neither this nor <see cref="ItemTemplateSelector"/> provides a template, each item is shown as a
+        /// <see cref="TextBlock"/> with its <see cref="object.ToString"/> text.
+        /// </remarks>
         [Category("Content")]
         [DefaultValue(null)]
         [RegisterReference]
@@ -496,15 +500,11 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Resolves the <see cref="DataTemplate"/> to use for <paramref name="item"/> -
-        /// <see cref="ItemTemplateSelector"/> first, falling back to <see cref="ItemTemplate"/>.
+        /// <see cref="ItemTemplateSelector"/> first, then <see cref="ItemTemplate"/>, then the built-in
+        /// <see cref="DataTemplate.Default"/> (the item's text).
         /// </summary>
-        /// <exception cref="InvalidOperationException">Neither resolves a template for this item.</exception>
-        private DataTemplate ResolveTemplate(object item)
-        {
-            DataTemplate? resolved = ItemTemplateSelector?.Invoke(item) ?? ItemTemplate;
-            return resolved ?? throw new InvalidOperationException(
-                $"'{nameof(ItemsControl)}' has no '{nameof(ItemTemplate)}' or '{nameof(ItemTemplateSelector)}' to build item '{item}' from.");
-        }
+        private DataTemplate ResolveTemplate(object item) =>
+            ItemTemplateSelector?.Invoke(item) ?? ItemTemplate ?? DataTemplate.Default;
 
         /// <summary>
         /// Builds a fresh <see cref="ItemContainer"/> to host <paramref name="item"/>'s built visual tree - the

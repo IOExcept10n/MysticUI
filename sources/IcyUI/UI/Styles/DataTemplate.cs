@@ -3,6 +3,7 @@
 using System.Xml.Linq;
 using Icy.Configuration;
 using Icy.Markup;
+using Icy.UI.Controls;
 
 namespace Icy.UI.Styles
 {
@@ -26,9 +27,34 @@ namespace Icy.UI.Styles
     /// </remarks>
     public class DataTemplate
     {
+        private readonly Func<UIElement>? factory;
         private XElement? content;
         private IcyConfiguration? configuration;
         private string? sourcePath;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DataTemplate"/> class with no content. Content is supplied by
+        /// <see cref="Icy.Markup.MarkupLoader"/> when the template is loaded from markup.
+        /// </summary>
+        public DataTemplate()
+        {
+        }
+
+        private DataTemplate(Func<UIElement> factory)
+        {
+            this.factory = factory;
+        }
+
+        /// <summary>
+        /// Gets the template <see cref="Controls.ItemsControl"/> falls back to for items when neither
+        /// <see cref="Controls.ItemsControl.ItemTemplateSelector"/> nor <see cref="Controls.ItemsControl.ItemTemplate"/>
+        /// resolves one: a <see cref="TextBlock"/> showing the item's <see cref="object.ToString"/>.
+        /// </summary>
+        /// <remarks>
+        /// The text follows <see cref="UIElement.DataContext"/> through <see cref="UIElement.DataContextChanged"/>, so a
+        /// pooled container reused for another item shows that item's text rather than the previous one's.
+        /// </remarks>
+        internal static DataTemplate Default { get; } = new(CreateDefaultContent);
 
         /// <summary>
         /// Builds a fresh visual tree from this template's content, for <paramref name="dataItem"/>.
@@ -43,6 +69,13 @@ namespace Icy.UI.Styles
         public UIElement Build(object dataItem)
         {
             ArgumentNullException.ThrowIfNull(dataItem);
+            if (factory != null)
+            {
+                UIElement built = factory();
+                built.DataContext = dataItem;
+                return built;
+            }
+
             if (content == null || configuration == null)
                 throw new InvalidOperationException($"This '{nameof(DataTemplate)}' has no content to build - it was never loaded from markup.");
 
@@ -67,6 +100,13 @@ namespace Icy.UI.Styles
             this.content = content;
             this.configuration = configuration;
             this.sourcePath = sourcePath;
+        }
+
+        private static UIElement CreateDefaultContent()
+        {
+            var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+            text.DataContextChanged += (_, _) => text.Text = text.DataContext?.ToString() ?? string.Empty;
+            return text;
         }
     }
 }

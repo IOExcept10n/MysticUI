@@ -24,13 +24,6 @@ namespace Icy.UI.Controls
     /// wants a different header layout composes a custom <see cref="TabItem.Header"/> instead).
     /// </para>
     /// <para>
-    /// <see cref="ItemsControl"/>'s own realize path (<see cref="ItemsControl.EnsureRealized(int)"/>) always
-    /// resolves a <see cref="Styles.DataTemplate"/> before calling <see cref="CreateContainer"/> - even though
-    /// this override never calls <see cref="Styles.DataTemplate.Build(object)"/> on it - so
-    /// <see cref="ItemsControl.ItemTemplate"/> is stamped with an empty, never-built sentinel
-    /// <see cref="Styles.DataTemplate"/> at construction purely to satisfy that non-null requirement.
-    /// </para>
-    /// <para>
     /// <see cref="Control.Chrome"/> stays the plain decorative <see cref="UI.Border"/> spanning this control's
     /// whole <see cref="UIElement.ActualBounds"/> (the same convention every <see cref="ItemsControl"/> subclass
     /// already follows - realized items are extra visual children, not <see cref="Control.Chrome"/>'s child).
@@ -51,10 +44,6 @@ namespace Icy.UI.Controls
         public TabControl()
         {
             contentPresenter.Parent = this;
-
-            // Never built - see the class remarks - only assigned so ItemsControl.EnsureRealized's unconditional
-            // ResolveTemplate() call doesn't throw for want of an ItemTemplate.
-            ItemTemplate = new DataTemplate();
 
             // CreateContainer's header tree (below) has no {Binding} in it at all - unlike a markup-built
             // DataTemplate's tree, nothing in it reacts to ItemsControl.RentContainer's pooled-reuse path
