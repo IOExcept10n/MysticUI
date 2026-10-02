@@ -4,19 +4,30 @@
 // Linked into both sample hosts; MonoGame Sample has nullable disabled project-wide, Stride Sample has it enabled.
 #nullable enable
 using System;
+using System.Drawing;
+using Icy.Animations;
 using Icy.Configuration;
+using Icy.Rendering.Brushes;
 using Icy.UI;
 using Icy.UI.Controls;
 
 namespace Icy.SharedSamples
 {
     /// <summary>
-    /// Interactive demo of UI scaling: switch <see cref="UIScaleMode"/>/<see cref="ReferenceFit"/>, drag the user scale,
-    /// and watch the live readout. Contains a <see cref="ComboBox"/> and a <see cref="ColorPickerButton"/> so popup
-    /// placement can be checked under scaling.
+    /// Interactive demo of UI scaling: pick a <see cref="UIScaleMode"/>/<see cref="ReferenceFit"/> and a user scale,
+    /// apply them, and watch the live readout. Contains a <see cref="ComboBox"/> and a <see cref="ColorPickerButton"/>
+    /// so popup placement can be checked under scaling.
     /// </summary>
+    /// <remarks>
+    /// Display settings never apply live: the controls only edit a draft. <b>Apply</b> commits it and asks for
+    /// confirmation, and an unconfirmed change reverts on its own once the countdown runs out - the same safety net as
+    /// the Windows display settings, so a bad scale can never leave the UI unusable.
+    /// </remarks>
     public static class ScalingDemo
     {
+        private const float CountdownBarWidth = 380;
+        private static readonly TimeSpan RevertDelay = TimeSpan.FromSeconds(10);
+
         /// <summary>
         /// Builds the demo's root element.
         /// </summary>
@@ -40,22 +51,101 @@ namespace Icy.SharedSamples
 
             var readout = new TextBlock { Text = "(not attached)" };
 
-            var modeBox = new ComboBox { ItemsSource = Enum.GetValues<UIScaleMode>(), SelectedItem = scaling.Mode, Width = 260 };
-            modeBox.SelectionChanged += (_, _) =>
+            // The draft editors. They never touch ScalingConfiguration directly - only Apply does.
+            var modeBox = new ComboBox { Name = "ScaleModeBox", ItemsSource = Enum.GetValues<UIScaleMode>(), Width = 260 };
+            var fitBox = new ComboBox { Name = "ReferenceFitBox", ItemsSource = Enum.GetValues<ReferenceFit>(), Width = 260 };
+            var userScaleLabel = new TextBlock();
+            var userScale = new Slider { Name = "UserScaleSlider", Minimum = 0.5f, Maximum = 2f, Width = 260 };
+            void UpdateUserScaleLabel() => userScaleLabel.Text = $"User scale: {userScale.Value:0.00}x (0.5 - 2.0)";
+            userScale.ValueChanged += (_, _) => UpdateUserScaleLabel();
+
+            var applyButton = CreateButton("ApplyButton", "Apply");
+            var discardButton = CreateButton("DiscardButton", "Discard");
+            var editButtons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 8) };
+            editButtons.Children.Add(applyButton);
+            editButtons.Children.Add(discardButton);
+
+            var countdownBar = new Border
             {
+                Name = "RevertCountdownBar",
+                Height = 4,
+                Width = CountdownBarWidth,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Background = new SolidColorBrush(Color.FromArgb(255, 230, 160, 40)),
+            };
+            var keepButton = CreateButton("KeepButton", "Keep");
+            var revertButton = CreateButton("RevertButton", "Revert");
+            var confirmButtons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            confirmButtons.Children.Add(keepButton);
+            confirmButtons.Children.Add(revertButton);
+            var confirmPanel = new StackPanel { Name = "ConfirmPanel", Orientation = Orientation.Vertical, IsVisible = false };
+            confirmPanel.Children.Add(new TextBlock { Text = $"Keep these display settings? Reverting in {RevertDelay.TotalSeconds:0} s." });
+            confirmPanel.Children.Add(countdownBar);
+            confirmPanel.Children.Add(confirmButtons);
+
+            void LoadDraft(UIScaleMode mode, ReferenceFit fit, float user)
+            {
+                modeBox.SelectedItem = mode;
+                fitBox.SelectedItem = fit;
+                userScale.Value = user;
+            }
+
+            // The settings that were in effect before the pending Apply, restored by Revert or the countdown.
+            UIScaleMode previousMode = scaling.Mode;
+            ReferenceFit previousFit = scaling.ReferenceFit;
+            float previousUserScale = scaling.UserScale;
+            Animation? countdown = null;
+
+            void EndConfirmation()
+            {
+                // Clear the field first: Stop() doesn't raise Completed today, but the guard in Completed must not
+                // depend on that.
+                Animation? running = countdown;
+                countdown = null;
+                running?.Stop();
+                confirmPanel.IsVisible = false;
+                applyButton.IsEnabled = true;
+                discardButton.IsEnabled = true;
+            }
+
+            void Revert()
+            {
+                scaling.Mode = previousMode;
+                scaling.ReferenceFit = previousFit;
+                scaling.UserScale = previousUserScale;
+                LoadDraft(previousMode, previousFit, previousUserScale);
+                EndConfirmation();
+            }
+
+            applyButton.Click += (_, _) =>
+            {
+                previousMode = scaling.Mode;
+                previousFit = scaling.ReferenceFit;
+                previousUserScale = scaling.UserScale;
                 if (modeBox.SelectedItem is UIScaleMode mode)
                     scaling.Mode = mode;
-            };
-
-            var fitBox = new ComboBox { ItemsSource = Enum.GetValues<ReferenceFit>(), SelectedItem = scaling.ReferenceFit, Width = 260 };
-            fitBox.SelectionChanged += (_, _) =>
-            {
                 if (fitBox.SelectedItem is ReferenceFit fit)
                     scaling.ReferenceFit = fit;
-            };
+                scaling.UserScale = userScale.Value;
 
-            var userScale = new Slider { Minimum = 0.5f, Maximum = 2f, Value = scaling.UserScale, Width = 260 };
-            userScale.ValueChanged += (_, _) => scaling.UserScale = userScale.Value;
+                confirmPanel.IsVisible = true;
+                applyButton.IsEnabled = false;
+                discardButton.IsEnabled = false;
+                countdownBar.Width = CountdownBarWidth;
+                Animation started = countdownBar.Animate(Timeline.FromTo(nameof(Border.Width), RevertDelay, CountdownBarWidth, 0f));
+                countdown = started;
+                started.Completed += (_, _) =>
+                {
+                    if (ReferenceEquals(countdown, started))
+                        Revert();
+                };
+            };
+            discardButton.Click += (_, _) => LoadDraft(scaling.Mode, scaling.ReferenceFit, scaling.UserScale);
+            keepButton.Click += (_, _) => EndConfirmation();
+            revertButton.Click += (_, _) => Revert();
+
+            LoadDraft(scaling.Mode, scaling.ReferenceFit, scaling.UserScale);
+            UpdateUserScaleLabel();
 
             root.Children.Add(new TextBlock { Text = "UI scaling" });
             root.Children.Add(readout);
@@ -63,8 +153,10 @@ namespace Icy.SharedSamples
             root.Children.Add(modeBox);
             root.Children.Add(new TextBlock { Text = "Reference fit (1920x1080)" });
             root.Children.Add(fitBox);
-            root.Children.Add(new TextBlock { Text = "User scale (0.5 - 2.0)" });
+            root.Children.Add(userScaleLabel);
             root.Children.Add(userScale);
+            root.Children.Add(editButtons);
+            root.Children.Add(confirmPanel);
             root.Children.Add(new TextBlock { Text = "Popup placement check" });
             root.Children.Add(new ColorPickerButton());
 
@@ -90,5 +182,13 @@ namespace Icy.SharedSamples
 
             return root;
         }
+
+        private static Button CreateButton(string name, string text) => new()
+        {
+            Name = name,
+            Content = new TextBlock { Text = text },
+            Padding = new Thickness(12, 6),
+            Margin = new Thickness(0, 0, 8, 0),
+        };
     }
 }

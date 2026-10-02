@@ -35,6 +35,7 @@
          Linking the demo in means a document that stops parsing fails the test run rather than a sample launch. -->
     <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="Markup\MarkupDemo.cs" />
     <Compile Include="..\Shared Samples\ControlTemplateDemo.cs" Link="Markup\ControlTemplateDemo.cs" />
+    <Compile Include="..\Shared Samples\ScalingDemo.cs" Link="Samples\ScalingDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>
