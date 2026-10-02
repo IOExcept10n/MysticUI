@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
 using Icy.Rendering;
+using Icy.Rendering.Display;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -26,6 +27,7 @@ namespace Icy.MonoGame.Rendering
 
         private Effect? appliedEffect;
         private bool began;
+        private DisplayScaleTracker? displayScaleTracker;
         private bool disposedValue;
 
         /// <summary>
@@ -42,6 +44,9 @@ namespace Icy.MonoGame.Rendering
         }
 
         /// <inheritdoc/>
+        public event EventHandler? DisplayScaleChanged;
+
+        /// <inheritdoc/>
         public event EventHandler? ViewportResize;
 
         /// <inheritdoc/>
@@ -55,6 +60,13 @@ namespace Icy.MonoGame.Rendering
 
         /// <inheritdoc/>
         public System.Drawing.Size ViewportSize => new(device.PresentationParameters.BackBufferWidth, device.PresentationParameters.BackBufferHeight);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Reads the value from the <see cref="DisplayScaleTracker"/> attached through <see cref="AttachDisplayScaleTracker"/>,
+        /// as of its last <see cref="PollDisplayScale"/> call; <c>1.0</c> when none is attached.
+        /// </remarks>
+        public float DisplayScale => displayScaleTracker?.Scale ?? 1f;
 
         /// <inheritdoc/>
         public void ApplyEffect(IEffect effect)
@@ -74,6 +86,18 @@ namespace Icy.MonoGame.Rendering
             appliedEffect = platformEffect;
 
             Flush();
+        }
+
+        /// <summary>
+        /// Attaches the tracker that reports this context's display scale, and forwards its changes to <see cref="DisplayScaleChanged"/>.
+        /// </summary>
+        /// <param name="tracker">The tracker for the window this context renders into.</param>
+        public void AttachDisplayScaleTracker(DisplayScaleTracker tracker)
+        {
+            ArgumentNullException.ThrowIfNull(tracker);
+            displayScaleTracker = tracker;
+            tracker.Changed += (_, e) => DisplayScaleChanged?.Invoke(this, e);
+            tracker.Poll();
         }
 
         /// <inheritdoc/>
@@ -194,6 +218,11 @@ namespace Icy.MonoGame.Rendering
         {
             throw new NotImplementedException();
         }
+
+        /// <summary>
+        /// Re-reads the display scale. Called once per update by the engine integration.
+        /// </summary>
+        public void PollDisplayScale() => displayScaleTracker?.Poll();
 
         private void Dispose(bool disposing)
         {

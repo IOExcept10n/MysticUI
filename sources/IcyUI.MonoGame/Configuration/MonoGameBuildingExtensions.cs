@@ -6,6 +6,7 @@ using Icy.MonoGame.Assets;
 using Icy.MonoGame.Assets.Importers;
 using Icy.MonoGame.Input;
 using Icy.MonoGame.Rendering;
+using Icy.Rendering.Display;
 using Microsoft.Xna.Framework;
 
 namespace Icy.MonoGame.Configuration
@@ -58,14 +59,18 @@ namespace Icy.MonoGame.Configuration
         /// <param name="builder">The configuration builder instance to configure.</param>
         /// <param name="game">The <see cref="Game"/> instance used for configuration.</param>
         /// <returns>The updated configuration builder instance for fluent configuration.</returns>
-        public static IConfigurationBuilder WithDefaultMonoGameConfiguration(this IConfigurationBuilder builder, Game game) =>
-            builder.ConfigureRendering(new RenderContext(game.GraphicsDevice))
+        public static IConfigurationBuilder WithDefaultMonoGameConfiguration(this IConfigurationBuilder builder, Game game)
+        {
+            var renderContext = new RenderContext(game.GraphicsDevice);
+            renderContext.AttachDisplayScaleTracker(new DisplayScaleTracker(DisplayScales.GetProvider(), () => MonoGameNativeWindow.GetInfo(game)));
+            return builder.ConfigureRendering(renderContext)
                    .ConfigureInput(new InputSystem(game))
                    .ConfigureTypes()
                    .ConfigureAssets()
                    .WithAssetContextFactory(new MonoGameAssetContextFactory(game))
                    .AddBasicFontSupport()
                    .UseMonoGameImporters(game);
+        }
 
 
         /// <summary>

@@ -1,5 +1,6 @@
 ﻿using Icy.Configuration;
 using Icy.Input;
+using Icy.MonoGame.Rendering;
 using Microsoft.Xna.Framework;
 
 namespace Icy.MonoGame.Configuration
@@ -21,6 +22,7 @@ namespace Icy.MonoGame.Configuration
                 updateable.Update(gameTime.ElapsedGameTime);
             }
 
+            (Configuration.RenderContext as RenderContext)?.PollDisplayScale();
             base.Update(gameTime);
         }
     }

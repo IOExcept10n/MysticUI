@@ -44,6 +44,7 @@ namespace Icy.Stride.Configuration
                 updateable.Update(gameTime.Elapsed);
             }
 
+            (Configuration.RenderContext as Rendering.RenderContext)?.PollDisplayScale();
             base.Update(gameTime);
         }
     }

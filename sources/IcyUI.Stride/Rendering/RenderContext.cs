@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
 using Icy.Rendering;
+using Icy.Rendering.Display;
 using Stride.Core.Mathematics;
 using Stride.Graphics;
 
@@ -28,6 +29,7 @@ namespace Icy.Stride.Rendering
 
         private GraphicsContext? graphicsContext;
         private bool began;
+        private DisplayScaleTracker? displayScaleTracker;
         private bool disposedValue;
 
         /// <summary>
@@ -41,6 +43,9 @@ namespace Icy.Stride.Rendering
             WhiteTexture = device.GetSharedWhiteTexture().Wrap(this);
             Options = new RenderOptions(this);
         }
+
+        /// <inheritdoc/>
+        public event EventHandler? DisplayScaleChanged;
 
         /// <inheritdoc/>
         public event EventHandler? ViewportResize;
@@ -72,6 +77,13 @@ namespace Icy.Stride.Rendering
         public System.Drawing.Size ViewportSize => new(device.Presenter?.BackBuffer.Width ?? 0, device.Presenter?.BackBuffer.Height ?? 0);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Reads the value from the <see cref="DisplayScaleTracker"/> attached through <see cref="AttachDisplayScaleTracker"/>,
+        /// as of its last <see cref="PollDisplayScale"/> call; <c>1.0</c> when none is attached.
+        /// </remarks>
+        public float DisplayScale => displayScaleTracker?.Scale ?? 1f;
+
+        /// <inheritdoc/>
         public void ApplyEffect(IEffect effect)
         {
             if (!Options.EnableEffects)
@@ -82,6 +94,18 @@ namespace Icy.Stride.Rendering
             // same state. Threading a real Stride Effect through SpriteBatch once GetBuiltInEffect is implemented
             // is future work, not a blocker for this port.
             Flush();
+        }
+
+        /// <summary>
+        /// Attaches the tracker that reports this context's display scale, and forwards its changes to <see cref="DisplayScaleChanged"/>.
+        /// </summary>
+        /// <param name="tracker">The tracker for the window this context renders into.</param>
+        public void AttachDisplayScaleTracker(DisplayScaleTracker tracker)
+        {
+            ArgumentNullException.ThrowIfNull(tracker);
+            displayScaleTracker = tracker;
+            tracker.Changed += (_, e) => DisplayScaleChanged?.Invoke(this, e);
+            tracker.Poll();
         }
 
         /// <inheritdoc/>
@@ -210,6 +234,11 @@ namespace Icy.Stride.Rendering
         /// subscribe to the way MonoGame's <c>GraphicsDevice.DeviceReset</c> provides.
         /// </summary>
         public void NotifyViewportResize() => ViewportResize?.Invoke(this, EventArgs.Empty);
+
+        /// <summary>
+        /// Re-reads the display scale. Called once per update by the engine integration.
+        /// </summary>
+        public void PollDisplayScale() => displayScaleTracker?.Poll();
 
         private void Dispose(bool disposing)
         {

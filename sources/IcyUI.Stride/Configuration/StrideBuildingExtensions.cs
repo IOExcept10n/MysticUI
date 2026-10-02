@@ -2,8 +2,10 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using CommunityToolkit.Diagnostics;
 using Icy.Configuration;
+using Icy.Rendering.Display;
 using Icy.Stride.Assets;
 using Icy.Stride.Assets.Importers;
+using Icy.Stride.Rendering;
 using Stride.Engine;
 using Stride.Rendering.Compositing;
 
@@ -66,8 +68,11 @@ namespace Icy.Stride.Configuration
         /// <param name="builder">The configuration builder instance to configure.</param>
         /// <param name="game">The <see cref="Game"/> instance used for configuration.</param>
         /// <returns>The updated configuration builder instance for fluent configuration.</returns>
-        public static IConfigurationBuilder WithDefaultStrideConfiguration(this IConfigurationBuilder builder, Game game) =>
-            builder.ConfigureRendering(new Rendering.RenderContext(game.GraphicsDevice))
+        public static IConfigurationBuilder WithDefaultStrideConfiguration(this IConfigurationBuilder builder, Game game)
+        {
+            var renderContext = new Rendering.RenderContext(game.GraphicsDevice);
+            renderContext.AttachDisplayScaleTracker(new DisplayScaleTracker(DisplayScales.GetProvider(), () => StrideNativeWindow.GetInfo(game)));
+            return builder.ConfigureRendering(renderContext)
                    .ConfigureInput(new Input.InputSystem(
                        game.Services.GetService<global::Stride.Input.InputManager>()
                        ?? ThrowHelper.ThrowInvalidOperationException<global::Stride.Input.InputManager>("The game has no InputManager service registered. Configure IcyUI after the game has been initialized.")))
@@ -76,6 +81,7 @@ namespace Icy.Stride.Configuration
                    .WithAssetContextFactory(new StrideAssetContextFactory(game))
                    .AddBasicFontSupport()
                    .UseStrideImporters(game);
+        }
 
         /// <summary>
         /// Adds Stride-specific importers to the asset configuration builder.
