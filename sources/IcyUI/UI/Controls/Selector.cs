@@ -279,6 +279,20 @@ namespace Icy.UI.Controls
         protected override void OnRender(Icy.Rendering.IRenderContext context) => Chrome.Draw(context);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Re-positions an open popup, so it stays attached when this control moves - e.g. after a window resize or a
+        /// <see cref="Canvas.EffectiveScale"/> change re-lays out the surface. The reposition is deferred until every
+        /// root element is arranged (this control's ancestors are still mid-arrange here) and runs before the canvas
+        /// arranges its overlays, so the popup lands in the right place within the same frame.
+        /// </remarks>
+        protected override void OnArrangeUpdated()
+        {
+            base.OnArrangeUpdated();
+            if (isOpen && openedOnCanvas != null)
+                openedOnCanvas.QueueAfterRootLayout(RepositionOpenPopup);
+        }
+
+        /// <inheritdoc/>
         protected override void OnAttached()
         {
             base.OnAttached();
@@ -535,6 +549,13 @@ namespace Icy.UI.Controls
                     return;
                 }
             }
+        }
+
+        private void RepositionOpenPopup()
+        {
+            // The popup may have closed (or this control detached) between queuing and the layout pass.
+            if (isOpen && openedOnCanvas != null)
+                PositionPopup();
         }
 
         private void PositionPopup()

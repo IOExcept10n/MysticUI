@@ -343,6 +343,33 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void OpenPopup_FollowsItsAnchor_WhenTheUIScaleChanges()
+        {
+            var comboBox = new ComboBox
+            {
+                ItemsSource = new List<object> { "Apple", "Banana" },
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var config = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(Icy.Assets.AssetContext.ApplicationContext), new Icy.Tests.Rendering.FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            canvas.Add(comboBox);
+            canvas.Render();
+            comboBox.IsOpen = true;
+            canvas.Render();
+            UIElement popup = canvas.Overlays.Single();
+            Assert.Equal(600, popup.Margin.Left);
+
+            // 800 px viewport at 2x = a 400-unit surface, so the right-aligned anchor moves to x = 200.
+            config.Scaling.UserScale = 2f;
+            canvas.Render();
+
+            Assert.Equal(200, popup.Margin.Left);
+        }
+
+        [Fact]
         public void CodeBuiltEnumComboBox_WithoutItemTemplate_OpensAndShowsEachMembersName()
         {
             // Regression: ScalingDemo's code-built ComboBox over Enum.GetValues<UIScaleMode>() threw

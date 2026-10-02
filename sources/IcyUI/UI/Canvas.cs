@@ -29,6 +29,7 @@ namespace Icy.UI
         private const float ScaleEpsilon = 0.0001f;
         private readonly Diagnostics.DebugHudHost debugHudHost;
         private readonly Stopwatch frameTime = new();
+        private readonly List<Action> afterRootLayout = [];
         private readonly List<UIElement> overlayElements = [];
         private readonly List<UIElement> rootElements = [];
         private readonly Dictionary<UIElement, UIElement?> scopeReturnFocus = [];
@@ -588,6 +589,21 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Queues <paramref name="action"/> to run during the next layout pass, after every root element is arranged and
+        /// before <see cref="Overlays"/> are, so an overlay can be positioned against final root-element positions.
+        /// </summary>
+        /// <param name="action">The action to run once; queuing an equal delegate again before it runs has no effect.</param>
+        /// <remarks>
+        /// Use this instead of positioning an overlay from inside an element's own arrange notification - its ancestors are
+        /// still being arranged at that point, and reading positions there re-enters their arrange.
+        /// </remarks>
+        internal void QueueAfterRootLayout(Action action)
+        {
+            if (!afterRootLayout.Contains(action))
+                afterRootLayout.Add(action);
+        }
+
+        /// <summary>
         /// Converts a physical screen point (where pointer input arrives) into surface units.
         /// </summary>
         /// <param name="screenPoint">A point in physical screen/window pixels.</param>
@@ -896,6 +912,16 @@ namespace Icy.UI
         {
             foreach (var element in rootElements)
                 element.Arrange();
+
+            // Runs once every root is fully arranged (positions are final) and before overlays are arranged, so an
+            // overlay positioned against a root element lands in the right place within the same frame.
+            if (afterRootLayout.Count > 0)
+            {
+                Action[] pending = [.. afterRootLayout];
+                afterRootLayout.Clear();
+                foreach (Action action in pending)
+                    action();
+            }
 
             if (overlayElements.Count > 0)
             {

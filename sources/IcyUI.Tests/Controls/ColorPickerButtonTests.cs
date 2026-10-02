@@ -125,6 +125,26 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void OpenPopup_FollowsItsAnchor_WhenTheUIScaleChanges()
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(configuration) { IsInputEnabled = true, IsVisible = true };
+            var button = new ColorPickerButton { Width = 100, Height = 30, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(button);
+            canvas.Render();
+            button.IsOpen = true;
+            canvas.Render();
+            UIElement popup = canvas.Overlays.Single();
+            Assert.Equal(700, popup.Margin.Left);
+
+            // 800 px viewport at 2x = a 400-unit surface, so the right-aligned anchor moves to x = 300.
+            configuration.Scaling.UserScale = 2f;
+            canvas.Render();
+
+            Assert.Equal(300, popup.Margin.Left);
+        }
+
+        [Fact]
         public void OpeningWithRoomBelow_PlacesThePopupBelow()
         {
             var configuration = new IcyConfiguration(
