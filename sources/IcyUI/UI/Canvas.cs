@@ -627,13 +627,6 @@ namespace Icy.UI
             base.OnPropertyChanging(e);
         }
 
-        private static void PositionOverlayAtScreenPoint(UIElement overlay, Point screenPoint)
-        {
-            overlay.HorizontalAlignment = HorizontalAlignment.Left;
-            overlay.VerticalAlignment = VerticalAlignment.Top;
-            overlay.Margin = new Thickness(screenPoint.X, screenPoint.Y, 0, 0);
-        }
-
         /// <summary>
         /// Enumerates <paramref name="element"/> followed by every ancestor up to the root, via <see cref="UIElement.Parent"/>.
         /// </summary>
@@ -656,6 +649,15 @@ namespace Icy.UI
                 foreach (UIElement element in root.EnumerateVisualSubtree())
                     yield return element;
             }
+        }
+
+        private void PositionOverlayAtScreenPoint(UIElement overlay, Point screenPoint)
+        {
+            // Overlays are arranged in surface space, while pointer positions arrive in physical pixels.
+            Vector2 surfacePoint = ScreenToSurface(screenPoint);
+            overlay.HorizontalAlignment = HorizontalAlignment.Left;
+            overlay.VerticalAlignment = VerticalAlignment.Top;
+            overlay.Margin = new Thickness((int)surfacePoint.X, (int)surfacePoint.Y, 0, 0);
         }
 
         private void EnsureInputRoutingInitialized()

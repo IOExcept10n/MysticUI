@@ -166,6 +166,27 @@ namespace Icy.Tests.Input
         }
 
         [Fact]
+        public void Preview_FollowsTheCursorInSurfaceSpace_AtDisplayScale2()
+        {
+            // Overlays live in surface space (physical ÷ EffectiveScale), so the physical cursor point must be converted
+            // before it becomes the preview's Margin - otherwise the preview drifts to twice the cursor position.
+            var input = new FakeInputSystem();
+            var config = new IcyConfiguration(input, new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext { DisplayScale = 2f }, new ReflectionConfiguration());
+            var canvas = new Canvas(config) { IsInputEnabled = true, IsVisible = true };
+            var preview = new UIElement();
+            AddSource(canvas, new object(), preview);
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(50, 50));
+            Assert.Equal(25, preview.Margin.Left);
+            Assert.Equal(25, preview.Margin.Top);
+
+            input.Events.Drag.RaiseDragPerforming(new Point(300, 120));
+            Assert.Equal(150, preview.Margin.Left);
+            Assert.Equal(60, preview.Margin.Top);
+        }
+
+        [Fact]
         public void DragWithAPreview_StillFindsTheDropTargetUnderneathIt()
         {
             // Regression coverage: the preview is an overlay positioned with its top-left exactly on the cursor, and
