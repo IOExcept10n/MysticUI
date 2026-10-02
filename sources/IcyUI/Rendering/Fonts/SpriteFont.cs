@@ -159,32 +159,60 @@ namespace Icy.Rendering.Fonts
             Prepare(text, localOptions, out int baseline, out int lineHeight);
             BoundsInfo renderBounds = new(new Vector2(0, baseline), localOptions.Position.X);
 
-            ProcessText(text, localOptions, lineHeight, ref renderBounds, (glyph, font, glyphPos) =>
-            {
-                if (!glyph.IsEmpty)
-                {
-                    Rectangle glyphBounds = new((int)glyphPos.X, (int)glyphPos.Y, glyph.Size.Width, glyph.Size.Height);
+            // Under a scaling render transform (e.g. a Canvas at 200 % DPI), draw glyphs rasterized at the device size
+            // in device units, under a transform compensated by 1/deviceScale. Pen positions still come from this
+            // (logical) font, so drawn text keeps exactly its measured width.
+            float deviceScale = GetDeviceScale(context.Transform);
+            bool useDevice = deviceScale != 1f && IsTranslationOnly(localOptions);
+            Transform2D outerTransform = context.Transform;
+            if (useDevice)
+                context.Transform = Transform2D.Create(Matrix3x2.CreateScale(1f / deviceScale) * outerTransform.Matrix);
 
-                    var renderGlyphBounds = transform.Apply(glyphBounds);
+            try
+            {
+                ProcessText(text, localOptions, lineHeight, ref renderBounds, (glyph, font, glyphPos) =>
+                {
+                    if (glyph.IsEmpty)
+                        return;
+
+                    if (useDevice && font == null && TryGetDeviceGlyph(glyph.Codepoint, deviceScale, out FontGlyph deviceGlyph) && !deviceGlyph.IsEmpty)
+                    {
+                        Vector2 pen = transform.Apply(glyphPos - glyph.Bearing) * deviceScale;
+                        Rectangle deviceBounds = new(
+                            (int)MathF.Round(pen.X + deviceGlyph.Bearing.X),
+                            (int)MathF.Round(pen.Y + deviceGlyph.Bearing.Y),
+                            deviceGlyph.Size.Width,
+                            deviceGlyph.Size.Height);
+                        context.Draw(GetGlyphTexture(deviceGlyph), new TextureRenderingOptions(deviceBounds, deviceGlyph.TextureRegion, localOptions.Color, 0f, Vector2.Zero, localOptions.Depth));
+                        return;
+                    }
+
+                    Rectangle glyphBounds = new((int)glyphPos.X, (int)glyphPos.Y, glyph.Size.Width, glyph.Size.Height);
+                    Rectangle renderGlyphBounds = transform.Apply(glyphBounds);
+                    if (useDevice)
+                        renderGlyphBounds = ScaleRectangle(renderGlyphBounds, deviceScale);
+
                     var glyphTexture = ((font as SpriteFont) ?? this)?.GetGlyphTexture(glyph);
 
                     // Unfortunately, we can't support fonts that can't provide a texture for the specified glyph.
                     if (glyphTexture == null)
                         return;
 
-                    var textureGlyphBounds = glyph.TextureRegion;
-
                     TextureRenderingOptions renderOptions = new(
                         Destination: renderGlyphBounds,
-                        Source: textureGlyphBounds,
+                        Source: glyph.TextureRegion,
                         Color: localOptions.Color,
                         Rotation: localOptions.Rotation,
                         Origin: localOptions.Origin,
                         Depth: localOptions.Depth);
 
                     context.Draw(glyphTexture, renderOptions);
-                }
-            });
+                });
+            }
+            finally
+            {
+                context.Transform = outerTransform;
+            }
         }
 
         /// <inheritdoc/>
@@ -252,11 +280,49 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <summary>
+        /// Gets the uniform device scale to rasterize glyphs at for the specified render transform.
+        /// </summary>
+        /// <param name="transform">The render context's current transform.</param>
+        /// <returns>
+        /// <c>1</c> when glyphs should be drawn at their logical size (scale within 1 % of 1, non-uniform, rotated or
+        /// degenerate); otherwise the scale rounded to the nearest 0.25, which keeps animated scales from filling the
+        /// atlas with many slightly different sizes.
+        /// </returns>
+        internal static float GetDeviceScale(in Transform2D transform)
+        {
+            Vector2 scale = transform.Scale;
+            if (MathF.Abs(transform.Rotation) > 0.0001f || scale.X <= 0 || MathF.Abs(scale.X - scale.Y) > 0.01f)
+                return 1f;
+            if (MathF.Abs(scale.X - 1f) < 0.01f)
+                return 1f;
+
+            float quantized = MathF.Round(scale.X * 4f, MidpointRounding.AwayFromZero) / 4f;
+            return quantized < 0.25f ? 1f : quantized;
+        }
+
+        /// <summary>
         /// Gets an image for the specified glyph inside this font.
         /// </summary>
         /// <param name="glyph">Glyph to get image for.</param>
         /// <returns>An instance of the texture atlas for the specified glyph.</returns>
         protected ITexture GetGlyphTexture(FontGlyph glyph) => Atlas.GetGlyphPage(glyph);
+
+        /// <summary>
+        /// Tries to get a glyph rasterized for the specified device scale, so text drawn under a scaling transform
+        /// stays crisp.
+        /// </summary>
+        /// <param name="codepoint">The codepoint to get the glyph for.</param>
+        /// <param name="deviceScale">The device scale, as returned by <see cref="GetDeviceScale(in Transform2D)"/>.</param>
+        /// <param name="glyph">The device-resolution glyph, with its size, bearing and texture region in device pixels.</param>
+        /// <returns>
+        /// <see langword="true"/> if the font can rasterize at arbitrary sizes and produced a glyph; otherwise <see langword="false"/>.
+        /// The base implementation returns <see langword="false"/> (bitmap fonts are simply scaled).
+        /// </returns>
+        protected virtual bool TryGetDeviceGlyph(int codepoint, float deviceScale, out FontGlyph glyph)
+        {
+            glyph = FontGlyph.None;
+            return false;
+        }
 
         /// <summary>
         /// Gets the kerning between two glyphs.
@@ -294,6 +360,12 @@ namespace Icy.Rendering.Fonts
             lineHeight = (int)(Metrics.Ascent - Metrics.Descent + Metrics.LineGap);
         }
 
+        private static Rectangle ScaleRectangle(Rectangle rectangle, float scale) => Rectangle.FromLTRB(
+            (int)MathF.Round(rectangle.Left * scale),
+            (int)MathF.Round(rectangle.Top * scale),
+            (int)MathF.Round(rectangle.Right * scale),
+            (int)MathF.Round(rectangle.Bottom * scale));
+
         private static bool HandleControlCode(int codepoint, in FontRenderingOptions options, int lineHeight, ref BoundsInfo bounds)
         {
             switch (codepoint)
@@ -325,6 +397,9 @@ namespace Icy.Rendering.Fonts
 
         private Transform2D CreateTransform(in FontRenderingOptions options) =>
                     Transform2D.Create(options.Position, options.Rotation, options.Origin, (options.Scale ?? Vector2.One) * RenderSizeMultiplier);
+
+        private bool IsTranslationOnly(in FontRenderingOptions options) =>
+            options.Rotation == 0 && (options.Scale ?? Vector2.One) == Vector2.One && RenderSizeMultiplier == 1f;
 
         /// <summary>
         /// Processes text by iterating over codepoints and handling glyphs.

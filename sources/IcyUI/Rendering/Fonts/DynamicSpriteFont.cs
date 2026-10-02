@@ -48,31 +48,7 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <inheritdoc/>
-        public override FontGlyph GetGlyph(int codepoint)
-        {
-            // Check atlas first
-            if (atlas.GetGlyph(GetStyledGlyph(codepoint)) is FontGlyph glyph)
-                return glyph;
-
-            // Get glyph metrics and rasterize
-            var metrics = rasterizer.GetGlyphMetrics(codepoint, Info.Size, Info.Style);
-            if (metrics.IsEmpty)
-            {
-                if (metrics.Advance != 0)
-                {
-                    atlas.AddEmptyGlyph(metrics, Info);
-                    return metrics;
-                }
-
-                return FontGlyph.None;
-            }
-
-            using var pixels = rasterizer.RasterizeGlyph(codepoint, Info.Size, Info.Style);
-            if (pixels is null)
-                return FontGlyph.None;
-
-            return atlas.TryAddGlyph(metrics, pixels.Memory, Info);
-        }
+        public override FontGlyph GetGlyph(int codepoint) => GetGlyph(codepoint, Info);
 
         /// <inheritdoc/>
         public override bool SupportsCharacter(int codepoint)
@@ -81,10 +57,47 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Rasterizes at <c><see cref="FontInfo.Size"/> × <paramref name="deviceScale"/></c> into the same shared atlas,
+        /// which keys glyphs by size, so device-size glyphs are cached alongside the logical ones.
+        /// </remarks>
+        protected override bool TryGetDeviceGlyph(int codepoint, float deviceScale, out FontGlyph glyph)
+        {
+            glyph = GetGlyph(codepoint, Info.WithSize(Info.Size * deviceScale));
+            return glyph != FontGlyph.None;
+        }
+
+        /// <inheritdoc/>
         protected override float GetKerning(FontGlyph current, FontGlyph previous)
         {
             // Get kerning from rasterizer
             return rasterizer.GetKerning(current.Codepoint, previous.Codepoint, Info.Size, Info.Style);
+        }
+
+        private FontGlyph GetGlyph(int codepoint, FontInfo sized)
+        {
+            // Check atlas first
+            if (atlas.GetGlyph(new StyledGlyphDefinition(codepoint, sized.Size, sized.Style)) is FontGlyph glyph)
+                return glyph;
+
+            // Get glyph metrics and rasterize
+            var metrics = rasterizer.GetGlyphMetrics(codepoint, sized.Size, sized.Style);
+            if (metrics.IsEmpty)
+            {
+                if (metrics.Advance != 0)
+                {
+                    atlas.AddEmptyGlyph(metrics, sized);
+                    return metrics;
+                }
+
+                return FontGlyph.None;
+            }
+
+            using var pixels = rasterizer.RasterizeGlyph(codepoint, sized.Size, sized.Style);
+            if (pixels is null)
+                return FontGlyph.None;
+
+            return atlas.TryAddGlyph(metrics, pixels.Memory, sized);
         }
     }
 }
