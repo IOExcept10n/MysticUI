@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>$(IcyTargetFramework)-windows</TargetFramework>
     <RootNamespace>Icy.StrideSample</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Stride.Core" />
@@ -30,6 +31,7 @@
     <Compile Include="..\Shared Samples\TabControlDemo.cs" Link="TabControlDemo.cs" />
     <Compile Include="..\Shared Samples\ColorPickerDemo.cs" Link="ColorPickerDemo.cs" />
     <Compile Include="..\Shared Samples\PropertyGridDemo.cs" Link="PropertyGridDemo.cs" />
+    <Compile Include="..\Shared Samples\ScalingDemo.cs" Link="ScalingDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

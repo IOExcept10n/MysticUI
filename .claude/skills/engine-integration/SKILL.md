@@ -13,6 +13,7 @@ IcyUI is a game-UI framework split into a core library plus per-engine integrati
 
 ## When editing engine-integration code
 
+- OS-specific code lives in core (e.g. `Icy.Rendering.Display`, `Icy.Input.Clipboard`); engine projects are thin connectors. For display scale, an engine only builds a `NativeWindowInfo`, attaches a `DisplayScaleTracker` to its `RenderContext`, and calls `PollDisplayScale()` once per update. A future `IcyUI.FNA` needs exactly that connector (FNA is SDL-based, so it can reuse the MonoGame `SDL_GetWindowWMInfo` approach).
 - Changes to the core `IcyUI` library that alter public APIs, rendering abstractions, or input handling can affect all three integrations differently — check whether `IcyUI.MonoGame` and `IcyUI.Stride` both need corresponding updates, since only those two have real implementations to break.
 - Don't assume a fix or feature validated only in `IcyUI.MonoGame` also applies to `IcyUI.Stride` — the two engines have different rendering/input models (e.g. Stride draws from a `SceneRendererBase` in the compositor with a frame-scoped `GraphicsContext`, while MonoGame draws from `Game.Draw()`).
 - `IcyUI.FNA` being a stub means it currently can't regress — but if asked to "implement FNA support," treat it as greenfield work following the `IcyUI.MonoGame` integration as the closest reference pattern.

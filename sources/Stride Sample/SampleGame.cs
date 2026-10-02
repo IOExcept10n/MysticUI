@@ -21,7 +21,7 @@ namespace Icy.StrideSample
     /// <see cref="MarkupStylesDemo"/>, <see cref="ControlTemplateDemo"/>, <see cref="ItemsControlDemo"/>,
     /// <see cref="SplitPaneDemo"/>, <see cref="ExpanderDemo"/>, <see cref="SelectorDemo"/>, <see cref="WrapGridDemo"/>,
     /// <see cref="ListBoxDemo"/>, <see cref="DialogDemo"/>, <see cref="TabControlDemo"/>,
-    /// <see cref="ColorPickerDemo"/>, and <see cref="PropertyGridDemo"/> - the same demos <c>MonoGame Sample</c>'s
+    /// <see cref="ColorPickerDemo"/>, <see cref="PropertyGridDemo"/>, and <see cref="ScalingDemo"/> - the same demos <c>MonoGame Sample</c>'s
     /// per-demo samples run - PageUp/PageDown/Shift+Tab
     /// cycles between them (Stride has no multi-sample runner like MonoGame's <c>SamplesRunner</c>, so this just
     /// toggles which demo root is visible).
@@ -52,6 +52,7 @@ namespace Icy.StrideSample
         private UIElement? tabControlRoot;
         private UIElement? colorPickerRoot;
         private UIElement? propertyGridRoot;
+        private UIElement? scalingRoot;
         private int selectedDemo;
 
         protected override void BeginRun()
@@ -99,6 +100,7 @@ namespace Icy.StrideSample
             tabControlRoot = TabControlDemo.Build(configuration, "Airfool");
             colorPickerRoot = ColorPickerDemo.Build(configuration, "Airfool");
             propertyGridRoot = PropertyGridDemo.Build(configuration, "Airfool");
+            scalingRoot = ScalingDemo.Build(configuration, "Airfool");
             canvas.Add(controlsRoot);
             canvas.Add(stylesRoot);
             canvas.Add(markupRoot);
@@ -115,11 +117,12 @@ namespace Icy.StrideSample
             canvas.Add(tabControlRoot);
             canvas.Add(colorPickerRoot);
             canvas.Add(propertyGridRoot);
+            canvas.Add(scalingRoot);
             UpdateSelectedDemo();
 
             var switchDemo = new RelayCommand(() =>
             {
-                selectedDemo = (selectedDemo + 1) % 16;
+                selectedDemo = (selectedDemo + 1) % 17;
                 UpdateSelectedDemo();
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
@@ -162,6 +165,7 @@ namespace Icy.StrideSample
             tabControlRoot!.IsVisible = selectedDemo == 13;
             colorPickerRoot!.IsVisible = selectedDemo == 14;
             propertyGridRoot!.IsVisible = selectedDemo == 15;
+            scalingRoot!.IsVisible = selectedDemo == 16;
         }
     }
 }

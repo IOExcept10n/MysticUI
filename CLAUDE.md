@@ -57,7 +57,7 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 ## Known issues
 
 - **High priority, scheduled for the graphics-API discussion right after Tier-2:** on Windows-on-ARM64, MonoGame DesktopGL deadlocks on shutdown. `Game.Dispose()` → `SdlGameWindow.Dispose` never returns, because OpenGL there runs through Microsoft's `OpenGLOn12` layer (Snapdragon has no native GL driver). The window closes but the process stays alive. Stride (D3D11) is unaffected.
-- IcyUI has no DPI awareness yet. On HiDPI screens, a DPI-aware host (e.g. the MonoGame Sample's `app.manifest`) renders the UI at physical-pixel size.
+- UI scaling (`Canvas.EffectiveScale`, `IcyConfiguration.Scaling`) follows the host's DPI awareness: a host without a PerMonitorV2 `app.manifest` reports `DisplayScale = 1` and is bitmap-stretched by Windows. Both sample hosts ship the manifest.
 
 ## Naming history
 
