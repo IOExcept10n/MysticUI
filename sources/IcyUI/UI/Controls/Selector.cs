@@ -544,9 +544,10 @@ namespace Icy.UI.Controls
 
             popupHost.Width = ActualBounds.Width;
 
-            Point topLeft = PointToScreen(Vector2.Zero);
-            Point bottomLeft = PointToScreen(new Vector2(0, ActualBounds.Height));
-            Size viewport = Canvas.Configuration.RenderContext.ViewportSize;
+            // Popups are overlays, which live in surface space (see Canvas.SurfaceSize), not physical pixels.
+            Point topLeft = PointToSurface(Vector2.Zero);
+            Point bottomLeft = PointToSurface(new Vector2(0, ActualBounds.Height));
+            Size viewport = Canvas.SurfaceSize;
 
             float desiredHeight = Math.Min(ExtentHeight, MaxDropDownHeight);
             float spaceBelow = viewport.Height - bottomLeft.Y;

@@ -33,6 +33,7 @@ namespace Icy.UI
         private readonly List<UIElement> rootElements = [];
         private readonly Dictionary<UIElement, UIElement?> scopeReturnFocus = [];
         private IBrush? background;
+        private Transform2D contentTransform;
         private DragDropSession? dragDropSession;
         private UIElement? hoveredElement;
         private bool inputRoutingInitialized;
@@ -50,6 +51,7 @@ namespace Icy.UI
         private float rotation;
         private Vector2 scale = Vector2.One;
         private UIScaleMode? scaleMode;
+        private Transform2D surfaceTransform = Transform2D.Identity;
         private Transform2D transform;
         private Vector2 transformOrigin;
 
@@ -73,7 +75,7 @@ namespace Icy.UI
         /// <remarks>
         /// A name here that matches a registered <c>IDebugOverlay</c> applies to every element unless overridden
         /// by its own <c>Debug.Visualization</c>; a name that matches a registered <c>IDebugHudPanel</c> shows
-        /// that panel in the screen-space HUD. The two catalogs are looked up independently, so one active set can
+        /// that panel in the surface-space HUD. The two catalogs are looked up independently, so one active set can
         /// freely mix overlay and panel names.
         /// </remarks>
         public ISet<string> ActiveDebugTools { get; } = new HashSet<string>(StringComparer.Ordinal);
@@ -94,15 +96,16 @@ namespace Icy.UI
         public ResourceDictionary Resources { get; } = new();
 
         /// <summary>
-        /// Gets the ordered list of elements drawn last, every frame, directly in screen space - unclipped,
-        /// ignoring this canvas's own pan/rotate/scale transform (see <see cref="Offset"/>/<see cref="Rotation"/>/
-        /// <see cref="Scale"/>). The last entry draws on top.
+        /// Gets the ordered list of elements drawn last, every frame, directly in surface space (see
+        /// <see cref="SurfaceSize"/>) - unclipped, ignoring this canvas's own pan/rotate/scale transform (see
+        /// <see cref="Offset"/>/<see cref="Rotation"/>/<see cref="Scale"/>) but scaled by <see cref="EffectiveScale"/>.
+        /// The last entry draws on top.
         /// </summary>
         /// <remarks>
         /// Deliberately minimal - no z-ordering beyond insertion order, no adorner/anchoring system. An entry
         /// positions itself via its own <see cref="UIElement.Margin"/>/<see cref="UIElement.HorizontalAlignment"/>/
-        /// <see cref="UIElement.VerticalAlignment"/> against the full viewport, arranged the same way
-        /// <see cref="Diagnostics.DebugHudHost"/>'s own screen-space HUD already is. Overlay elements now participate
+        /// <see cref="UIElement.VerticalAlignment"/> against the full <see cref="SurfaceSize"/>, arranged the same way
+        /// <see cref="Diagnostics.DebugHudHost"/>'s own surface-space HUD already is. Overlay elements now participate
         /// in <see cref="HitTest(Point)"/> (checked first, so topmost/last-added win) but not in focus traversal or
         /// <see cref="Add(UIElement)"/>'s root-element list - an overlay (a <see cref="DragDropSession.Preview"/>,
         /// a future <c>Dialog</c>'s backdrop, a future <c>ComboBox</c>'s dropdown) sits visually above everything
@@ -304,6 +307,20 @@ namespace Icy.UI
         internal IcyConfiguration Configuration { get; }
 
         /// <summary>
+        /// Gets the transform from surface units to physical pixels (a uniform <see cref="EffectiveScale"/> scale).
+        /// Overlays and the debug HUD draw with it.
+        /// </summary>
+        internal Transform2D SurfaceTransform
+        {
+            get
+            {
+                if (isTransformInvalid)
+                    UpdateTransform();
+                return surfaceTransform;
+            }
+        }
+
+        /// <summary>
         /// Adds a UI element to the canvas.
         /// </summary>
         /// <param name="element">The UI element to add.</param>
@@ -416,13 +433,14 @@ namespace Icy.UI
         /// <returns>The topmost hit-testable element under the point, or <see langword="null"/> if none is.</returns>
         public UIElement? HitTest(Point screenPoint)
         {
-            // Overlays are tested in screen space directly (last-added = topmost = checked first, matching Overlays'
-            // own draw order) - unlike rootElements, they're arranged against the raw viewport with this canvas's own
-            // transform reset (see RenderVisual/UpdateLayout), so hit-testing must match rather than going through
-            // ScreenToCanvasSpace.
+            // Overlays are tested in surface space - the physical point divided by EffectiveScale (last-added =
+            // topmost = checked first, matching Overlays' own draw order). Unlike rootElements, they're arranged
+            // against SurfaceSize without this canvas's own content transform (see RenderVisual/UpdateLayout), so
+            // hit-testing must match rather than going through ScreenToCanvasSpace.
+            Vector2 surfacePoint = ScreenToSurface(screenPoint);
             for (int i = overlayElements.Count - 1; i >= 0; i--)
             {
-                UIElement? hit = overlayElements[i].HitTest(new Vector2(screenPoint.X, screenPoint.Y));
+                UIElement? hit = overlayElements[i].HitTest(surfacePoint);
                 if (hit != null)
                     return hit;
             }
@@ -567,6 +585,26 @@ namespace Icy.UI
             if (isTransformInvalid)
                 UpdateTransform();
             return inverseTransform.Apply(new Vector2(screenPoint.X, screenPoint.Y));
+        }
+
+        /// <summary>
+        /// Converts a physical screen point (where pointer input arrives) into surface units.
+        /// </summary>
+        /// <param name="screenPoint">A point in physical screen/window pixels.</param>
+        /// <returns>The same point in surface units.</returns>
+        internal Vector2 ScreenToSurface(Point screenPoint) => new(screenPoint.X / effectiveScale, screenPoint.Y / effectiveScale);
+
+        /// <summary>
+        /// Converts a point in this canvas's local content space into surface units, i.e. applies only the canvas's own
+        /// <see cref="Offset"/>/<see cref="Rotation"/>/<see cref="Scale"/>, not the surface scale.
+        /// </summary>
+        /// <param name="canvasLocalPoint">A point in canvas-local content space.</param>
+        /// <returns>The same point in surface units.</returns>
+        internal Vector2 CanvasToSurfaceSpace(Vector2 canvasLocalPoint)
+        {
+            if (isTransformInvalid)
+                UpdateTransform();
+            return contentTransform.Apply(canvasLocalPoint);
         }
 
         /// <summary>
@@ -791,10 +829,10 @@ namespace Icy.UI
 
             if (overlayElements.Count > 0)
             {
-                // Screen-space, not part of the scene these elements' HorizontalAlignment/VerticalAlignment/Margin
-                // were resolved against in UpdateLayout - reset both, mirroring DebugHudHost.Render's own reset for
-                // the same reason (context.Transform still holds this canvas's own pan/rotate/scale here).
-                context.Transform = Transform2D.Identity;
+                // Surface space, not part of the content transform these elements' HorizontalAlignment/
+                // VerticalAlignment/Margin would otherwise be subject to - drop the canvas's own pan/rotate/scale but
+                // keep the surface scale, mirroring DebugHudHost.Render. The scissor stays in physical pixels.
+                context.Transform = surfaceTransform;
                 context.Options.Scissor = new Rectangle(Point.Empty, context.ViewportSize);
                 foreach (UIElement overlay in overlayElements)
                     overlay.Draw(context);
@@ -859,7 +897,7 @@ namespace Icy.UI
 
             if (overlayElements.Count > 0)
             {
-                var viewport = new Rectangle(Point.Empty, Configuration.RenderContext.ViewportSize);
+                var viewport = new Rectangle(Point.Empty, SurfaceSize);
                 foreach (UIElement overlay in overlayElements)
                     overlay.Arrange(viewport);
             }
@@ -867,7 +905,12 @@ namespace Icy.UI
 
         private void UpdateTransform()
         {
-            transform = Transform2D.Create(Offset, Rotation, TransformOrigin * SurfaceSize.AsVector(), Scale);
+            // Content (Offset/Rotation/Scale, in surface units) is applied first, then the surface scale maps to
+            // physical pixels. AddTransform(other) applies `other` before the existing matrix.
+            contentTransform = Transform2D.Create(Offset, Rotation, TransformOrigin * SurfaceSize.AsVector(), Scale);
+            surfaceTransform = Transform2D.Create(Matrix3x2.CreateScale(effectiveScale));
+            transform = surfaceTransform;
+            transform.AddTransform(contentTransform);
             if (Matrix3x2.Invert(transform.Matrix, out Matrix3x2 inverse))
                 inverseTransform = Transform2D.Create(inverse);
             isTransformInvalid = false;

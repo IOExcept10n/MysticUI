@@ -1761,6 +1761,37 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Converts a point in this element's own local space into the canvas's surface space - the logical,
+        /// <see cref="UI.Canvas.EffectiveScale"/>-independent coordinates that overlays and popups are laid out in.
+        /// </summary>
+        /// <param name="localPoint">A point in this element's own local space.</param>
+        /// <returns>
+        /// The equivalent point in surface units, or <see cref="Point.Empty"/> if this element isn't currently attached
+        /// to a <see cref="UI.Canvas"/>.
+        /// </returns>
+        /// <remarks>
+        /// Equals <see cref="PointToScreen(Vector2)"/> divided by <see cref="UI.Canvas.EffectiveScale"/>. Use it to position
+        /// overlay content (dropdowns, popups) relative to this element; use <see cref="PointToScreen(Vector2)"/> when
+        /// comparing against raw pointer positions.
+        /// </remarks>
+        public Point PointToSurface(Vector2 localPoint)
+        {
+            if (Canvas == null)
+                return Point.Empty;
+
+            Vector2 point = localPoint;
+            for (UIElement? element = this; element != null; element = element.Parent)
+            {
+                if (element.IsTransformInvalid)
+                    element.UpdateTransformMatrix();
+                point = element.layoutTransform.Apply(point);
+            }
+
+            Vector2 surfacePoint = Canvas.CanvasToSurfaceSpace(point);
+            return new Point((int)surfacePoint.X, (int)surfacePoint.Y);
+        }
+
+        /// <summary>
         /// Sets whether this element currently has focus, raising <see cref="FocusChanged"/> and updating
         /// <see cref="ControlState"/> if the value actually changes.
         /// </summary>

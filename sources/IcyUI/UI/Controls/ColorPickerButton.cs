@@ -186,9 +186,10 @@ namespace Icy.UI.Controls
             if (Canvas == null)
                 return;
 
-            Point topLeft = PointToScreen(Vector2.Zero);
-            Point bottomLeft = PointToScreen(new Vector2(0, ActualBounds.Height));
-            Size viewport = Canvas.Configuration.RenderContext.ViewportSize;
+            // Popups are overlays, which live in surface space (see Canvas.SurfaceSize), not physical pixels.
+            Point topLeft = PointToSurface(Vector2.Zero);
+            Point bottomLeft = PointToSurface(new Vector2(0, ActualBounds.Height));
+            Size viewport = Canvas.SurfaceSize;
 
             // Mirrors Selector.PositionPopup's own below-vs-above flip, adapted for a popup whose height isn't
             // item-count-driven (Selector's own ExtentHeight/MaxDropDownHeight don't apply here) - popupRoot's own

@@ -26,9 +26,9 @@ namespace Icy.Diagnostics
 
         /// <summary>
         /// Rebuilds the HUD tree if the active tool set changed since the last call, refreshes every section, and
-        /// draws it in full screen space.
+        /// draws it across the canvas's full surface (see <see cref="Canvas.SurfaceSize"/>).
         /// </summary>
-        /// <param name="context">The render context to draw with - its transform/scissor are reset to full-screen first.</param>
+        /// <param name="context">The render context to draw with - its transform is reset to the canvas's surface transform and its scissor to the full viewport first.</param>
         /// <param name="elapsed">The previous frame's duration, passed to every section's <see cref="IDebugHudSection.Refresh"/>.</param>
         public void Render(IRenderContext context, TimeSpan elapsed)
         {
@@ -37,15 +37,16 @@ namespace Icy.Diagnostics
             if (root == null)
                 return;
 
-            root.Arrange(new Rectangle(Point.Empty, context.ViewportSize));
+            root.Arrange(new Rectangle(Point.Empty, canvas.SurfaceSize));
 
             var frame = new DebugFrameContext(canvas, elapsed);
             foreach ((IDebugHudSection section, UIElement built) in builtSections)
                 section.Refresh(built, frame);
 
-            // The HUD is a fixed screen overlay, not part of the scene it's inspecting - reset both, since
-            // context.Transform still holds the Canvas's own (possibly panned/rotated/scaled) transform here.
-            context.Transform = Transform2D.Identity;
+            // The HUD is a fixed overlay drawn in surface space (so it scales with the UI), not part of the scene it's
+            // inspecting - drop the Canvas's own pan/rotate/scale that context.Transform still holds here, and keep
+            // the scissor in physical pixels.
+            context.Transform = canvas.SurfaceTransform;
             context.Options.Scissor = new Rectangle(Point.Empty, context.ViewportSize);
 
             root.Draw(context);
