@@ -5,6 +5,7 @@
 #nullable enable
 using System;
 using System.Drawing;
+using System.Globalization;
 using Icy.Animations;
 using Icy.Configuration;
 using Icy.Rendering.Brushes;
@@ -50,6 +51,14 @@ namespace Icy.SharedSamples
             };
 
             var readout = new TextBlock { Text = "(not attached)" };
+
+            // Touch smoke-test aid: shows what the core gesture recognizer saw last.
+            var gestureReadout = new TextBlock { Name = "GestureReadout", Text = "Last gesture: (none)" };
+            Icy.Input.Gestures.IGestureEvents gestures = configuration.Input.Events.Gestures;
+            gestures.Tapped += (_, e) => gestureReadout.Text = $"Last gesture: {e.Data.Kind} tap x{e.Data.Count} at {e.Data.Position.X},{e.Data.Position.Y}";
+            gestures.Held += (_, e) => gestureReadout.Text = $"Last gesture: {e.Data.Kind} hold at {e.Data.Position.X},{e.Data.Position.Y}";
+            gestures.DragCompleted += (_, e) => gestureReadout.Text = $"Last gesture: {e.Data.Kind} drag, {e.Data.Velocity.Length():0} px/s";
+            gestures.PinchChanged += (_, e) => gestureReadout.Text = string.Create(CultureInfo.InvariantCulture, $"Last gesture: pinch x{e.Data.Scale:0.00} at {e.Data.Center.X:0},{e.Data.Center.Y:0}");
 
             // The draft editors. They never touch ScalingConfiguration directly - only Apply does.
             var modeBox = new ComboBox { Name = "ScaleModeBox", ItemsSource = Enum.GetValues<UIScaleMode>(), Width = 260 };
@@ -149,6 +158,7 @@ namespace Icy.SharedSamples
 
             root.Children.Add(new TextBlock { Text = "UI scaling" });
             root.Children.Add(readout);
+            root.Children.Add(gestureReadout);
             root.Children.Add(new TextBlock { Text = "Scale mode" });
             root.Children.Add(modeBox);
             root.Children.Add(new TextBlock { Text = "Reference fit (1920x1080)" });

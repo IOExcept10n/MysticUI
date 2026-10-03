@@ -31,6 +31,20 @@ namespace Icy.Tests.Samples
         private static void AdvanceAnimations(TimeSpan delta) => Dispatcher.GetCurrentThreadDispatcher().UpdateAnimations(delta);
 
         [Fact]
+        public void GestureReadout_ShowsTheLastGesture()
+        {
+            var input = new FakeInputSystem();
+            var configuration = new IcyConfiguration(input, new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            UIElement root = ScalingDemo.Build(configuration, "Airfool");
+
+            input.Events.Gestures.RaiseTapped(new Icy.Input.Gestures.TapInfo(Icy.Input.Gestures.PointerKind.Touch, new System.Drawing.Point(5, 6), 2));
+            Assert.Equal("Last gesture: Touch tap x2 at 5,6", root.FindRequiredControl<TextBlock>("GestureReadout").Text);
+
+            input.Events.Gestures.RaisePinchChanged(new Icy.Input.Gestures.PinchInfo(new System.Numerics.Vector2(10, 20), 1.5f, 1.1f, System.Numerics.Vector2.Zero));
+            Assert.Equal("Last gesture: pinch x1.50 at 10,20", root.FindRequiredControl<TextBlock>("GestureReadout").Text);
+        }
+
+        [Fact]
         public void EditingControls_DoesNotApplyAnything()
         {
             var (root, scaling) = Build();
