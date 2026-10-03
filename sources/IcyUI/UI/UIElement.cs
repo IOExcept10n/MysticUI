@@ -65,6 +65,7 @@ namespace Icy.UI
         private Transform2D inverseLayoutTransform;
         private bool isVisible = true;
         private bool isHitTestVisible = true;
+        private Rectangle? lastContainerBounds;
         private float layerIndex;
         private Vector2 layoutOffset;
         private float layoutRotation;
@@ -1136,6 +1137,8 @@ namespace Icy.UI
         {
             if (!IsArrangeInvalid) return;
 
+            lastContainerBounds = containerBounds;
+
             // Get current desired size and actual margin to calculate effective size and margin.
             var effectiveSize = Measure();
             var effectiveMargin = Margin;
@@ -1665,7 +1668,11 @@ namespace Icy.UI
         {
             if (IsTransformInvalid)
             {
-                Arrange();
+                // Re-arrange in the slot the parent last gave this element, not the parent's whole ContentBounds: parents such
+                // as ScrollViewer, StackPanel or Grid arrange children in their own rectangles, and a lazy re-arrange here
+                // (hit-testing, PointToLocal) runs before the parent's own layout pass - which it would otherwise pre-empt
+                // with the wrong bounds, since arranging clears the invalidation.
+                Arrange(lastContainerBounds ?? LogicalParent?.ContentBounds ?? default);
 
                 // ActualBounds.Location is computed cumulatively (Arrange() positions this element within
                 // LogicalParent.ContentBounds, which itself already carries the parent's own absolute position) -

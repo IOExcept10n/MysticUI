@@ -96,6 +96,37 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void DraggingASliderInsideAList_KeepsTheListContentAtItsFullSize()
+        {
+            // Regression (Controls demo): dragging a Slider whose ValueChanged resizes a sibling made everything below the
+            // initial viewport flash invisible. The value change invalidated layout up the tree; before the next layout pass,
+            // the slider's PointToLocal lazily re-arranged stale ancestors with Arrange() - the parent's whole ContentBounds -
+            // squeezing the ScrollViewer's oversized Chrome into the viewport and clearing the invalidation.
+            var (canvas, input) = Create();
+            var slider = new Slider { Width = 150, Height = 16, HorizontalAlignment = HorizontalAlignment.Left, Minimum = 0, Maximum = 100, Value = 50 };
+            var sibling = new UIElement { Height = 20 };
+            slider.ValueChanged += (_, _) => sibling.Height = 20 + (int)(slider.Value / 10);
+            var column = new StackPanel { Orientation = Orientation.Vertical };
+            column.Children.Add(sibling);
+            column.Children.Add(slider);
+            column.Children.Add(new UIElement { Height = 900 });
+            var list = new ScrollViewer { Width = 200, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Content = column };
+            canvas.Add(list);
+            canvas.Render();
+            float fullHeight = column.ActualBounds.Height;
+            Assert.True(fullHeight > 900);
+            var start = new Point(75, 28);
+
+            input.Events.Gestures.RaiseDragStarted(new DragInfo(PointerKind.MouseLeft, start, new Point(90, 28), new Vector2(15, 0), Vector2.Zero));
+            canvas.Render();
+            input.Events.Gestures.RaiseDragMoved(new DragInfo(PointerKind.MouseLeft, start, new Point(110, 28), new Vector2(20, 0), Vector2.Zero));
+
+            Assert.True(column.ActualBounds.Height > 900, $"content squeezed to {column.ActualBounds.Height} before layout");
+            canvas.Render();
+            Assert.True(column.ActualBounds.Height > 900, $"content squeezed to {column.ActualBounds.Height} after layout");
+        }
+
+        [Fact]
         public void VerticalSwipeOnASlider_ScrollsTheList()
         {
             var (canvas, input) = Create();
