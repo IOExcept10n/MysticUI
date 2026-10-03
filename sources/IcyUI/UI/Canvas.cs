@@ -614,6 +614,14 @@ namespace Icy.UI
         internal Vector2 ScreenToSurface(Point screenPoint) => new(screenPoint.X / effectiveScale, screenPoint.Y / effectiveScale);
 
         /// <summary>
+        /// Determines whether <paramref name="element"/> is one of this canvas's <see cref="Overlays"/> - a root laid out and
+        /// hit-tested in surface space rather than through the canvas's own content transform.
+        /// </summary>
+        /// <param name="element">The root element to check.</param>
+        /// <returns><see langword="true"/> if the element is an overlay root; otherwise <see langword="false"/>.</returns>
+        internal bool IsOverlay(UIElement element) => overlayElements.Contains(element);
+
+        /// <summary>
         /// Converts a point in this canvas's local content space into surface units, i.e. applies only the canvas's own
         /// <see cref="Offset"/>/<see cref="Rotation"/>/<see cref="Scale"/>, not the surface scale.
         /// </summary>
@@ -722,6 +730,43 @@ namespace Icy.UI
         {
             DragInfo drag = e.Data;
             UIElement? hit = HitTest(drag.Start);
+
+            // Touch picks up drag-and-drop sources only after a press-and-hold (a plain finger drag scrolls); the left
+            // mouse starts it immediately; middle-mouse drags only pan.
+            bool dragDropAllowed = drag.Kind == PointerKind.MouseLeft || (drag.Kind == PointerKind.Touch && drag.StartedFromHold);
+            if (dragDropAllowed)
+            {
+                foreach (UIElement element in SelfAndAncestors(hit))
+                {
+                    if (element is IDragSource source && source.TryBeginDrag(drag.Start, out object? payload, out UIElement? preview))
+                    {
+                        // TryBeginDrag's own contract requires a non-null payload on a true return.
+                        dragDropSession = new DragDropSession(element, payload!, drag.Start) { Preview = preview };
+                        if (preview != null)
+                        {
+                            // The preview's top-left sits exactly on the cursor (see PositionOverlayAtScreenPoint) and
+                            // UIElement.HitTest's bounds check is inclusive at the origin, so an ordinarily hit-testable
+                            // preview would win every HitTest of the drag point - and, since an overlay has no Parent,
+                            // UpdateDragDropTarget's ancestor walk would terminate on it and never reach the real drop
+                            // target underneath. The ghost visual must never be a target itself.
+                            preview.IsHitTestVisible = false;
+                            AddOverlay(preview);
+                            PositionOverlayAtScreenPoint(preview, drag.Start);
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            // A press-and-hold that picked an item up hands the whole gesture to drag-and-drop: panning the list (or moving a
+            // control) at the same time would slide the content away under the finger together with the ghost.
+            if (drag.Kind == PointerKind.Touch && dragDropSession != null)
+            {
+                dragOwner = null;
+                return;
+            }
+
             dragOwner = ResolveDragOwner(hit, drag);
             if (dragOwner != null)
             {
@@ -730,34 +775,6 @@ namespace Icy.UI
                 // The gesture already moved past the drag threshold: let the owner catch up to the pointer this frame.
                 if (drag.Position != drag.Start)
                     dragOwner.OnDragPerforming(drag.Position);
-            }
-
-            // Touch picks up drag-and-drop sources only after a press-and-hold (a plain finger drag scrolls); the left
-            // mouse starts it immediately; middle-mouse drags only pan.
-            bool dragDropAllowed = drag.Kind == PointerKind.MouseLeft || (drag.Kind == PointerKind.Touch && drag.StartedFromHold);
-            if (!dragDropAllowed)
-                return;
-
-            foreach (UIElement element in SelfAndAncestors(hit))
-            {
-                if (element is IDragSource source && source.TryBeginDrag(drag.Start, out object? payload, out UIElement? preview))
-                {
-                    // TryBeginDrag's own contract requires a non-null payload on a true return.
-                    dragDropSession = new DragDropSession(element, payload!, drag.Start) { Preview = preview };
-                    if (preview != null)
-                    {
-                        // The preview's top-left sits exactly on the cursor (see PositionOverlayAtScreenPoint) and
-                        // UIElement.HitTest's bounds check is inclusive at the origin, so an ordinarily hit-testable
-                        // preview would win every HitTest of the drag point - and, since an overlay has no Parent,
-                        // UpdateDragDropTarget's ancestor walk would terminate on it and never reach the real drop
-                        // target underneath. The ghost visual must never be a target itself.
-                        preview.IsHitTestVisible = false;
-                        AddOverlay(preview);
-                        PositionOverlayAtScreenPoint(preview, drag.Start);
-                    }
-
-                    break;
-                }
             }
         }
 

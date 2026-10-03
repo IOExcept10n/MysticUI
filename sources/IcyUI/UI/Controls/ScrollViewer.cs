@@ -361,10 +361,11 @@ namespace Icy.UI.Controls
 
         private bool ApplyInertiaStep(Vector2 step)
         {
-            float before = horizontalOffset + verticalOffset;
+            float beforeHorizontal = horizontalOffset;
+            float beforeVertical = verticalOffset;
             HorizontalOffset += step.X;
             VerticalOffset += step.Y;
-            return horizontalOffset + verticalOffset != before;
+            return horizontalOffset != beforeHorizontal || verticalOffset != beforeVertical;
         }
 
         private void UpdateContentOffset()

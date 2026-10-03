@@ -46,6 +46,55 @@ namespace Icy.Tests.Controls
             input.Events.Gestures.RaiseDragCanceled(Drag(kind, start, end)); // end without a fling
         }
 
+        private sealed class DraggableRow : UIElement, Icy.Input.DragDrop.IDragSource
+        {
+            public bool TryBeginDrag(Point screenPoint, out object? payload, out UIElement? preview)
+            {
+                payload = new object();
+                preview = new UIElement();
+                return true;
+            }
+        }
+
+        [Fact]
+        public void TouchHoldOnADraggableRow_StartsDragDrop_WithoutPanningTheList()
+        {
+            // Regression: the held row's drag-drop session and a 1:1 pan of the list both started, so the content slid away
+            // under the finger together with the ghost and the drop target barely changed.
+            var (canvas, input) = Create();
+            var column = new StackPanel { Orientation = Orientation.Vertical };
+            column.Children.Add(new DraggableRow { Height = 50 });
+            column.Children.Add(new UIElement { Height = 950 });
+            var list = new ScrollViewer { Width = 200, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Content = column };
+            canvas.Add(list);
+            canvas.Render();
+            var start = new Point(100, 40);
+
+            input.Events.Gestures.RaiseDragStarted(new DragInfo(PointerKind.Touch, start, new Point(100, 20), new Vector2(0, -20), Vector2.Zero, StartedFromHold: true));
+            input.Events.Gestures.RaiseDragMoved(new DragInfo(PointerKind.Touch, start, new Point(100, 0), new Vector2(0, -20), Vector2.Zero, StartedFromHold: true));
+
+            Assert.Single(canvas.Overlays);
+            Assert.Equal(0, list.VerticalOffset);
+        }
+
+        [Fact]
+        public void PanInsideAnOverlay_IsOneToOne_UnderACanvasZoom()
+        {
+            // Overlays (popups) live in surface space, untouched by the canvas's own zoom: a finger moving 100 px must move
+            // the popup's content 100 units, not 50.
+            var (canvas, input) = Create();
+            canvas.Scale = new Vector2(2, 2);
+            var column = new StackPanel { Orientation = Orientation.Vertical };
+            column.Children.Add(new UIElement { Height = 1000 });
+            var popupList = new ScrollViewer { Width = 200, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Content = column };
+            canvas.AddOverlay(popupList);
+            canvas.Render();
+
+            Pan(input, PointerKind.Touch, new Point(100, 180), new Point(100, 150), new Point(100, 50));
+
+            Assert.Equal(100, popupList.VerticalOffset, 0.5);
+        }
+
         [Fact]
         public void VerticalSwipeOnASlider_ScrollsTheList()
         {

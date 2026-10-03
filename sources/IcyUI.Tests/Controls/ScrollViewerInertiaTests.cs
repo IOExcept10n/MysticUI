@@ -70,6 +70,49 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void ExactlyDiagonalFling_KeepsCoastingOnBothAxes()
+        {
+            // Regression: the "anything moved" check summed both offsets, so equal and opposite steps (a perfectly diagonal
+            // up-right flick) looked like no movement and stopped the coast after one frame.
+            var input = new FakeInputSystem();
+            var configuration = new IcyConfiguration(input, new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
+            var canvas = new Canvas(configuration) { IsInputEnabled = true, IsVisible = true };
+            var list = new ScrollViewer { Width = 200, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, PanningMode = PanningMode.Both, Content = new UIElement { Width = 3000, Height = 3000 } };
+            canvas.Add(list);
+            canvas.Render();
+            list.HorizontalOffset = 1000;
+            list.VerticalOffset = 1000;
+            var start = new Point(100, 100);
+
+            input.Events.Gestures.RaiseDragStarted(new DragInfo(PointerKind.Touch, start, new Point(80, 120), new Vector2(-20, 20), Vector2.Zero));
+            input.Events.Gestures.RaiseDragMoved(new DragInfo(PointerKind.Touch, start, new Point(60, 140), new Vector2(-20, 20), Vector2.Zero));
+            input.Events.Gestures.RaiseDragCompleted(new DragInfo(PointerKind.Touch, start, new Point(60, 140), Vector2.Zero, new Vector2(-1000, 1000)));
+            Advance(TimeSpan.FromSeconds(2));
+
+            // Pan: (1020, 980). Fling: |v| = 1414.2, T = 0.943 s, distance = v * T / 2 = (471.4, -471.4).
+            Assert.Equal(1491.4f, list.HorizontalOffset, 0);
+            Assert.Equal(508.6f, list.VerticalOffset, 0);
+        }
+
+        [Fact]
+        public void InertiaStep_WithEqualAndOppositeAxisSteps_CountsAsMovement()
+        {
+            // The deterministic core of the diagonal-fling bug: exactly cancelling steps left the offset SUM unchanged, which
+            // read as "nothing moved" and stopped the coast.
+            var list = new ScrollViewer { Width = 200, Height = 200, PanningMode = PanningMode.Both, Content = new UIElement { Width = 3000, Height = 3000 } };
+            list.Arrange(new Rectangle(0, 0, 200, 200));
+            list.HorizontalOffset = 1000;
+            list.VerticalOffset = 1000;
+            var applyStep = typeof(ScrollViewer).GetMethod("ApplyInertiaStep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+            bool moved = (bool)applyStep.Invoke(list, [new Vector2(100, -100)])!;
+
+            Assert.True(moved);
+            Assert.Equal(1100, list.HorizontalOffset);
+            Assert.Equal(900, list.VerticalOffset);
+        }
+
+        [Fact]
         public void Fling_StopsHardAtTheEdge()
         {
             var (_, input, list, _) = Create(contentHeight: 300); // max offset 100

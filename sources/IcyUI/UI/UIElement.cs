@@ -1721,11 +1721,12 @@ namespace Icy.UI
             if (Canvas == null)
                 return Vector2.Zero;
 
-            Vector2 point = Canvas.ScreenToCanvasSpace(screenPoint);
-
             Stack<UIElement> chain = new();
             for (UIElement? element = this; element != null; element = element.Parent)
                 chain.Push(element);
+
+            // Overlays (popups) are laid out in surface space, without the canvas's own pan/rotate/zoom.
+            Vector2 point = Canvas.IsOverlay(chain.Peek()) ? Canvas.ScreenToSurface(screenPoint) : Canvas.ScreenToCanvasSpace(screenPoint);
 
             foreach (UIElement ancestorOrSelf in chain)
             {
@@ -1759,14 +1760,17 @@ namespace Icy.UI
                 return Point.Empty;
 
             Vector2 point = localPoint;
+            UIElement root = this;
             for (UIElement? element = this; element != null; element = element.Parent)
             {
                 if (element.IsTransformInvalid)
                     element.UpdateTransformMatrix();
                 point = element.layoutTransform.Apply(point);
+                root = element;
             }
 
-            Vector2 screenPoint = Canvas.CanvasToScreenSpace(point);
+            // Overlays (popups) are laid out in surface space, without the canvas's own pan/rotate/zoom.
+            Vector2 screenPoint = Canvas.IsOverlay(root) ? Canvas.SurfaceTransform.Apply(point) : Canvas.CanvasToScreenSpace(point);
             return new Point((int)screenPoint.X, (int)screenPoint.Y);
         }
 
