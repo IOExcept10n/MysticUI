@@ -1,5 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -14,8 +15,9 @@ namespace Icy.Data
     /// </summary>
     public class TypeConversionManager : ITypeConverter
     {
-        private readonly Dictionary<(Type SourceType, Type TargetType), Func<object, object>> convertersCache = [];
-        private readonly Dictionary<(Type SourceType, Type TargetType), IValueConverter> customConverters = [];
+        // Concurrent: PropertyRegistry.Default shares one instance across every thread.
+        private readonly ConcurrentDictionary<(Type SourceType, Type TargetType), Func<object, object>> convertersCache = [];
+        private readonly ConcurrentDictionary<(Type SourceType, Type TargetType), IValueConverter> customConverters = [];
 
         /// <summary>
         /// Registers the custom type converter to handle custom types conversion.
