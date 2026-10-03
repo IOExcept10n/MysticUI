@@ -337,14 +337,6 @@ namespace Icy.Tests.Input
 
         public bool IsInitialized { get; private set; }
 
-        public event EventHandler<GenericEventArgs<TranslationInfo>>? Drag;
-
-        public event EventHandler<GenericEventArgs<Point>>? Hold;
-
-        public event EventHandler<GenericEventArgs<TranslationInfo>>? Swipe;
-
-        public event EventHandler<GenericEventArgs<Point>>? Tap;
-
         public void Initialize() => IsInitialized = true;
 
         public bool DisableListening() => true;

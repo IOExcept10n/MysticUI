@@ -28,7 +28,7 @@ namespace Icy.Stride.Input
             Mouse = new MouseInput(input);
             Keyboard = new KeyboardInput(input);
             Gamepad = new GamepadInput(input);
-            Touch = new TouchInput();
+            Touch = new TouchInput(input);
             Events = new InputEventSystem(this, text: new TextInputEvents(this, input));
             Clipboard = Clipboards.GetClipboard();
             devices = [Mouse, Keyboard, Gamepad, Touch];

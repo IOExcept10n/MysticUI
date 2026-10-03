@@ -89,26 +89,6 @@ namespace Icy.Input.Diagnostics
             /// <see cref="IGamepadInput.RightStickMove"/> event.
             /// </summary>
             GamepadRightStickMove,
-
-            /// <summary>
-            /// <see cref="ITouchInput.Tap"/> event.
-            /// </summary>
-            TouchTap,
-
-            /// <summary>
-            /// <see cref="ITouchInput.Hold"/> event.
-            /// </summary>
-            TouchHold,
-
-            /// <summary>
-            /// <see cref="ITouchInput.Swipe"/> event.
-            /// </summary>
-            TouchSwipe,
-
-            /// <summary>
-            /// <see cref="ITouchInput.Drag"/> event.
-            /// </summary>
-            TouchDrag,
         }
 
         /// <summary>
@@ -136,13 +116,6 @@ namespace Icy.Input.Diagnostics
                     gamepad.RightShoulderUpdate += Gamepad_RightShoulderUpdate;
                     gamepad.LeftStickMove += Gamepad_LeftStickMove;
                     gamepad.RightStickMove += Gamepad_RightStickMove;
-                    break;
-
-                case ITouchInput touch:
-                    touch.Tap += Touch_Tap;
-                    touch.Hold += Touch_Hold;
-                    touch.Drag += Touch_Drag;
-                    touch.Swipe += Touch_Swipe;
                     break;
             }
         }
@@ -172,13 +145,6 @@ namespace Icy.Input.Diagnostics
                     gamepad.RightShoulderUpdate -= Gamepad_RightShoulderUpdate;
                     gamepad.LeftStickMove -= Gamepad_LeftStickMove;
                     gamepad.RightStickMove -= Gamepad_RightStickMove;
-                    break;
-
-                case ITouchInput touch:
-                    touch.Tap -= Touch_Tap;
-                    touch.Hold -= Touch_Hold;
-                    touch.Drag -= Touch_Drag;
-                    touch.Swipe -= Touch_Swipe;
                     break;
             }
         }
@@ -212,14 +178,6 @@ namespace Icy.Input.Diagnostics
         private void Mouse_MouseButtonPressed(object? sender, GenericEventArgs<MouseButtons> e) => RaiseEvent(DeviceEventType.MouseButtonPressed, sender, e);
 
         private void Mouse_MouseButtonReleased(object? sender, GenericEventArgs<MouseButtons> e) => RaiseEvent(DeviceEventType.MouseButtonReleased, sender, e);
-
-        private void Touch_Drag(object? sender, GenericEventArgs<TranslationInfo> e) => RaiseEvent(DeviceEventType.TouchDrag, sender, e);
-
-        private void Touch_Hold(object? sender, GenericEventArgs<System.Drawing.Point> e) => RaiseEvent(DeviceEventType.TouchHold, sender, e);
-
-        private void Touch_Swipe(object? sender, GenericEventArgs<TranslationInfo> e) => RaiseEvent(DeviceEventType.TouchSwipe, sender, e);
-
-        private void Touch_Tap(object? sender, GenericEventArgs<System.Drawing.Point> e) => RaiseEvent(DeviceEventType.TouchTap, sender, e);
 
         private void RaiseEvent(DeviceEventType type, object? sender, EventArgs args)
         {
