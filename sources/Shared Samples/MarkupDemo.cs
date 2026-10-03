@@ -49,6 +49,7 @@ namespace Icy.SharedSamples
         private sealed class DemoViewModel : ObservableObject
         {
             private int clicks;
+            private int quantity = 3;
 
             public DemoViewModel()
             {
@@ -62,6 +63,23 @@ namespace Icy.SharedSamples
             public string Message => clicks == 0 ? "Not clicked yet" : $"Clicked {clicks}x";
 
             public ICommand IncrementCommand { get; }
+
+            /// <summary>
+            /// Gets or sets the number the <c>TextBox</c> edits. Text that doesn't parse as an <see cref="int"/>, or a
+            /// negative number, never reaches it: the binding keeps the last good value and marks the box invalid.
+            /// </summary>
+            public int Quantity
+            {
+                get => quantity;
+                set
+                {
+                    ArgumentOutOfRangeException.ThrowIfNegative(value);
+                    if (SetProperty(ref quantity, value))
+                        OnPropertyChanged(nameof(QuantityEcho));
+                }
+            }
+
+            public string QuantityEcho => $"View-model value: {quantity}";
         }
 
         /// <summary>
@@ -126,6 +144,12 @@ namespace Icy.SharedSamples
                   <Button Padding="12,6" Background="#FF3C64C8" Command="{Binding Path=IncrementCommand}">Increment</Button>
                 </StackPanel>
 
+                <TextBlock FontSize="14" Foreground="WhiteSmoke" Margin="0,12,0,6">Two-way text to number (try letters, or a negative number):</TextBlock>
+                <StackPanel Orientation="Horizontal">
+                  <TextBox x:Name="quantity" Width="120" Margin="0,0,12,0" Text="{Binding Path=Quantity}"/>
+                  <TextBlock x:Name="quantityEcho" FontSize="14" Foreground="WhiteSmoke" VerticalAlignment="Center" Text="{Binding Path=QuantityEcho}"/>
+                </StackPanel>
+
               </StackPanel>
             </Border>
             """;
@@ -163,7 +187,7 @@ namespace Icy.SharedSamples
                     label.Text = $"Clicked {clicks}x";
             };
 
-            // The {Binding} section resolves against this - see DemoViewModel's remarks. Set after Load() to
+            // The {Binding} sections resolve against this - see DemoViewModel's remarks. Set after Load() to
             // exercise the same ancestor-inheritance path a real screen would: the bindings inside were built
             // before any of this tree had a DataContext to read.
             root.DataContext = new DemoViewModel();
