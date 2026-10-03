@@ -60,6 +60,12 @@ namespace Icy.UI.Styles
         /// popup - distinct from <see cref="Selected"/>, which persists after the popup closes.
         /// </summary>
         Highlighted = 1 << 8,
+
+        /// <summary>
+        /// One of the element's bindings failed to write a value to its source (see
+        /// <see cref="Data.Bindings.Binding.HasError"/>), e.g. text that isn't a number in a numeric field.
+        /// </summary>
+        Invalid = 1 << 9,
     }
 
     /// <summary>

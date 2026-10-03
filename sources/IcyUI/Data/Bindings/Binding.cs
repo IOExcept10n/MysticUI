@@ -419,7 +419,8 @@ namespace Icy.Data.Bindings
 
         private void ReportErrorToTarget(bool inError)
         {
-            // Task 2 replaces this body with: if (Target is UIElement element) element.SetBindingError(this, inError);
+            if (Target is UIElement element)
+                element.SetBindingError(this, inError);
         }
 
         private void Dispose(bool disposing)

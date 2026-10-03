@@ -211,6 +211,8 @@
     <Style.StateGroups>
       <VisualStateGroup Name="CommonStates">
         <VisualState Name="Focused" State="Focused" BorderBrush="#FF3C78D8"/>
+        <VisualState Name="Invalid" State="Invalid" BorderBrush="#FFD84C4C"/>
+        <VisualState Name="FocusedInvalid" State="Focused, Invalid" BorderBrush="#FFFF6A6A"/>
       </VisualStateGroup>
     </Style.StateGroups>
   </Style>

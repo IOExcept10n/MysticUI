@@ -1,8 +1,16 @@
 using System.ComponentModel;
+using System.Drawing;
 using System.Globalization;
+using Icy.Assets;
+using Icy.Configuration;
 using Icy.Data.Bindings;
 using Icy.Data.Markup;
+using Icy.Rendering.Brushes;
+using Icy.Tests.Input;
+using Icy.Tests.Rendering;
+using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Data.Bindings
@@ -210,6 +218,63 @@ namespace Icy.Tests.Data.Bindings
             Bind(box, model, nameof(Model.Count));
 
             Assert.Equal("42", box.Text);
+        }
+
+        [Fact]
+        public void ErroringBinding_MarksItsTargetInvalid_UntilCorrected()
+        {
+            var model = new Model();
+            var box = new TextBox();
+            Bind(box, model, nameof(Model.Count));
+
+            box.Text = "12a";
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+
+            box.Text = "12";
+            Assert.False(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void TwoBindings_OneInError_KeepsTheElementInvalid()
+        {
+            var model = new Model();
+            var box = new TextBox();
+            Binding count = Bind(box, model, nameof(Model.Count));
+            Binding day = Bind(box, model, nameof(Model.Day));
+
+            box.Text = "Monday"; // not an int, but a valid DayOfWeek
+
+            Assert.True(count.HasError);
+            Assert.False(day.HasError);
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void DisposingAnErroringBinding_ClearsInvalid()
+        {
+            var model = new Model();
+            var box = new TextBox();
+            Binding binding = Bind(box, model, nameof(Model.Count));
+            box.Text = "nope";
+
+            binding.Dispose();
+
+            Assert.False(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void DefaultTheme_ShowsFocusedInvalidOverFocusedAndInvalid()
+        {
+            var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration()).UseDefaultTheme();
+            var canvas = new Canvas(configuration);
+            var box = new TextBox();
+            canvas.Add(box);
+            canvas.Render();
+
+            box.ControlState |= ControlState.Focused | ControlState.Invalid;
+
+            var brush = Assert.IsType<SolidColorBrush>(box.BorderBrush);
+            Assert.Equal(Color.FromArgb(255, 255, 106, 106), brush.Color);
         }
     }
 }

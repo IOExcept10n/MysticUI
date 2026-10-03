@@ -56,6 +56,7 @@ namespace Icy.UI
         private bool hasDataContext;
         private bool isEnabled = true;
         private bool isFocusable;
+        private HashSet<object>? erroringBindings;
         private bool isFocused;
         private bool isFocusScope;
         private Size desiredSize;
@@ -1828,6 +1829,23 @@ namespace Icy.UI
             isFocused = value;
             ControlState = value ? ControlState | ControlState.Focused : ControlState & ~ControlState.Focused;
             FocusChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Records whether one of this element's bindings is in its error state, keeping
+        /// <see cref="Styles.ControlState.Invalid"/> set while any of them is.
+        /// </summary>
+        /// <param name="binding">The reporting binding.</param>
+        /// <param name="hasError">Whether that binding is in its error state.</param>
+        internal void SetBindingError(object binding, bool hasError)
+        {
+            if (hasError)
+                (erroringBindings ??= []).Add(binding);
+            else
+                erroringBindings?.Remove(binding);
+
+            bool invalid = erroringBindings is { Count: > 0 };
+            ControlState = invalid ? ControlState | ControlState.Invalid : ControlState & ~ControlState.Invalid;
         }
 
         /// <summary>
