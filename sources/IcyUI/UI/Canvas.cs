@@ -800,6 +800,11 @@ namespace Icy.UI
 
         private void OnTouchDown(object? sender, GenericEventArgs<Point> e)
         {
+            // Only one pressed element is tracked: a second pointer (another finger, a mouse chord) releases the first
+            // one's Pressed state rather than orphaning it - it would otherwise stay Pressed after every pointer lifts.
+            foreach (UIElement element in SelfAndAncestors(pressedElement))
+                element.ControlState &= ~ControlState.Pressed;
+
             pressedElement = HitTest(e.Data);
             foreach (UIElement element in SelfAndAncestors(pressedElement))
                 element.ControlState |= ControlState.Pressed;

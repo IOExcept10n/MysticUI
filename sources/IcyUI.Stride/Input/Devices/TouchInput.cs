@@ -103,6 +103,16 @@ namespace Icy.Stride.Input.Devices
                 }
             }
 
+            // Stride may never deliver Released/Canceled for a contact (focus loss, a lift outside the window). A stuck
+            // contact would keep touch "active" forever - and with it, suppress the mouse - so when no touch device reports
+            // any pointer down, the lingering contacts are dropped; core recognition then treats them as canceled. Contacts
+            // pressed this frame are kept in case the device state lags its events by a frame.
+            if (active.Count > 0 && !IsAnyTouchPointerDown())
+            {
+                foreach (int id in active.Keys.Where(id => !pressed.Contains(id)).ToList())
+                    active.Remove(id);
+            }
+
             foreach (var (id, position) in active)
                 contacts.Add(new TouchContact(id, position, pressed.Contains(id) ? TouchContactState.Pressed : TouchContactState.Moved));
 
@@ -125,6 +135,17 @@ namespace Icy.Stride.Input.Devices
                 contacts.Add(new TouchContact(id, position, TouchContactState.Released));
             carriedReleases.Clear();
             (carriedReleases, pendingReleases) = (pendingReleases, carriedReleases);
+        }
+
+        private bool IsAnyTouchPointerDown()
+        {
+            foreach (var device in input.Pointers)
+            {
+                if (device is not TMouseDevice && device.DownPointers.Count > 0)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

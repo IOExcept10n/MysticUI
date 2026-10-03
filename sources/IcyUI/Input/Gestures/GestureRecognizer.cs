@@ -17,9 +17,13 @@ namespace Icy.Input.Gestures
     /// </remarks>
     internal sealed class GestureRecognizer : IGestureEvents
     {
+        // How long after the last touch contact mouse presses are still treated as OS-synthesized: Windows promotes a
+        // tap to a click only after the finger lifts.
+        private static readonly TimeSpan EmulatedMouseGrace = TimeSpan.FromMilliseconds(500);
         private readonly Dictionary<MouseButtons, PointerTrack> mouseTracks = [];
         private readonly Queue<(MouseButtons Button, bool IsPress, Point Position)> pendingMouse = new();
         private readonly Dictionary<int, PointerTrack> touchTracks = [];
+        private TimeSpan? lastTouchActiveTime;
         private int lastTapCount;
         private Point lastTapPosition;
         private TimeSpan lastTapTime;
@@ -100,8 +104,10 @@ namespace Icy.Input.Gestures
         {
             now += deltaTime;
             float slop = GetSlopPixels();
-            bool touchActive = ProcessTouches(slop);
-            ProcessMouse(slop, touchActive);
+            if (ProcessTouches(slop))
+                lastTouchActiveTime = now;
+            bool suppressMousePresses = lastTouchActiveTime is { } touchTime && now - touchTime < EmulatedMouseGrace;
+            ProcessMouse(slop, suppressMousePresses);
             RaiseHolds();
         }
 
@@ -253,16 +259,20 @@ namespace Icy.Input.Gestures
             Finish(track, canceled, slop);
         }
 
-        private void ProcessMouse(float slop, bool touchActive)
+        private void ProcessMouse(float slop, bool suppressPresses)
         {
             while (pendingMouse.TryDequeue(out var pending))
             {
-                // The OS synthesizes mouse input from touch; one finger must never count as two pointers.
-                if (touchActive || ToKind(pending.Button) is not PointerKind kind)
+                if (ToKind(pending.Button) is not PointerKind kind)
                     continue;
 
                 if (pending.IsPress)
                 {
+                    // The OS synthesizes mouse input from touch; one finger must never count as two pointers. Releases
+                    // always go through, so a track pressed before the touch began can't get stuck.
+                    if (suppressPresses)
+                        continue;
+
                     if (mouseTracks.Remove(pending.Button, out PointerTrack? stale))
                     {
                         PointerReleased?.Invoke(this, new PointerInfo(stale.Kind, stale.Position));

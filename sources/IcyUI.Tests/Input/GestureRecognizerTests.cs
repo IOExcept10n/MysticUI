@@ -319,6 +319,54 @@ namespace Icy.Tests.Input
         }
 
         [Fact]
+        public void MouseReleasedWhileTouchActive_StillEndsTheMouseTrack()
+        {
+            var h = new Harness();
+            h.Input.Mouse.MouseInfo = new MouseInfo(new Point(5, 5));
+            h.Input.Mouse.RaiseButtonPressed(MouseButtons.LeftButton);
+            h.Mouse(5, 5);
+            h.Touch(Down(1, 300, 300));
+            h.Input.Mouse.RaiseButtonReleased(MouseButtons.LeftButton);
+            h.Touch(Move(1, 300, 300));
+            h.Touch(Up(1, 300, 300));
+            h.Log.Clear();
+
+            h.Mouse(200, 200, TimeSpan.FromMilliseconds(700)); // no button held: must not hold or drag
+
+            Assert.Empty(h.Log);
+        }
+
+        [Fact]
+        public void LateEmulatedClick_AfterFingerLifts_IsIgnored()
+        {
+            var h = new Harness();
+            h.Input.Mouse.MouseInfo = new MouseInfo(new Point(100, 100));
+            h.Touch(Down(1, 100, 100));
+            h.Touch(Up(1, 100, 100));
+
+            h.Input.Mouse.RaiseButtonPressed(MouseButtons.LeftButton);
+            h.Input.Mouse.RaiseButtonReleased(MouseButtons.LeftButton);
+            h.Mouse(100, 100); // the OS promotes the tap to a click only after the finger lifted
+
+            Assert.Equal(new[] { "down Touch 100,100", "up Touch", "tap 1" }, h.Log);
+        }
+
+        [Fact]
+        public void RealMouseClick_WellAfterTouch_StillTaps()
+        {
+            var h = new Harness();
+            h.Touch(Down(1, 100, 100));
+            h.Touch(Up(1, 100, 100));
+            h.Mouse(100, 100, TimeSpan.FromMilliseconds(600));
+
+            h.Input.Mouse.RaiseButtonPressed(MouseButtons.LeftButton);
+            h.Input.Mouse.RaiseButtonReleased(MouseButtons.LeftButton);
+            h.Mouse(100, 100);
+
+            Assert.Equal(PointerKind.MouseLeft, h.Taps[^1].Kind);
+        }
+
+        [Fact]
         public void EmulatedMouse_WhileTouchActive_IsIgnored()
         {
             var h = new Harness();

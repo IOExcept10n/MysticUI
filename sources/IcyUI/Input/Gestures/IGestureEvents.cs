@@ -23,7 +23,9 @@ namespace Icy.Input.Gestures
     /// <item><description>Two touch contacts pinch. A second finger cancels the first finger's drag; after a pinch, the
     /// remaining fingers stay inert until all are lifted.</description></item>
     /// </list>
-    /// Mouse buttons are ignored while any touch contact is active, because the OS synthesizes mouse input from touch.
+    /// Mouse presses are ignored while any touch contact is active and for a short moment after the last one lifts,
+    /// because the OS synthesizes mouse input from touch (on Windows, a tap's click arrives after the finger lifts).
+    /// Mouse releases always go through, so a button pressed before the touch began still ends its gesture.
     /// </para>
     /// </remarks>
     public interface IGestureEvents : IInputEventProvider
