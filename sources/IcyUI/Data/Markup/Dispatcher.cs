@@ -16,6 +16,7 @@ namespace Icy.Data.Markup
         private readonly object lockObj = new();
         private readonly PriorityQueue<Action, DispatcherPriority> dispatchedActions = new();
         private readonly HashSet<IBinding> frameBindings = [];
+        private readonly HashSet<IFrameTicker> frameTickers = [];
         private readonly HashSet<Animation> runningAnimations = [];
 
         /// <summary>
@@ -224,20 +225,49 @@ namespace Icy.Data.Markup
         /// <remarks>
         /// Called once per frame from <see cref="UI.Canvas.Render"/>, alongside <see cref="Update(DispatcherPriority)"/>
         /// for <see cref="DispatcherPriority.DataBind"/> and <see cref="UpdateFrameBindings"/>, so animations advance
-        /// at the same point in the frame as reactive and frame-driven bindings.
+        /// at the same point in the frame as reactive and frame-driven bindings. Registered frame tickers are advanced after
+        /// the animations.
         /// </remarks>
         public void UpdateAnimations(TimeSpan delta)
         {
             Animation[] animations;
+            IFrameTicker[] tickers;
             lock (lockObj)
             {
-                if (runningAnimations.Count == 0)
+                if (runningAnimations.Count == 0 && frameTickers.Count == 0)
                     return;
                 animations = [.. runningAnimations];
+                tickers = [.. frameTickers];
             }
 
             foreach (Animation animation in animations)
                 animation.Update(delta);
+            foreach (IFrameTicker ticker in tickers)
+                ticker.Tick(delta);
+        }
+
+        /// <summary>
+        /// Registers a ticker to be advanced on every <see cref="UpdateAnimations(TimeSpan)"/> call.
+        /// </summary>
+        /// <param name="ticker">The ticker to register.</param>
+        internal void RegisterFrameTicker(IFrameTicker ticker)
+        {
+            lock (lockObj)
+            {
+                frameTickers.Add(ticker);
+            }
+        }
+
+        /// <summary>
+        /// Stops advancing a ticker registered through <see cref="RegisterFrameTicker(IFrameTicker)"/>.
+        /// </summary>
+        /// <param name="ticker">The ticker to unregister.</param>
+        internal void UnregisterFrameTicker(IFrameTicker ticker)
+        {
+            lock (lockObj)
+            {
+                frameTickers.Remove(ticker);
+            }
         }
     }
 }

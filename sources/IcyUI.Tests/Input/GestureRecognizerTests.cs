@@ -151,6 +151,33 @@ namespace Icy.Tests.Input
         }
 
         [Fact]
+        public void DragGrowingOutOfAHold_IsMarkedStartedFromHold()
+        {
+            var h = new Harness();
+            bool? fromHold = null;
+            h.Recognizer.DragStarted += (_, e) => fromHold = e.Data.StartedFromHold;
+
+            h.Touch(Down(1, 10, 10));
+            h.Touch(TimeSpan.FromMilliseconds(600), Move(1, 10, 10));
+            h.Touch(Move(1, 60, 10));
+
+            Assert.True(fromHold);
+        }
+
+        [Fact]
+        public void PlainDrag_IsNotMarkedStartedFromHold()
+        {
+            var h = new Harness();
+            bool? fromHold = null;
+            h.Recognizer.DragStarted += (_, e) => fromHold = e.Data.StartedFromHold;
+
+            h.Touch(Down(1, 10, 10));
+            h.Touch(Move(1, 60, 10));
+
+            Assert.False(fromHold);
+        }
+
+        [Fact]
         public void Velocity_AfterPause_IsNearZero()
         {
             var h = new Harness();

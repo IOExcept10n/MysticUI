@@ -16,5 +16,9 @@ namespace Icy.Input.Gestures
     /// The release velocity in physical pixels per second - set on <see cref="IGestureEvents.DragCompleted"/> only,
     /// otherwise <see cref="Vector2.Zero"/>.
     /// </param>
-    public readonly record struct DragInfo(PointerKind Kind, Point Start, Point Position, Vector2 Delta, Vector2 Velocity);
+    /// <param name="StartedFromHold">
+    /// <see langword="true"/> when the drag grew out of a press that had already raised <see cref="IGestureEvents.Held"/>
+    /// (press-and-hold, then move) - the touch gesture that picks up drag-and-drop sources.
+    /// </param>
+    public readonly record struct DragInfo(PointerKind Kind, Point Start, Point Position, Vector2 Delta, Vector2 Velocity, bool StartedFromHold = false);
 }

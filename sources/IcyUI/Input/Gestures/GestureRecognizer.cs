@@ -308,10 +308,11 @@ namespace Icy.Input.Gestures
                 && track.Kind != PointerKind.MouseRight
                 && Distance(track.Start, position) > slop)
             {
+                bool startedFromHold = track.State == TrackState.Held;
                 track.State = TrackState.Dragging;
                 var args = new AcceptableEventArgs<DragInfo>
                 {
-                    Data = new DragInfo(track.Kind, track.Start, position, new Vector2(position.X - track.Start.X, position.Y - track.Start.Y), Vector2.Zero),
+                    Data = new DragInfo(track.Kind, track.Start, position, new Vector2(position.X - track.Start.X, position.Y - track.Start.Y), Vector2.Zero, startedFromHold),
                 };
                 DragStarted?.Invoke(this, args);
                 if (args.Cancel)
