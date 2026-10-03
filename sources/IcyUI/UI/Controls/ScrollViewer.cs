@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Numerics;
 using Icy.Data.Markup.Attributes;
 using Icy.Input.Events;
+using Icy.Input.Gestures;
 
 namespace Icy.UI.Controls
 {
@@ -21,6 +22,10 @@ namespace Icy.UI.Controls
     public class ScrollViewer : ContentControl
     {
         private float horizontalOffset;
+        private Vector2? panAnchor;
+        private DragAxes panAxes;
+        private PanningMode panningMode = PanningMode.Auto;
+        private DragAxes pendingClaim;
         private float verticalOffset;
         private IVirtualizingScrollInfo? subscribedVirtualizingContent;
 
@@ -70,6 +75,23 @@ namespace Icy.UI.Controls
                     ScrollChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets or sets the axes this <see cref="ScrollViewer"/> pans along with touch and the middle mouse button.
+        /// Defaults to <see cref="Controls.PanningMode.Auto"/>.
+        /// </summary>
+        /// <remarks>
+        /// A pan claims a drag only along axes where the content can still move in the drag's direction, so a list that is
+        /// already at its edge lets the gesture reach the next scroll area out. The left mouse button never pans.
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(PanningMode.Auto)]
+        [RegisterReference]
+        public PanningMode PanningMode
+        {
+            get => panningMode;
+            set => SetProperty(ref panningMode, value);
         }
 
         /// <summary>
@@ -124,6 +146,65 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        protected internal override DragAxes GetDragAxes(in DragClaimContext context)
+        {
+            pendingClaim = DragAxes.None;
+            if (context.Kind is not (PointerKind.Touch or PointerKind.MouseMiddle))
+                return DragAxes.None;
+
+            DragAxes allowed = PanningMode switch
+            {
+                PanningMode.None => DragAxes.None,
+                PanningMode.Vertical => DragAxes.Vertical,
+                PanningMode.Horizontal => DragAxes.Horizontal,
+                PanningMode.Both => DragAxes.Both,
+                _ => (ExtentWidth > ViewportWidth ? DragAxes.Horizontal : DragAxes.None) | (ExtentHeight > ViewportHeight ? DragAxes.Vertical : DragAxes.None),
+            };
+
+            // Content follows the finger, so the offset moves opposite to the drag direction.
+            if (allowed.HasFlag(DragAxes.Horizontal) && CanMove(horizontalOffset, ExtentWidth - ViewportWidth, -context.LocalDirection.X))
+                pendingClaim |= DragAxes.Horizontal;
+            if (allowed.HasFlag(DragAxes.Vertical) && CanMove(verticalOffset, ExtentHeight - ViewportHeight, -context.LocalDirection.Y))
+                pendingClaim |= DragAxes.Vertical;
+            return pendingClaim;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragStarted(Point screenPoint)
+        {
+            base.OnDragStarted(screenPoint);
+            panAxes = pendingClaim;
+            panAnchor = null;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragPerforming(Point screenPoint)
+        {
+            base.OnDragPerforming(screenPoint);
+            Vector2 local = PointToLocal(screenPoint);
+
+            // The first position only anchors the pan, so the content doesn't jump by the drag threshold.
+            if (panAnchor is { } anchor)
+            {
+                Vector2 moved = local - anchor;
+                if (panAxes.HasFlag(DragAxes.Horizontal))
+                    HorizontalOffset -= moved.X;
+                if (panAxes.HasFlag(DragAxes.Vertical))
+                    VerticalOffset -= moved.Y;
+            }
+
+            panAnchor = local;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragEnded(Point screenPoint)
+        {
+            base.OnDragEnded(screenPoint);
+            panAnchor = null;
+            panAxes = DragAxes.None;
+        }
+
+        /// <inheritdoc/>
         protected override void ArrangeContent()
         {
             EnsureVirtualizingSubscription();
@@ -172,6 +253,17 @@ namespace Icy.UI.Controls
             // Re-clamp now that Extent/Viewport are up to date post-arrange (e.g. the viewport just shrank).
             HorizontalOffset = horizontalOffset;
             VerticalOffset = verticalOffset;
+        }
+
+        private static bool CanMove(float offset, float maxOffset, float offsetDirection)
+        {
+            if (maxOffset <= 0)
+                return false;
+            if (offsetDirection > 0)
+                return offset < maxOffset;
+            if (offsetDirection < 0)
+                return offset > 0;
+            return true;
         }
 
         private void UpdateContentOffset()
