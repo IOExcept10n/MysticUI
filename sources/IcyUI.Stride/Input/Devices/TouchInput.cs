@@ -33,6 +33,9 @@ namespace Icy.Stride.Input.Devices
         public event EventHandler<GenericEventArgs<Point>>? Tap;
 
         /// <inheritdoc/>
+        public IReadOnlyList<TouchContact> Contacts => [];
+
+        /// <inheritdoc/>
         public bool IsInitialized { get; private set; }
 
         /// <inheritdoc/>

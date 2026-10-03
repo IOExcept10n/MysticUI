@@ -30,6 +30,22 @@ namespace Icy.Input.Devices
         /// Occurs on a drag action.
         /// </summary>
         event EventHandler<GenericEventArgs<TranslationInfo>>? Drag;
+
+        /// <summary>
+        /// Gets the touch contacts of the current input update.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The snapshot is refreshed once per input update. Every active contact appears in every snapshot - as
+        /// <see cref="TouchContactState.Moved"/> when it didn't move - until the single snapshot that reports it
+        /// <see cref="TouchContactState.Released"/>. A tracked contact missing from a snapshot is treated as canceled.
+        /// </para>
+        /// <para>
+        /// Gestures (tap, hold, drag, pinch) are recognized in core from this snapshot - see
+        /// <see cref="Gestures.IGestureEvents"/>.
+        /// </para>
+        /// </remarks>
+        IReadOnlyList<TouchContact> Contacts { get; }
     }
 
     /// <summary>

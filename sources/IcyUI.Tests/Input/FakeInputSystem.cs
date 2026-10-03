@@ -43,7 +43,9 @@ namespace Icy.Tests.Input
 
         public IGamepadInput? Gamepad => null;
 
-        public ITouchInput? Touch => null;
+        public FakeTouchInput? Touch { get; set; }
+
+        ITouchInput? IInputSystem.Touch => Touch;
 
         public IClipboard Clipboard => throw new NotSupportedException("Clipboard isn't needed by Canvas/hit-testing tests.");
 
@@ -258,6 +260,38 @@ namespace Icy.Tests.Input
         public event EventHandler<GenericEventArgs<MouseButtons>>? MouseButtonPressed;
 
         public event EventHandler<GenericEventArgs<MouseButtons>>? MouseButtonReleased;
+
+        public void Initialize() => IsInitialized = true;
+
+        public bool DisableListening() => true;
+
+        public bool EnableListening() => true;
+
+        public void RaiseButtonPressed(MouseButtons button) => MouseButtonPressed?.Invoke(this, new GenericEventArgs<MouseButtons>(button));
+
+        public void RaiseButtonReleased(MouseButtons button) => MouseButtonReleased?.Invoke(this, new GenericEventArgs<MouseButtons>(button));
+    }
+
+    /// <summary>
+    /// A fake <see cref="ITouchInput"/> whose contact snapshot tests script directly, one input update at a time.
+    /// </summary>
+    public sealed class FakeTouchInput : ITouchInput
+    {
+        public List<TouchContact> Contacts { get; } = [];
+
+        IReadOnlyList<TouchContact> ITouchInput.Contacts => Contacts;
+
+        public bool IsListening => true;
+
+        public bool IsInitialized { get; private set; }
+
+        public event EventHandler<GenericEventArgs<TranslationInfo>>? Drag;
+
+        public event EventHandler<GenericEventArgs<Point>>? Hold;
+
+        public event EventHandler<GenericEventArgs<TranslationInfo>>? Swipe;
+
+        public event EventHandler<GenericEventArgs<Point>>? Tap;
 
         public void Initialize() => IsInitialized = true;
 
