@@ -16,6 +16,7 @@ namespace Icy.Data.Bindings
     {
         private readonly string displayPath;
         private readonly List<PathSegment> pathSegments;
+        private readonly string? rootPropertyName;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PropertyPath"/> class.
@@ -37,6 +38,7 @@ namespace Icy.Data.Bindings
         {
             displayPath = path;
             pathSegments = ParsePath(path, typeContext, registry ?? PropertyRegistry.Current);
+            rootPropertyName = GetRootPropertyName(path);
         }
 
         /// <inheritdoc/>
@@ -64,6 +66,10 @@ namespace Icy.Data.Bindings
         }
 
         /// <inheritdoc/>
+        public virtual bool DependsOn(string propertyName)
+            => rootPropertyName == null || string.Equals(rootPropertyName, propertyName, StringComparison.Ordinal);
+
+        /// <inheritdoc/>
         public virtual void SetValue(object target, object? value)
         {
             for (int i = 0; i < pathSegments.Count; i++)
@@ -77,6 +83,21 @@ namespace Icy.Data.Bindings
                     target = pathSegments[i].GetValue(target)!;
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets the name of the property a path starts with.
+        /// </summary>
+        /// <param name="path">The path to inspect.</param>
+        /// <returns>
+        /// The name of the first property in the path, or <see langword="null"/> when the path starts with the source
+        /// itself (<c>this</c>) and so depends on all of its properties.
+        /// </returns>
+        internal static string? GetRootPropertyName(string path)
+        {
+            int end = path.IndexOfAny(['.', '[']);
+            string root = (end == -1 ? path : path[..end]).Trim();
+            return root.Length == 0 || root == "this" ? null : root;
         }
 
         /// <summary>

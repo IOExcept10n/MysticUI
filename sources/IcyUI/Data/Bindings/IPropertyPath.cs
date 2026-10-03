@@ -31,5 +31,35 @@ namespace Icy.Data.Bindings
         /// <param name="source">An object to retrieve value from.</param>
         /// <returns>The value by the specified property path.</returns>
         object? GetValue(object source);
+
+        /// <summary>
+        /// Gets the type of the last property in the chain, resolved against the specified source object.
+        /// </summary>
+        /// <param name="source">An object the path starts from.</param>
+        /// <returns>
+        /// The declared type of the last property in the chain. The default implementation returns
+        /// <see cref="PropertyType"/>.
+        /// </returns>
+        /// <remarks>
+        /// Paths that only learn their types at runtime, such as <see cref="DynamicPropertyPath"/>, override this method to
+        /// report the real property type, so a <see cref="Binding"/> can convert typed text into it.
+        /// </remarks>
+        Type GetPropertyType(object source) => PropertyType;
+
+        /// <summary>
+        /// Determines whether a change of the specified property on the source object can change this path's value.
+        /// </summary>
+        /// <param name="propertyName">
+        /// The name of the changed property, as reported by <see cref="System.ComponentModel.INotifyPropertyChanged"/>.
+        /// </param>
+        /// <returns>
+        /// <see langword="true"/> if the path starts with the specified property, or if it can't tell; otherwise,
+        /// <see langword="false"/>. The default implementation always returns <see langword="true"/>.
+        /// </returns>
+        /// <remarks>
+        /// A <see cref="Binding"/> uses this to ignore change notifications for unrelated properties of its source, so they
+        /// don't overwrite the text a user is typing.
+        /// </remarks>
+        bool DependsOn(string propertyName) => true;
     }
 }

@@ -357,7 +357,8 @@ namespace Icy.Data.Bindings
         /// </summary>
         private object? ConvertTextToSourceType(string text)
         {
-            Type type = Path.PropertyType;
+            // A markup path (DynamicPropertyPath) only learns the property type from the live source.
+            Type type = Path.GetPropertyType(Source!);
             if (type == typeof(string) || type == typeof(object))
                 return text;
 
@@ -488,7 +489,8 @@ namespace Icy.Data.Bindings
 
         private void Source_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (Mode != BindingMode.OneWayToSource)
+            // Ignore unrelated properties: refreshing the target would overwrite text the user is still typing.
+            if (Mode != BindingMode.OneWayToSource && (string.IsNullOrEmpty(e.PropertyName) || Path.DependsOn(e.PropertyName)))
                 UpdateTarget();
         }
 

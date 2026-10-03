@@ -45,9 +45,16 @@ namespace Icy.Tests.Data.Bindings
         }
 
         private static Binding Bind(TextBox box, Model model, string property)
+            => Bind(box, model, new PropertyPath(property, typeof(Model)));
+
+        // Markup ({Binding Count}) builds a DynamicPropertyPath, which knows nothing about the source type up front.
+        private static Binding BindDynamic(TextBox box, Model model, string property)
+            => Bind(box, model, new DynamicPropertyPath(property));
+
+        private static Binding Bind(TextBox box, Model model, IPropertyPath path)
         {
             IPropertyReference text = PropertyRegistry.Default.GetPropertyStore(typeof(TextBox)).GetProperty(nameof(TextBox.Text));
-            var binding = new Binding(box, text, new PropertyPath(property, typeof(Model)))
+            var binding = new Binding(box, text, path)
             {
                 Source = model,
                 Mode = BindingMode.TwoWay,
@@ -285,6 +292,104 @@ namespace Icy.Tests.Data.Bindings
             Binding binding = Bind(box, model, nameof(Model.Count));
             box.Text = "not a number";
             return new WeakReference(binding);
+        }
+
+        [Fact]
+        public void DynamicPath_ParsesIntoAnIntSource()
+        {
+            var model = new Model();
+            var box = new TextBox();
+            BindDynamic(box, model, nameof(Model.Count));
+
+            box.Text = "12";
+
+            Assert.Equal(12, model.Count);
+        }
+
+        [Fact]
+        public void DynamicPath_InvalidText_SetsTheErrorState()
+        {
+            var model = new Model { Count = 12 };
+            var box = new TextBox();
+            Binding binding = BindDynamic(box, model, nameof(Model.Count));
+
+            box.Text = "12a";
+
+            Assert.Equal(12, model.Count);
+            Assert.True(binding.HasError);
+            Assert.NotNull(binding.Error);
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void DynamicPath_ThrowingSetter_SetsTheErrorState()
+        {
+            var model = new Model();
+            var box = new TextBox();
+            Binding binding = BindDynamic(box, model, nameof(Model.Positive));
+
+            box.Text = "0";
+
+            Assert.Equal(1, model.Positive);
+            Assert.True(binding.HasError);
+            Assert.IsType<ArgumentOutOfRangeException>(binding.Error);
+        }
+
+        [Fact]
+        public void DynamicPath_MissingIntermediate_IsStillSilent()
+        {
+            var holder = new Holder();
+            var box = new TextBox();
+            IPropertyReference text = PropertyRegistry.Default.GetPropertyStore(typeof(TextBox)).GetProperty(nameof(TextBox.Text));
+            var binding = new Binding(box, text, new DynamicPropertyPath("Inner.Count"))
+            {
+                Source = holder,
+                Mode = BindingMode.TwoWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                IsEnabled = true,
+            };
+
+            box.Text = "5";
+
+            Assert.False(binding.HasError);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void UnrelatedSourceChange_KeepsTheTypedTextAndTheError(bool dynamic)
+        {
+            var model = new Model { Count = 12 };
+            var box = new TextBox();
+            Binding binding = dynamic ? BindDynamic(box, model, nameof(Model.Count)) : Bind(box, model, nameof(Model.Count));
+            box.Text = "12a";
+
+            model.Raise(nameof(Model.Ratio));
+
+            Assert.Equal("12a", box.Text);
+            Assert.True(binding.HasError);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData(nameof(Model.Count))]
+        public void RelevantSourceChange_StillRefreshesTheTarget(string? name)
+        {
+            var model = new Model { Count = 12 };
+            var box = new TextBox();
+            Binding binding = BindDynamic(box, model, nameof(Model.Count));
+            box.Text = "12a";
+
+            model.Raise(name!);
+
+            Assert.Equal("12", box.Text);
+            Assert.False(binding.HasError);
+        }
+
+        private sealed class Holder
+        {
+            public Model? Inner { get; set; }
         }
 
         [Fact]
