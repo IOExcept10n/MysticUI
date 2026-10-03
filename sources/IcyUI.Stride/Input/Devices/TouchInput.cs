@@ -25,14 +25,17 @@ namespace Icy.Stride.Input.Devices
     /// core recognition treats the missing contact as canceled.
     /// </para>
     /// <para>
-    /// Positions are mapped from the touch surface onto the back buffer (see <see cref="PointerSurfaceMapping"/>): Stride
-    /// measures touches against the whole touch area, while fullscreen presents a back buffer that keeps its windowed aspect
-    /// ratio centered on the screen, with black bars. Without a viewport source the raw absolute position is used.
+    /// Positions are mapped onto the back buffer through <see cref="PointerSurfaceMapping"/>. In fullscreen, Stride normalizes
+    /// touches over the whole physical panel but still reports the back-buffer size as the pointer surface, while the back
+    /// buffer is presented aspect-fit with black bars. <paramref name="touchSurfaceSize"/> supplies the real panel size in
+    /// that case; when it returns <see langword="null"/>, Stride's reported surface is used, which is correct in windowed
+    /// mode. Without a viewport source the raw absolute position is used.
     /// </para>
     /// </remarks>
     /// <param name="input">The Stride input manager to read pointer events from.</param>
     /// <param name="viewportSize">Returns the back-buffer size, or <see langword="null"/> to report raw absolute positions.</param>
-    internal class TouchInput(TInputManager input, Func<Size>? viewportSize = null) : ITouchInput, IUpdateableInput
+    /// <param name="touchSurfaceSize">Returns the surface touches are normalized over, or <see langword="null"/> to use Stride's reported pointer surface.</param>
+    internal class TouchInput(TInputManager input, Func<Size>? viewportSize = null, Func<Size?>? touchSurfaceSize = null) : ITouchInput, IUpdateableInput
     {
         private readonly Dictionary<int, Point> active = [];
         private readonly List<TouchContact> contacts = [];
@@ -151,10 +154,12 @@ namespace Icy.Stride.Input.Devices
             if (viewport.Width <= 0 || viewport.Height <= 0)
                 return new Point((int)pointerEvent.AbsolutePosition.X, (int)pointerEvent.AbsolutePosition.Y);
 
-            var surface = pointerEvent.Pointer.SurfaceSize;
+            SizeF surface = touchSurfaceSize?.Invoke() is { } panel
+                ? panel
+                : new SizeF(pointerEvent.Pointer.SurfaceSize.X, pointerEvent.Pointer.SurfaceSize.Y);
             return PointerSurfaceMapping.ToViewport(
                 new System.Numerics.Vector2(pointerEvent.Position.X, pointerEvent.Position.Y),
-                new SizeF(surface.X, surface.Y),
+                surface,
                 viewport);
         }
 

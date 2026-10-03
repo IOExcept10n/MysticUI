@@ -72,11 +72,17 @@ namespace Icy.Stride.Configuration
         {
             var renderContext = new Rendering.RenderContext(game.GraphicsDevice);
             renderContext.AttachDisplayScaleTracker(new DisplayScaleTracker(DisplayScales.GetProvider(), () => StrideNativeWindow.GetInfo(game)));
+
+            // In fullscreen, Stride normalizes touches over the whole physical panel (see Input.Devices.TouchInput).
+            IDesktopSizeProvider desktopSizes = DesktopSizes.GetProvider();
+            System.Drawing.Size? TouchSurfaceSize() =>
+                game.Window.IsFullscreen && desktopSizes.TryGetDesktopSize(StrideNativeWindow.GetInfo(game), out var panel) ? panel : null;
             return builder.ConfigureRendering(renderContext)
                    .ConfigureInput(new Input.InputSystem(
                        game.Services.GetService<global::Stride.Input.InputManager>()
                        ?? ThrowHelper.ThrowInvalidOperationException<global::Stride.Input.InputManager>("The game has no InputManager service registered. Configure IcyUI after the game has been initialized."),
-                       () => renderContext.ViewportSize))
+                       () => renderContext.ViewportSize,
+                       TouchSurfaceSize))
                    .ConfigureTypes()
                    .ConfigureAssets()
                    .WithAssetContextFactory(new StrideAssetContextFactory(game))

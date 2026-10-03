@@ -27,12 +27,16 @@ namespace Icy.Stride.Input
         /// Returns the back-buffer size, used to map touch positions onto the presented image in fullscreen (see
         /// <see cref="PointerSurfaceMapping"/>). <see langword="null"/> reports raw absolute touch positions.
         /// </param>
-        public InputSystem(TInputManager input, Func<System.Drawing.Size>? viewportSize = null)
+        /// <param name="touchSurfaceSize">
+        /// Returns the surface touches are normalized over - the physical panel in fullscreen - or <see langword="null"/>
+        /// to use Stride's reported pointer surface (correct in windowed mode).
+        /// </param>
+        public InputSystem(TInputManager input, Func<System.Drawing.Size>? viewportSize = null, Func<System.Drawing.Size?>? touchSurfaceSize = null)
         {
             Mouse = new MouseInput(input);
             Keyboard = new KeyboardInput(input);
             Gamepad = new GamepadInput(input);
-            Touch = new TouchInput(input, viewportSize);
+            Touch = new TouchInput(input, viewportSize, touchSurfaceSize);
             Events = new InputEventSystem(this, text: new TextInputEvents(this, input));
             Clipboard = Clipboards.GetClipboard();
             devices = [Mouse, Keyboard, Gamepad, Touch];
