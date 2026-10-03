@@ -3,9 +3,11 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
+using Icy.Data.Markup;
 using Icy.Data.Markup.Attributes;
 using Icy.Input.Events;
 using Icy.Input.Gestures;
+using Icy.UI.Styles;
 
 namespace Icy.UI.Controls
 {
@@ -21,6 +23,12 @@ namespace Icy.UI.Controls
     /// </remarks>
     public class ScrollViewer : ContentControl
     {
+        private const float MaxFlingSpeed = 8000f;
+        private const float MinFlingSpeed = 50f;
+        private readonly InertiaDriver inertia;
+        private float panningDeceleration = 1500f;
+        private Point lastDragScreenPoint;
+        private bool swallowTap;
         private float horizontalOffset;
         private Vector2? panAnchor;
         private DragAxes panAxes;
@@ -35,6 +43,24 @@ namespace Icy.UI.Controls
         public ScrollViewer()
         {
             ClipToBounds = true;
+            inertia = new InertiaDriver(ApplyInertiaStep);
+
+            // A press stops a fling; the rest of that press (including its tap) lands on this list, not on the item underneath.
+            PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(ControlState))
+                    return;
+                if (ControlState.HasFlag(ControlState.Pressed) && inertia.IsRunning)
+                {
+                    inertia.Stop();
+                    swallowTap = true;
+                }
+                else if (!ControlState.HasFlag(ControlState.Pressed) && swallowTap)
+                {
+                    // Tapped is raised after the release; re-enable children once this input frame is done.
+                    Dispatcher.GetCurrentThreadDispatcher().Invoke(() => swallowTap = false);
+                }
+            };
         }
 
         /// <summary>
@@ -91,7 +117,30 @@ namespace Icy.UI.Controls
         public PanningMode PanningMode
         {
             get => panningMode;
-            set => SetProperty(ref panningMode, value);
+            set
+            {
+                if (SetProperty(ref panningMode, value))
+                    inertia.Stop();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets how quickly a fling slows down, in this control's units per second squared. Defaults to <c>1500</c>;
+        /// <c>0</c> disables inertia.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">The value is negative or not finite.</exception>
+        [Category("Behavior")]
+        [DefaultValue(1500f)]
+        [RegisterReference]
+        public float PanningDeceleration
+        {
+            get => panningDeceleration;
+            set
+            {
+                if (!float.IsFinite(value) || value < 0)
+                    throw new ArgumentOutOfRangeException(nameof(value), value, "The deceleration must be a finite, non-negative number.");
+                SetProperty(ref panningDeceleration, value);
+            }
         }
 
         /// <summary>
@@ -127,10 +176,16 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Stops a running fling immediately, leaving the offsets where they are.
+        /// </summary>
+        public void StopInertia() => inertia.Stop();
+
         /// <inheritdoc/>
         protected internal override bool OnScroll(ScrollInfo info)
         {
             base.OnScroll(info);
+            inertia.Stop();
             if (info.ScrollOrientation == Orientation.Vertical)
             {
                 float before = verticalOffset;
@@ -173,8 +228,35 @@ namespace Icy.UI.Controls
         protected internal override void OnDragStarted(Point screenPoint)
         {
             base.OnDragStarted(screenPoint);
+            inertia.Stop();
+            swallowTap = false;
             panAxes = pendingClaim;
             panAnchor = null;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void OnDragFling(Vector2 screenVelocity)
+        {
+            base.OnDragFling(screenVelocity);
+            if (panningDeceleration <= 0)
+                return;
+
+            // The linear part of the screen-to-local transform maps the velocity through DPI, canvas zoom and RenderScale.
+            Point origin = lastDragScreenPoint;
+            Vector2 local = PointToLocal(new Point(origin.X + (int)screenVelocity.X, origin.Y + (int)screenVelocity.Y)) - PointToLocal(origin);
+            Vector2 offsetVelocity = new(panAxes.HasFlag(DragAxes.Horizontal) ? -local.X : 0f, panAxes.HasFlag(DragAxes.Vertical) ? -local.Y : 0f);
+
+            float speed = offsetVelocity.Length();
+            if (speed < MinFlingSpeed)
+                return;
+            if (speed > MaxFlingSpeed)
+            {
+                offsetVelocity *= MaxFlingSpeed / speed;
+                speed = MaxFlingSpeed;
+            }
+
+            float seconds = speed / panningDeceleration;
+            inertia.Start(offsetVelocity * (seconds / 2f), TimeSpan.FromSeconds(seconds));
         }
 
         /// <inheritdoc/>
@@ -194,6 +276,7 @@ namespace Icy.UI.Controls
             }
 
             panAnchor = local;
+            lastDragScreenPoint = screenPoint;
         }
 
         /// <inheritdoc/>
@@ -202,6 +285,16 @@ namespace Icy.UI.Controls
             base.OnDragEnded(screenPoint);
             panAnchor = null;
             panAxes = DragAxes.None;
+        }
+
+        /// <inheritdoc/>
+        protected override bool CanHitTestChildren() => !inertia.IsRunning && !swallowTap;
+
+        /// <inheritdoc/>
+        protected override void OnDetached()
+        {
+            inertia.Stop();
+            base.OnDetached();
         }
 
         /// <inheritdoc/>
@@ -264,6 +357,14 @@ namespace Icy.UI.Controls
             if (offsetDirection < 0)
                 return offset > 0;
             return true;
+        }
+
+        private bool ApplyInertiaStep(Vector2 step)
+        {
+            float before = horizontalOffset + verticalOffset;
+            HorizontalOffset += step.X;
+            VerticalOffset += step.Y;
+            return horizontalOffset + verticalOffset != before;
         }
 
         private void UpdateContentOffset()
