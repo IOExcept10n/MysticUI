@@ -263,6 +263,31 @@ namespace Icy.Tests.Data.Bindings
         }
 
         [Fact]
+        public void FinalizingAnErroringBinding_DoesNotTouchItsTarget()
+        {
+            // Regression: Dispose(false) from the finalizer cleared the error and set the target's ControlState on the
+            // finalizer thread; the dispatcher's thread check threw there and crashed the process.
+            WeakReference binding = MakeErroringBindingAndDropIt();
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            // Reaching this line means the finalizer ran without crashing the process.
+            Assert.False(binding.IsAlive);
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static WeakReference MakeErroringBindingAndDropIt()
+        {
+            var model = new Model();
+            var box = new TextBox();
+            Binding binding = Bind(box, model, nameof(Model.Count));
+            box.Text = "not a number";
+            return new WeakReference(binding);
+        }
+
+        [Fact]
         public void DefaultTheme_ShowsFocusedInvalidOverFocusedAndInvalid()
         {
             var configuration = new IcyConfiguration(new FakeInputSystem(), new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration()).UseDefaultTheme();

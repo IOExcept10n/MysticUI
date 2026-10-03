@@ -430,13 +430,16 @@ namespace Icy.Data.Bindings
                 if (disposing)
                 {
                     IsEnabled = false;
+
+                    // Only on an explicit Dispose: from the finalizer this would touch the target element on the finalizer
+                    // thread, where the dispatcher's thread check throws and takes the process down.
+                    ClearError();
                 }
 
                 UnsubscribeSource();
                 UnsubscribeTarget();
                 if (targetTrigger == UpdateTargetTrigger.EveryFrame)
                     Dispatcher.GetCurrentThreadDispatcher().UnregisterFrameBinding(this);
-                ClearError();
                 Source = null!;
                 disposedValue = true;
             }
