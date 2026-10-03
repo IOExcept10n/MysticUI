@@ -75,7 +75,8 @@ namespace Icy.Stride.Configuration
             return builder.ConfigureRendering(renderContext)
                    .ConfigureInput(new Input.InputSystem(
                        game.Services.GetService<global::Stride.Input.InputManager>()
-                       ?? ThrowHelper.ThrowInvalidOperationException<global::Stride.Input.InputManager>("The game has no InputManager service registered. Configure IcyUI after the game has been initialized.")))
+                       ?? ThrowHelper.ThrowInvalidOperationException<global::Stride.Input.InputManager>("The game has no InputManager service registered. Configure IcyUI after the game has been initialized."),
+                       () => renderContext.ViewportSize))
                    .ConfigureTypes()
                    .ConfigureAssets()
                    .WithAssetContextFactory(new StrideAssetContextFactory(game))

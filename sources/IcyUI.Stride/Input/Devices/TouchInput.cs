@@ -5,6 +5,7 @@ using Icy.Input;
 using Icy.Input.Devices;
 using TInputManager = Stride.Input.InputManager;
 using TMouseDevice = Stride.Input.IMouseDevice;
+using TPointerEvent = Stride.Input.PointerEvent;
 using TPointerEventType = Stride.Input.PointerEventType;
 
 namespace Icy.Stride.Input.Devices
@@ -23,8 +24,15 @@ namespace Icy.Stride.Input.Devices
     /// <see cref="TPointerEventType.Canceled"/> removes the contact without a <see cref="TouchContactState.Released"/>;
     /// core recognition treats the missing contact as canceled.
     /// </para>
+    /// <para>
+    /// Positions are mapped from the touch surface onto the back buffer (see <see cref="PointerSurfaceMapping"/>): Stride
+    /// measures touches against the whole touch area, while fullscreen presents a back buffer that keeps its windowed aspect
+    /// ratio centered on the screen, with black bars. Without a viewport source the raw absolute position is used.
+    /// </para>
     /// </remarks>
-    internal class TouchInput(TInputManager input) : ITouchInput, IUpdateableInput
+    /// <param name="input">The Stride input manager to read pointer events from.</param>
+    /// <param name="viewportSize">Returns the back-buffer size, or <see langword="null"/> to report raw absolute positions.</param>
+    internal class TouchInput(TInputManager input, Func<Size>? viewportSize = null) : ITouchInput, IUpdateableInput
     {
         private readonly Dictionary<int, Point> active = [];
         private readonly List<TouchContact> contacts = [];
@@ -78,7 +86,7 @@ namespace Icy.Stride.Input.Devices
                     continue;
 
                 int id = pointerEvent.PointerId;
-                var position = new Point((int)pointerEvent.AbsolutePosition.X, (int)pointerEvent.AbsolutePosition.Y);
+                Point position = ToViewport(pointerEvent);
                 switch (pointerEvent.EventType)
                 {
                     case TPointerEventType.Pressed:
@@ -135,6 +143,19 @@ namespace Icy.Stride.Input.Devices
                 contacts.Add(new TouchContact(id, position, TouchContactState.Released));
             carriedReleases.Clear();
             (carriedReleases, pendingReleases) = (pendingReleases, carriedReleases);
+        }
+
+        private Point ToViewport(TPointerEvent pointerEvent)
+        {
+            Size viewport = viewportSize?.Invoke() ?? Size.Empty;
+            if (viewport.Width <= 0 || viewport.Height <= 0)
+                return new Point((int)pointerEvent.AbsolutePosition.X, (int)pointerEvent.AbsolutePosition.Y);
+
+            var surface = pointerEvent.Pointer.SurfaceSize;
+            return PointerSurfaceMapping.ToViewport(
+                new System.Numerics.Vector2(pointerEvent.Position.X, pointerEvent.Position.Y),
+                new SizeF(surface.X, surface.Y),
+                viewport);
         }
 
         private bool IsAnyTouchPointerDown()

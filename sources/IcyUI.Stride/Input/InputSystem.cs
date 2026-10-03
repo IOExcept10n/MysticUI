@@ -23,12 +23,16 @@ namespace Icy.Stride.Input
         /// Initializes a new instance of the <see cref="InputSystem"/> class.
         /// </summary>
         /// <param name="input">The Stride input manager to read devices from.</param>
-        public InputSystem(TInputManager input)
+        /// <param name="viewportSize">
+        /// Returns the back-buffer size, used to map touch positions onto the presented image in fullscreen (see
+        /// <see cref="PointerSurfaceMapping"/>). <see langword="null"/> reports raw absolute touch positions.
+        /// </param>
+        public InputSystem(TInputManager input, Func<System.Drawing.Size>? viewportSize = null)
         {
             Mouse = new MouseInput(input);
             Keyboard = new KeyboardInput(input);
             Gamepad = new GamepadInput(input);
-            Touch = new TouchInput(input);
+            Touch = new TouchInput(input, viewportSize);
             Events = new InputEventSystem(this, text: new TextInputEvents(this, input));
             Clipboard = Clipboards.GetClipboard();
             devices = [Mouse, Keyboard, Gamepad, Touch];

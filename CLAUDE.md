@@ -58,6 +58,11 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 
 - **High priority, scheduled for the graphics-API discussion right after Tier-2:** on Windows-on-ARM64, MonoGame DesktopGL deadlocks on shutdown. `Game.Dispose()` → `SdlGameWindow.Dispose` never returns, because OpenGL there runs through Microsoft's `OpenGLOn12` layer (Snapdragon has no native GL driver). The window closes but the process stays alive. Stride (D3D11) is unaffected.
 - UI scaling (`Canvas.EffectiveScale`, `IcyConfiguration.Scaling`) follows the host's DPI awareness: a host without a PerMonitorV2 `app.manifest` reports `DisplayScale = 1` and is bitmap-stretched by Windows. Both sample hosts ship the manifest.
+- **No touch on MonoGame desktop; decide during the MonoGame backend-consistency pass:**
+  - The core gesture recognizer works, but MonoGame DesktopGL never fills `TouchPanel`. Its SDL layer declares the finger event types but never reads finger data.
+  - SDL2 itself tracks fingers, so polling `SDL_GetTouchFinger` from the connector is a known way out (same `SDL2.dll` as `MonoGameNativeWindow`).
+  - The backends are mixed: `IcyUI.MonoGame` references DesktopGL and `MonoGame Sample` references WindowsDX, but the sample's output ends up with the DesktopGL `MonoGame.Framework.dll`.
+  - Settle the backend before applying engine-binary-dependent fixes like this one.
 
 ## Naming history
 
