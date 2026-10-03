@@ -13,10 +13,6 @@ namespace Icy.Input.Events
     /// </summary>
     internal class ScrollEvents : IScrollEvents
     {
-        private TimeSpan delay;
-        private Point? lastMousePressPosition;
-        private Vector2 deltaTranslation;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="ScrollEvents"/> class.
         /// </summary>
@@ -56,18 +52,6 @@ namespace Icy.Input.Events
 
                 Scroll?.Invoke(this, scrollInfo);
             }
-            else if (lastMousePressPosition != null)
-            {
-                deltaTranslation += new Vector2(mouseInfo.Position.X - lastMousePressPosition.Value.X, mouseInfo.Position.Y - lastMousePressPosition.Value.Y);
-                lastMousePressPosition = mouseInfo.Position;
-                if (delay > RepeatDelay)
-                {
-                    delay -= RepeatDelay;
-                    DirectionScroll(-deltaTranslation);
-                }
-
-                delay += deltaTime;
-            }
         }
 
         /// <inheritdoc/>
@@ -81,9 +65,6 @@ namespace Icy.Input.Events
                 InputSystem.Gamepad.RightStickMove += Gamepad_RightStickMove;
             }
 
-            InputSystem.Mouse.MouseButtonPressed += Mouse_MouseButtonPressed;
-            InputSystem.Mouse.MouseButtonReleased += Mouse_MouseButtonReleased;
-
             InputSystem.Events.Devices.DeviceConnected += Devices_DeviceConnected;
             InputSystem.Events.Devices.DeviceDisconnected += Devices_DeviceDisconnected;
         }
@@ -92,11 +73,6 @@ namespace Icy.Input.Events
         {
             switch (e.Data)
             {
-                case IMouseInput mouse:
-                    mouse.MouseButtonPressed += Mouse_MouseButtonPressed;
-                    mouse.MouseButtonReleased += Mouse_MouseButtonReleased;
-                    break;
-
                 case IGamepadInput gamepad:
                     gamepad.RightStickMove += Gamepad_RightStickMove;
                     break;
@@ -107,11 +83,6 @@ namespace Icy.Input.Events
         {
             switch (e.Data)
             {
-                case IMouseInput mouse:
-                    mouse.MouseButtonPressed -= Mouse_MouseButtonPressed;
-                    mouse.MouseButtonReleased -= Mouse_MouseButtonReleased;
-                    break;
-
                 case IGamepadInput gamepad:
                     gamepad.RightStickMove -= Gamepad_RightStickMove;
                     break;
@@ -127,31 +98,6 @@ namespace Icy.Input.Events
         private void Gamepad_RightStickMove(object? sender, GenericEventArgs<Vector2> e)
         {
             DirectionScroll(e.Data);
-        }
-
-        private void Mouse_MouseButtonPressed(object? sender, GenericEventArgs<MouseButtons> e)
-        {
-            if (sender is IMouseInput mouse && e.Data == MouseButtons.MiddleButton)
-            {
-                lastMousePressPosition = mouse.MouseInfo.Position;
-                delay = default;
-                deltaTranslation = default;
-            }
-        }
-
-        private void Mouse_MouseButtonReleased(object? sender, GenericEventArgs<MouseButtons> e)
-        {
-            if (sender is IMouseInput && (e.Data == MouseButtons.MiddleButton))
-            {
-                OnEndTouchScroll();
-            }
-        }
-
-        private void OnEndTouchScroll()
-        {
-            delay = default;
-            lastMousePressPosition = null;
-            deltaTranslation = default;
         }
     }
 }

@@ -14,9 +14,9 @@ namespace Icy.Input.Events
         /// Occurs when player scrolls controls with mouse.
         /// </summary>
         /// <remarks>
-        /// Raised for the mouse wheel, middle-button autoscroll and the gamepad right stick. Touch scrolling is built on
-        /// <see cref="Gestures.IGestureEvents"/>. Two-dimensional input raises the event twice: once with the
-        /// <b>horizontal</b> and once with the <b>vertical</b> component.
+        /// Raised for the mouse wheel and the gamepad right stick. Touch and middle-mouse drags pan scroll areas through
+        /// <see cref="Gestures.IGestureEvents"/> and <see cref="UI.Controls.ScrollViewer.PanningMode"/>. Two-dimensional input
+        /// raises the event twice: once with the <b>horizontal</b> and once with the <b>vertical</b> component.
         /// </remarks>
         event EventHandler<GenericEventArgs<ScrollInfo>>? Scroll;
     }
