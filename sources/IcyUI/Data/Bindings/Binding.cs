@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup;
 using Icy.UI;
@@ -21,6 +22,8 @@ namespace Icy.Data.Bindings
         private readonly object syncLock = new();
 
         private bool disposedValue;
+        private Exception? error;
+        private bool hasError;
         private bool isEnabled;
         private object? source;
         private IBindingTarget target;
@@ -72,6 +75,12 @@ namespace Icy.Data.Bindings
         }
 
         /// <summary>
+        /// Occurs when <see cref="HasError"/> changes, or when <see cref="Error"/> changes while <see cref="HasError"/>
+        /// stays <see langword="true"/>.
+        /// </summary>
+        public event EventHandler? ErrorChanged;
+
+        /// <summary>
         /// Gets or sets the parameters for the value conversion.
         /// </summary>
         public BindingConverterParameters? ConverterParameters { get; set; }
@@ -82,9 +91,33 @@ namespace Icy.Data.Bindings
         public string? ElementName { get; set; }
 
         /// <summary>
+        /// Gets the failure that put this binding into its error state, or <see langword="null"/> when there is none.
+        /// </summary>
+        /// <remarks>
+        /// For example the type converter's exception for text that doesn't parse, or the exception the source property's own
+        /// setter threw. Exceptions wrapped in <see cref="TargetInvocationException"/> are unwrapped.
+        /// </remarks>
+        public Exception? Error => error;
+
+        /// <summary>
         /// Gets or sets the value that is set when the binding cannot return the value.
         /// </summary>
         public object? FallbackValue { get; set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the last write to the source failed.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Writing to the source never throws for a bad value: the source keeps its previous value and this flag is set
+        /// instead (see <see cref="Error"/>). It clears on the next successful write in either direction.
+        /// </para>
+        /// <para>
+        /// When the target is a <see cref="UIElement"/>, the element carries <see cref="UI.Styles.ControlState.Invalid"/> while
+        /// any of its bindings has an error, so styles can show it.
+        /// </para>
+        /// </remarks>
+        public bool HasError => hasError;
 
         /// <summary>
         /// Gets or sets a value indicating whether the binding is enabled and listening to updates.
@@ -240,22 +273,31 @@ namespace Icy.Data.Bindings
         /// <inheritdoc/>
         public void UpdateSource()
         {
+            if (disposedValue || !IsEnabled)
+                return;
+            if (Source == null)
+                throw new BindingException("Source is null.");
+
             try
             {
-                if (disposedValue || !IsEnabled)
-                    return;
                 SetValueToSource();
+                ClearError();
             }
             catch (Exception ex)
             {
-                if (FallbackValue != null && Source != null)
+                if (FallbackValue != null)
                 {
-                    Path.SetValue(Source, FallbackValue);
+                    try
+                    {
+                        Path.SetValue(Source, FallbackValue);
+                    }
+                    catch (Exception)
+                    {
+                        // The error is recorded below; a failing fallback must not break the never-throw rule.
+                    }
                 }
-                else
-                {
-                    throw new BindingException("Cannot set value to the source.", ex);
-                }
+
+                SetError(ex);
             }
 
             if (Mode == BindingMode.OneTime)
@@ -271,6 +313,7 @@ namespace Icy.Data.Bindings
                     return;
                 IsEnabled = false;
                 SetValueToTarget();
+                ClearError();
                 IsEnabled = true;
             }
             catch (Exception ex) when (ex is not ValidationException)
@@ -303,13 +346,30 @@ namespace Icy.Data.Bindings
 
         private object? ConvertValueToSource(object? value)
         {
-            object? result = value;
             if (ConverterParameters != null)
+                return ConverterParameters.Converter.ConvertTo(null, ConverterParameters.Culture, value, Path.PropertyType);
+            return value is string text ? ConvertTextToSourceType(text) : value;
+        }
+
+        /// <summary>
+        /// Converts typed text to the source property's type with its <see cref="TypeConverter"/> and
+        /// <see cref="CultureInfo.CurrentCulture"/>. Empty text becomes <see langword="null"/> for types that accept it.
+        /// </summary>
+        private object? ConvertTextToSourceType(string text)
+        {
+            Type type = Path.PropertyType;
+            if (type == typeof(string) || type == typeof(object))
+                return text;
+
+            Type? underlying = Nullable.GetUnderlyingType(type);
+            if (text.Length == 0)
             {
-                result = ConverterParameters.Converter.ConvertTo(null, ConverterParameters.Culture, value, Path.PropertyType);
+                if (underlying != null || !type.IsValueType)
+                    return null;
+                throw new FormatException($"An empty value can't be converted to '{type.Name}'.");
             }
 
-            return result;
+            return TypeDescriptor.GetConverter(underlying ?? type).ConvertFromString(null, CultureInfo.CurrentCulture, text);
         }
 
         /// <summary>
@@ -336,6 +396,32 @@ namespace Icy.Data.Bindings
             return result;
         }
 
+        private void SetError(Exception exception)
+        {
+            Exception cause = exception is TargetInvocationException { InnerException: { } inner } ? inner : exception;
+            bool changed = !hasError || !ReferenceEquals(error, cause);
+            hasError = true;
+            error = cause;
+            ReportErrorToTarget(true);
+            if (changed)
+                ErrorChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ClearError()
+        {
+            if (!hasError)
+                return;
+            hasError = false;
+            error = null;
+            ReportErrorToTarget(false);
+            ErrorChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ReportErrorToTarget(bool inError)
+        {
+            // Task 2 replaces this body with: if (Target is UIElement element) element.SetBindingError(this, inError);
+        }
+
         private void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -349,6 +435,7 @@ namespace Icy.Data.Bindings
                 UnsubscribeTarget();
                 if (targetTrigger == UpdateTargetTrigger.EveryFrame)
                     Dispatcher.GetCurrentThreadDispatcher().UnregisterFrameBinding(this);
+                ClearError();
                 Source = null!;
                 disposedValue = true;
             }
@@ -362,14 +449,16 @@ namespace Icy.Data.Bindings
 
         private void SetValueToSource()
         {
-            if (Source == null)
-                throw new BindingException("Source is null.");
             IsEnabled = false;
-            var value = TargetProperty.GetRawValue(Target);
-            object? result = ConvertValueToSource(value);
-
-            Path.SetValue(Source, result);
-            IsEnabled = true;
+            try
+            {
+                object? value = TargetProperty.GetRawValue(Target);
+                Path.SetValue(Source!, ConvertValueToSource(value));
+            }
+            finally
+            {
+                IsEnabled = true;
+            }
         }
 
         private void SetValueToTarget()
