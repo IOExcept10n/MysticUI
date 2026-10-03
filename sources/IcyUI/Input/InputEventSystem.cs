@@ -3,6 +3,7 @@
 using System.Windows.Input;
 using Icy.Input.Devices;
 using Icy.Input.Events;
+using Icy.Input.Gestures;
 
 namespace Icy.Input
 {
@@ -24,6 +25,7 @@ namespace Icy.Input
         /// <param name="scroll">Implementation of the events processor for the scroll events.</param>
         /// <param name="text">Implementation of the events processor for the text events.</param>
         /// <param name="touch">Implementation of the events processor for the touch events.</param>
+        /// <param name="gestures">The gesture recognizer, or <see langword="null"/> for the built-in one.</param>
         public InputEventSystem(
             IInputSystem inputSystem,
             IDeviceEvents? devices = null,
@@ -31,7 +33,8 @@ namespace Icy.Input
             INavigationEvents? navigation = null,
             IScrollEvents? scroll = null,
             ITextEvents? text = null,
-            ITouchEvents? touch = null)
+            ITouchEvents? touch = null,
+            IGestureEvents? gestures = null)
         {
             InputSystem = inputSystem;
             listener = new(inputSystem);
@@ -41,6 +44,7 @@ namespace Icy.Input
             Scroll = scroll ?? new ScrollEvents(InputSystem);
             Text = text ?? new TextEvents(InputSystem);
             Touch = touch ?? new TouchEvents(InputSystem);
+            Gestures = gestures ?? new GestureRecognizer(InputSystem);
         }
 
         /// <inheritdoc/>
@@ -67,6 +71,9 @@ namespace Icy.Input
         /// <inheritdoc/>
         public ITouchEvents Touch { get; }
 
+        /// <inheritdoc/>
+        public IGestureEvents Gestures { get; }
+
         /// <summary>
         /// Initializes the current input event system instance with the provided input event listeners.
         /// </summary>
@@ -74,6 +81,7 @@ namespace Icy.Input
         {
             if (IsInitialized) return;
             listener.Initialize();
+            Gestures.Initialize();
             Devices.Initialize();
             Drag.Initialize();
             Touch.Initialize();
@@ -92,6 +100,7 @@ namespace Icy.Input
         /// <inheritdoc/>
         public void Update(TimeSpan deltaTime)
         {
+            Gestures.Update(deltaTime);
             Drag.Update(deltaTime);
             Touch.Update(deltaTime);
             Text.Update(deltaTime);

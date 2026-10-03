@@ -15,9 +15,11 @@ namespace Icy.Input.Events
     /// This will trigger <b>drag event sequence</b>:
     /// <list type="bullet">
     /// <item>At the start of cursor movement out of range, the <see cref="DragStarted"/> event is raised.</item>
-    /// <item>While all the route of drag process, the <see cref="DragPerforming"/> event is raised every frame.</item>
-    /// <item>At the end of the drag, the <see cref="DragEnded"/> event is raised.</item>
+    /// <item>Whenever the pointer moves during the drag, the <see cref="DragPerforming"/> event is raised.</item>
+    /// <item>When the pointer is released, the <see cref="DragEnded"/> event is raised. When the drag ends without a
+    /// release (a second finger started a pinch, or the contact vanished), <see cref="DragCanceled"/> is raised instead.</item>
     /// </list>
+    /// Drags come from touch and the left mouse button, recognized by <see cref="Gestures.IGestureEvents"/>.
     /// The <see cref="ITouchEvents.Hold"/> event is suppressed while dragging.
     /// However, the <see cref="ITouchEvents.TouchDown"/> and <see cref="ITouchEvents.TouchUp"/> events are performed anyway.
     /// </remarks>
@@ -29,7 +31,7 @@ namespace Icy.Input.Events
         event EventHandler<AcceptableEventArgs<Point>>? DragStarted;
 
         /// <summary>
-        /// Occurs every frame while the drag sequence is performing.
+        /// Occurs when the pointer moves while the drag sequence is performing.
         /// </summary>
         event EventHandler<GenericEventArgs<Point>>? DragPerforming;
 
@@ -39,9 +41,9 @@ namespace Icy.Input.Events
         event EventHandler<GenericEventArgs<Point>>? DragEnded;
 
         /// <summary>
-        /// Notifies to start listening for the mouse movement.
+        /// Occurs when a drag ends without being released - a second finger started a pinch, or the contact vanished.
+        /// Handlers must undo the drag rather than complete it (no drop).
         /// </summary>
-        /// <param name="lastCursorPosition">Last cursor position to start drag tracking.</param>
-        void OnMouseMove(Point lastCursorPosition);
+        event EventHandler<GenericEventArgs<Point>>? DragCanceled;
     }
 }

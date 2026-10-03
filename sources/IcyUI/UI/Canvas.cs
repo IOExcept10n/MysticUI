@@ -689,10 +689,28 @@ namespace Icy.UI
             events.Drag.DragStarted += OnDragStarted;
             events.Drag.DragPerforming += OnDragPerforming;
             events.Drag.DragEnded += OnDragEnded;
+            events.Drag.DragCanceled += OnDragCanceled;
             events.Scroll.Scroll += OnScroll;
             events.Navigation.FocusNext += (_, _) => MoveFocus(forward: true);
             events.Navigation.FocusPrevious += (_, _) => MoveFocus(forward: false);
             events.Navigation.CloseModal += OnCloseModal;
+        }
+
+        private void OnDragCanceled(object? sender, GenericEventArgs<Point> e)
+        {
+            // Release the dragged element like a normal end, so it drops any capture - but never complete a drag-drop:
+            // the payload must not land on whatever target happens to be under the finger.
+            foreach (UIElement element in SelfAndAncestors(draggedElement))
+                element.OnDragEnded(e.Data);
+            draggedElement = null;
+
+            if (dragDropSession is { } session)
+            {
+                session.CurrentTarget?.OnDragLeave(session);
+                if (session.Preview != null)
+                    RemoveOverlay(session.Preview);
+                dragDropSession = null;
+            }
         }
 
         private void OnDragEnded(object? sender, GenericEventArgs<Point> e)

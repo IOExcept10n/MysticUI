@@ -2,21 +2,22 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using Icy.Data;
-using Icy.Rendering;
+using Icy.Input.Gestures;
 
 namespace Icy.Input.Events
 {
     /// <summary>
-    /// Represents a default implementation of the <see cref="IDragEvents"/> interface.
+    /// Represents a default implementation of the <see cref="IDragEvents"/> interface: forwards the touch and left-mouse
+    /// drags recognized by <see cref="IGestureEvents"/>.
     /// </summary>
     internal class DragEvens : IDragEvents
     {
-        private DragState state;
+        private bool active;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DragEvens"/> class.
         /// </summary>
-        /// <param name="inputSystem">An instance of the <see cref="IInputSystem"/> for this event processor.</param>
+        /// <param name="inputSystem">The input system whose gestures are forwarded.</param>
         public DragEvens(IInputSystem inputSystem)
         {
             InputSystem = inputSystem;
@@ -26,17 +27,13 @@ namespace Icy.Input.Events
         public event EventHandler<GenericEventArgs<Point>>? DragEnded;
 
         /// <inheritdoc/>
+        public event EventHandler<GenericEventArgs<Point>>? DragCanceled;
+
+        /// <inheritdoc/>
         public event EventHandler<GenericEventArgs<Point>>? DragPerforming;
 
         /// <inheritdoc/>
         public event EventHandler<AcceptableEventArgs<Point>>? DragStarted;
-
-        private enum DragState
-        {
-            None,
-            MouseDrag,
-            TouchDrag,
-        }
 
         /// <inheritdoc/>
         public IInputSystem InputSystem { get; }
@@ -50,76 +47,53 @@ namespace Icy.Input.Events
             if (IsInitialized) return;
             IsInitialized = true;
 
-            if (InputSystem.Touch != null)
-            {
-                InputSystem.Touch.Drag += Touch_Drag;
-            }
-
-            InputSystem.Mouse.MouseButtonReleased += Mouse_MouseButtonReleased;
-        }
-
-        /// <inheritdoc/>
-        public void OnMouseMove(Point lastCursorPosition)
-        {
-            if (state == DragState.None)
-            {
-                BeginDrag(lastCursorPosition);
-                state = DragState.MouseDrag;
-            }
+            IGestureEvents gestures = InputSystem.Events.Gestures;
+            gestures.DragStarted += OnGestureDragStarted;
+            gestures.DragMoved += OnGestureDragMoved;
+            gestures.DragCompleted += OnGestureDragCompleted;
+            gestures.DragCanceled += OnGestureDragCanceled;
         }
 
         /// <inheritdoc/>
         public void Update(TimeSpan deltaTime)
         {
-            if (state == DragState.MouseDrag)
-            {
-                // DragPerforming's documented contract (see UIElement.OnDragPerforming) is "the drag's current
-                // position, in screen/window space" - the same absolute-position contract DragStarted/DragEnded
-                // already follow. This used to pass the incremental delta since the last call instead, which
-                // consumers like Slider.UpdateValueFromPoint (via PointToLocal, which expects a real screen
-                // coordinate) treated as an absolute position - producing a near-random result every frame instead
-                // of tracking the cursor, i.e. dragging would start correctly but then appear to "fail" instantly.
-                DragPerforming?.Invoke(this, InputSystem.Mouse.MouseInfo.Position);
-            }
         }
 
-        private void BeginDrag(Point position)
+        // Middle-mouse drags are pans for scrolling content (see PointerKind.MouseMiddle), never control drags.
+        private static bool IsControlDrag(PointerKind kind) => kind is PointerKind.Touch or PointerKind.MouseLeft;
+
+        private void OnGestureDragStarted(object? sender, AcceptableEventArgs<DragInfo> e)
         {
-            var args = new AcceptableEventArgs<Point>() { Data = position };
+            if (!IsControlDrag(e.Data.Kind))
+                return;
+
+            var args = new AcceptableEventArgs<Point> { Data = e.Data.Start };
             DragStarted?.Invoke(this, args);
+            e.Cancel = args.Cancel;
+            e.Handled = args.Handled;
+            active = !args.Cancel;
         }
 
-        private void EndDrag(Point position)
+        private void OnGestureDragMoved(object? sender, GenericEventArgs<DragInfo> e)
         {
-            state = DragState.None;
-            DragEnded?.Invoke(this, position);
+            if (active && IsControlDrag(e.Data.Kind))
+                DragPerforming?.Invoke(this, e.Data.Position);
         }
 
-        private void Mouse_MouseButtonReleased(object? sender, GenericEventArgs<Devices.MouseButtons> e)
+        private void OnGestureDragCompleted(object? sender, GenericEventArgs<DragInfo> e)
         {
-            if (state == DragState.MouseDrag)
-            {
-                EndDrag(InputSystem.Mouse.MouseInfo.Position);
-            }
+            if (!active || !IsControlDrag(e.Data.Kind))
+                return;
+            active = false;
+            DragEnded?.Invoke(this, e.Data.Position);
         }
 
-        private void Touch_Drag(object? sender, GenericEventArgs<Devices.TranslationInfo> e)
+        private void OnGestureDragCanceled(object? sender, GenericEventArgs<DragInfo> e)
         {
-            if (state == DragState.None)
-            {
-                BeginDrag(e.Data.TranslationStart);
-                state = DragState.TouchDrag;
-            }
-            else if (!e.Data.IsPerformed)
-            {
-                // Same absolute-position contract as the mouse path above - TranslationStart + TotalTranslation
-                // is the gesture's current absolute position (mirrors EndDrag's own computation below).
-                DragPerforming?.Invoke(this, (e.Data.TranslationStart.ToVector() + e.Data.TotalTranslation).ToPoint());
-            }
-            else
-            {
-                EndDrag((e.Data.TranslationStart.ToVector() + e.Data.TotalTranslation).ToPoint());
-            }
+            if (!active || !IsControlDrag(e.Data.Kind))
+                return;
+            active = false;
+            DragCanceled?.Invoke(this, e.Data.Position);
         }
     }
 }

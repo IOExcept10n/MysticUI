@@ -166,6 +166,26 @@ namespace Icy.Tests.Input
         }
 
         [Fact]
+        public void DragCanceled_DoesNotDrop_AndRemovesPreview()
+        {
+            // A second finger (pinch) or a vanished contact cancels the drag - the payload must not land on the target
+            // under the finger.
+            var (canvas, input) = CreateCanvas();
+            var preview = new UIElement();
+            AddSource(canvas, new object(), preview);
+            var target = AddTarget(canvas, accepts: true, new Rectangle(200, 0, 100, 100));
+            canvas.Render();
+
+            input.Events.Drag.RaiseDragStarted(new Point(50, 50));
+            input.Events.Drag.RaiseDragPerforming(new Point(250, 50));
+            input.Events.Drag.RaiseDragCanceled(new Point(250, 50));
+
+            Assert.False(target.DroppedOn);
+            Assert.Equal(1, target.LeaveCount);
+            Assert.Empty(canvas.Overlays);
+        }
+
+        [Fact]
         public void Preview_FollowsTheCursorInSurfaceSpace_AtDisplayScale2()
         {
             // Overlays live in surface space (physical ÷ EffectiveScale), so the physical cursor point must be converted

@@ -8,6 +8,7 @@ using Icy.Input;
 using Icy.Input.Clipboard;
 using Icy.Input.Devices;
 using Icy.Input.Events;
+using Icy.Input.Gestures;
 
 // These fakes must satisfy full interface contracts (ITouchEvents, IDragEvents, etc.) even though most tests only
 // exercise a handful of the events - unused ones are still required members, not dead code.
@@ -109,12 +110,6 @@ namespace Icy.Tests.Input
 
         public event EventHandler<GenericEventArgs<Point>>? TouchUp;
 
-        public TimeSpan MaxMultiTapDelay { get; set; }
-
-        public TimeSpan MinHoldDelay { get; set; }
-
-        public float HoldAreaSize { get; set; }
-
         public void RaiseHold(Point point) => Hold?.Invoke(this, new GenericEventArgs<Point>(point));
 
         public void RaiseTap(TouchInfo info) => Tap?.Invoke(this, new GenericEventArgs<TouchInfo>(info));
@@ -135,15 +130,72 @@ namespace Icy.Tests.Input
 
         public event EventHandler<GenericEventArgs<Point>>? DragEnded;
 
-        public void OnMouseMove(Point lastCursorPosition)
-        {
-        }
+        public event EventHandler<GenericEventArgs<Point>>? DragCanceled;
+
+        public void RaiseDragCanceled(Point point) => DragCanceled?.Invoke(this, new GenericEventArgs<Point>(point));
 
         public void RaiseDragEnded(Point point) => DragEnded?.Invoke(this, new GenericEventArgs<Point>(point));
 
         public void RaiseDragPerforming(Point point) => DragPerforming?.Invoke(this, new GenericEventArgs<Point>(point));
 
         public void RaiseDragStarted(Point point) => DragStarted?.Invoke(this, new AcceptableEventArgs<Point> { Data = point });
+    }
+
+    /// <summary>
+    /// A fake <see cref="IGestureEvents"/> that lets tests raise recognized gestures directly.
+    /// </summary>
+    public sealed class FakeGestureEvents(IInputSystem inputSystem) : FakeInputEventProviderBase(inputSystem), IGestureEvents
+    {
+        public event EventHandler<GenericEventArgs<PointerInfo>>? PointerPressed;
+
+        public event EventHandler<GenericEventArgs<PointerInfo>>? PointerReleased;
+
+        public event EventHandler<GenericEventArgs<TapInfo>>? Tapped;
+
+        public event EventHandler<GenericEventArgs<PointerInfo>>? Held;
+
+        public event EventHandler<AcceptableEventArgs<DragInfo>>? DragStarted;
+
+        public event EventHandler<GenericEventArgs<DragInfo>>? DragMoved;
+
+        public event EventHandler<GenericEventArgs<DragInfo>>? DragCompleted;
+
+        public event EventHandler<GenericEventArgs<DragInfo>>? DragCanceled;
+
+        public event EventHandler<GenericEventArgs<PinchInfo>>? PinchStarted;
+
+        public event EventHandler<GenericEventArgs<PinchInfo>>? PinchChanged;
+
+        public event EventHandler<GenericEventArgs<PinchInfo>>? PinchCompleted;
+
+        public GestureSettings Settings { get; } = new();
+
+        public void RaisePointerPressed(PointerInfo info) => PointerPressed?.Invoke(this, info);
+
+        public void RaisePointerReleased(PointerInfo info) => PointerReleased?.Invoke(this, info);
+
+        public void RaiseTapped(TapInfo info) => Tapped?.Invoke(this, info);
+
+        public void RaiseHeld(PointerInfo info) => Held?.Invoke(this, info);
+
+        public AcceptableEventArgs<DragInfo> RaiseDragStarted(DragInfo info)
+        {
+            var args = new AcceptableEventArgs<DragInfo> { Data = info };
+            DragStarted?.Invoke(this, args);
+            return args;
+        }
+
+        public void RaiseDragMoved(DragInfo info) => DragMoved?.Invoke(this, info);
+
+        public void RaiseDragCompleted(DragInfo info) => DragCompleted?.Invoke(this, info);
+
+        public void RaiseDragCanceled(DragInfo info) => DragCanceled?.Invoke(this, info);
+
+        public void RaisePinchChanged(PinchInfo info) => PinchChanged?.Invoke(this, info);
+
+        public void RaisePinchStarted(PinchInfo info) => PinchStarted?.Invoke(this, info);
+
+        public void RaisePinchCompleted(PinchInfo info) => PinchCompleted?.Invoke(this, info);
     }
 
     /// <summary>
@@ -343,6 +395,7 @@ namespace Icy.Tests.Input
             Navigation = new FakeNavigationEvents(inputSystem);
             Scroll = new FakeScrollEvents(inputSystem);
             Devices = new FakeDeviceEvents(inputSystem);
+            Gestures = new FakeGestureEvents(inputSystem);
         }
 
         public IInputSystem InputSystem { get; }
@@ -370,6 +423,10 @@ namespace Icy.Tests.Input
         public FakeDeviceEvents Devices { get; }
 
         IDeviceEvents IInputEventSystem.Devices => Devices;
+
+        public FakeGestureEvents Gestures { get; }
+
+        IGestureEvents IInputEventSystem.Gestures => Gestures;
 
         public bool IsInitialized { get; private set; }
 

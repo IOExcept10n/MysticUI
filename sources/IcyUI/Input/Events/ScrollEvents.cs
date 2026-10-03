@@ -81,11 +81,6 @@ namespace Icy.Input.Events
                 InputSystem.Gamepad.RightStickMove += Gamepad_RightStickMove;
             }
 
-            if (InputSystem.Touch != null)
-            {
-                InputSystem.Touch.Swipe += Touch_Swipe;
-            }
-
             InputSystem.Mouse.MouseButtonPressed += Mouse_MouseButtonPressed;
             InputSystem.Mouse.MouseButtonReleased += Mouse_MouseButtonReleased;
 
@@ -105,10 +100,6 @@ namespace Icy.Input.Events
                 case IGamepadInput gamepad:
                     gamepad.RightStickMove += Gamepad_RightStickMove;
                     break;
-
-                case ITouchInput touch:
-                    touch.Swipe += Touch_Swipe;
-                    break;
             }
         }
 
@@ -123,10 +114,6 @@ namespace Icy.Input.Events
 
                 case IGamepadInput gamepad:
                     gamepad.RightStickMove -= Gamepad_RightStickMove;
-                    break;
-
-                case ITouchInput touch:
-                    touch.Swipe -= Touch_Swipe;
                     break;
             }
         }
@@ -158,12 +145,6 @@ namespace Icy.Input.Events
             {
                 OnEndTouchScroll();
             }
-        }
-
-        private void Touch_Swipe(object? sender, GenericEventArgs<TranslationInfo> e)
-        {
-            // When scrolling with swipes, scroll should be performed to the direction opposite from the swipe direction.
-            DirectionScroll(-e.Data.DeltaTranslation);
         }
 
         private void OnEndTouchScroll()

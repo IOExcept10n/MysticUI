@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using Icy.Input.Devices;
 using Icy.Input.Events;
+using Icy.Input.Gestures;
 
 namespace Icy.Input
 {
@@ -18,6 +19,12 @@ namespace Icy.Input
         /// Gets the listener for the touch events.
         /// </summary>
         ITouchEvents Touch { get; }
+
+        /// <summary>
+        /// Gets the gestures recognized from touch contacts and mouse buttons. They update before every other event provider,
+        /// and the touch and drag providers are built on top of them.
+        /// </summary>
+        IGestureEvents Gestures { get; }
 
         /// <summary>
         /// Gets the listener for the text input events.

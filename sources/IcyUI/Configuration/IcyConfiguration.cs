@@ -29,6 +29,9 @@ namespace Icy.Configuration
         public IcyConfiguration(IInputSystem input, AssetConfiguration assets, IRenderContext renderContext, ReflectionConfiguration types, ThemeConfiguration? theme = null, ScalingConfiguration? scaling = null)
         {
             Input = input;
+
+            // Gesture slop is measured in DIPs: it follows the OS display scale, never the UI scale.
+            input.Events.Gestures.Settings.DisplayScaleSource = () => renderContext.DisplayScale;
             Assets = assets;
             RenderContext = renderContext;
             Types = types;

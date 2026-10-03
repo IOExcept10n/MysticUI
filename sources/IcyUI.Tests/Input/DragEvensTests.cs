@@ -1,63 +1,77 @@
 using System.Drawing;
-using Icy.Data;
-using Icy.Input.Devices;
+using System.Numerics;
 using Icy.Input.Events;
+using Icy.Input.Gestures;
 using Xunit;
 
 namespace Icy.Tests.Input
 {
-    /// <summary>
-    /// Covers <see cref="DragEvens"/>, the default <see cref="IDragEvents"/> implementation - specifically that
-    /// <see cref="IDragEvents.DragPerforming"/> carries an absolute screen position, matching the documented
-    /// contract on <see cref="Icy.UI.UIElement.OnDragPerforming(Point)"/> ("the drag's current position, in
-    /// screen/window space") and the same contract <see cref="IDragEvents.DragStarted"/>/
-    /// <see cref="IDragEvents.DragEnded"/> already follow.
-    /// </summary>
     public class DragEvensTests
     {
-        [Fact]
-        public void MouseDrag_DragPerforming_CarriesAbsolutePositionNotDelta()
+        private static (DragEvens Drag, FakeGestureEvents Gestures) Create()
         {
-            // Regression: this used to pass the incremental delta since the last Update() call instead of the
-            // absolute cursor position - consumers like Slider.UpdateValueFromPoint (via PointToLocal, which
-            // expects a real screen coordinate) treated that delta as an absolute position, producing a
-            // near-random result every frame instead of tracking the cursor.
             var input = new FakeInputSystem();
-            var dragEvents = new DragEvens(input);
-            dragEvents.Initialize();
+            var drag = new DragEvens(input);
+            drag.Initialize();
+            return (drag, input.Events.Gestures);
+        }
 
-            Point? performing = null;
-            dragEvents.DragPerforming += (_, e) => performing = e.Data;
+        private static DragInfo Info(PointerKind kind, int x, int y) => new(kind, new Point(0, 0), new Point(x, y), Vector2.Zero, Vector2.Zero);
 
-            input.Mouse.MouseInfo = new MouseInfo(new Point(10, 10));
-            dragEvents.OnMouseMove(new Point(10, 10));
+        [Fact]
+        public void TouchAndLeftMouseDrags_AreForwardedWithAbsolutePositions()
+        {
+            var (drag, gestures) = Create();
+            var log = new List<string>();
+            drag.DragStarted += (_, e) => log.Add($"start {e.Data.X},{e.Data.Y}");
+            drag.DragPerforming += (_, e) => log.Add($"move {e.Data.X},{e.Data.Y}");
+            drag.DragEnded += (_, e) => log.Add($"end {e.Data.X},{e.Data.Y}");
 
-            input.Mouse.MouseInfo = new MouseInfo(new Point(50, 80));
-            dragEvents.Update(TimeSpan.Zero);
+            gestures.RaiseDragStarted(new DragInfo(PointerKind.Touch, new Point(10, 10), new Point(30, 10), Vector2.Zero, Vector2.Zero));
+            gestures.RaiseDragMoved(Info(PointerKind.Touch, 50, 80));
+            gestures.RaiseDragMoved(Info(PointerKind.Touch, 200, 0));
+            gestures.RaiseDragCompleted(Info(PointerKind.Touch, 210, 0));
 
-            Assert.Equal(new Point(50, 80), performing);
+            Assert.Equal(new[] { "start 10,10", "move 50,80", "move 200,0", "end 210,0" }, log);
         }
 
         [Fact]
-        public void MouseDrag_MultipleUpdates_EachCarriesCurrentAbsolutePosition()
+        public void MiddleMouseDrags_AreNotForwarded()
         {
-            var input = new FakeInputSystem();
-            var dragEvents = new DragEvens(input);
-            dragEvents.Initialize();
+            var (drag, gestures) = Create();
+            bool raised = false;
+            drag.DragStarted += (_, _) => raised = true;
 
-            Point? performing = null;
-            dragEvents.DragPerforming += (_, e) => performing = e.Data;
+            gestures.RaiseDragStarted(Info(PointerKind.MouseMiddle, 50, 0));
 
-            input.Mouse.MouseInfo = new MouseInfo(new Point(0, 0));
-            dragEvents.OnMouseMove(new Point(0, 0));
+            Assert.False(raised);
+        }
 
-            input.Mouse.MouseInfo = new MouseInfo(new Point(20, 0));
-            dragEvents.Update(TimeSpan.Zero);
-            Assert.Equal(new Point(20, 0), performing);
+        [Fact]
+        public void CanceledGestureDrag_RaisesDragCanceled_NotDragEnded()
+        {
+            var (drag, gestures) = Create();
+            bool ended = false;
+            Point? canceled = null;
+            drag.DragEnded += (_, _) => ended = true;
+            drag.DragCanceled += (_, e) => canceled = e.Data;
 
-            input.Mouse.MouseInfo = new MouseInfo(new Point(200, 0));
-            dragEvents.Update(TimeSpan.Zero);
-            Assert.Equal(new Point(200, 0), performing);
+            gestures.RaiseDragStarted(Info(PointerKind.Touch, 30, 0));
+            gestures.RaiseDragCanceled(Info(PointerKind.Touch, 40, 0));
+
+            Assert.False(ended);
+            Assert.Equal(new Point(40, 0), canceled);
+        }
+
+        [Fact]
+        public void CancelingDragStarted_PropagatesToTheGesture()
+        {
+            var (drag, gestures) = Create();
+            drag.DragStarted += (_, e) => e.Cancel = true;
+
+            var args = gestures.RaiseDragStarted(Info(PointerKind.Touch, 30, 0));
+
+            Assert.True(args.Cancel);
         }
     }
 }

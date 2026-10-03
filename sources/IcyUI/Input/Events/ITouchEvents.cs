@@ -8,6 +8,9 @@ namespace Icy.Input.Events
     /// <summary>
     /// Represents an interface for the touch events.
     /// </summary>
+    /// <remarks>
+    /// Built on <see cref="Gestures.IGestureEvents"/>; its thresholds live in <see cref="Gestures.IGestureEvents.Settings"/>.
+    /// </remarks>
     public interface ITouchEvents : IInputEventProvider
     {
         /// <summary>
@@ -29,24 +32,6 @@ namespace Icy.Input.Events
         /// Occurs when the touch event has ended. Touch end position is transferred to the event arguments.
         /// </summary>
         event EventHandler<GenericEventArgs<Point>>? TouchUp;
-
-        /// <summary>
-        /// Gets or sets an option for the maximal delay for the multitap registering.
-        /// </summary>
-        TimeSpan MaxMultiTapDelay { get; set; }
-
-        /// <summary>
-        /// Gets or sets an option for the minimal delay for the <see cref="Hold"/> event.
-        /// </summary>
-        TimeSpan MinHoldDelay { get; set; }
-
-        /// <summary>
-        /// Gets or sets an option for the maximal distance of the touch to register hold event.
-        /// </summary>
-        /// <remarks>
-        /// If the cursor is moved out of the hold area, the <see cref="IDragEvents"/> drag sequence will be started.
-        /// </remarks>
-        float HoldAreaSize { get; set; }
     }
 
     /// <summary>

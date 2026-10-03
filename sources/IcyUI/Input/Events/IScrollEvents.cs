@@ -14,9 +14,9 @@ namespace Icy.Input.Events
         /// Occurs when player scrolls controls with mouse.
         /// </summary>
         /// <remarks>
-        /// Note that long-timed press with gestures can be recognized as <see cref="IDragEvents"/>.
-        /// This method handle only mouse wheel scroll and touch swipes.
-        /// When the swipe is performed, the event is performed two times: with <b>vertical</b> and <b>horizontal</b> components separated.
+        /// Raised for the mouse wheel, middle-button autoscroll and the gamepad right stick. Touch scrolling is built on
+        /// <see cref="Gestures.IGestureEvents"/>. Two-dimensional input raises the event twice: once with the
+        /// <b>horizontal</b> and once with the <b>vertical</b> component.
         /// </remarks>
         event EventHandler<GenericEventArgs<ScrollInfo>>? Scroll;
     }
