@@ -120,10 +120,14 @@ namespace Icy.Tests.Input
     }
 
     /// <summary>
-    /// A fake <see cref="IDragEvents"/> that lets tests synthesize drag-sequence payloads directly.
+    /// A fake <see cref="IDragEvents"/> that lets tests synthesize drag-sequence payloads directly. Each raise is also forwarded
+    /// to <see cref="FakeGestureEvents"/> as a <see cref="PointerKind.MouseLeft"/> gesture, which is what <see cref="Canvas"/> routes.
     /// </summary>
-    public sealed class FakeDragEvents(IInputSystem inputSystem) : FakeInputEventProviderBase(inputSystem), IDragEvents
+    public sealed class FakeDragEvents(IInputSystem inputSystem, FakeGestureEvents gestures) : FakeInputEventProviderBase(inputSystem), IDragEvents
     {
+        private Point start;
+        private Point last;
+
         public event EventHandler<AcceptableEventArgs<Point>>? DragStarted;
 
         public event EventHandler<GenericEventArgs<Point>>? DragPerforming;
@@ -132,13 +136,31 @@ namespace Icy.Tests.Input
 
         public event EventHandler<GenericEventArgs<Point>>? DragCanceled;
 
-        public void RaiseDragCanceled(Point point) => DragCanceled?.Invoke(this, new GenericEventArgs<Point>(point));
+        public void RaiseDragCanceled(Point point)
+        {
+            DragCanceled?.Invoke(this, new GenericEventArgs<Point>(point));
+            gestures.RaiseDragCanceled(new DragInfo(PointerKind.MouseLeft, start, point, Vector2.Zero, Vector2.Zero));
+        }
 
-        public void RaiseDragEnded(Point point) => DragEnded?.Invoke(this, new GenericEventArgs<Point>(point));
+        public void RaiseDragEnded(Point point)
+        {
+            DragEnded?.Invoke(this, new GenericEventArgs<Point>(point));
+            gestures.RaiseDragCompleted(new DragInfo(PointerKind.MouseLeft, start, point, Vector2.Zero, Vector2.Zero));
+        }
 
-        public void RaiseDragPerforming(Point point) => DragPerforming?.Invoke(this, new GenericEventArgs<Point>(point));
+        public void RaiseDragPerforming(Point point)
+        {
+            DragPerforming?.Invoke(this, new GenericEventArgs<Point>(point));
+            gestures.RaiseDragMoved(new DragInfo(PointerKind.MouseLeft, start, point, new Vector2(point.X - last.X, point.Y - last.Y), Vector2.Zero));
+            last = point;
+        }
 
-        public void RaiseDragStarted(Point point) => DragStarted?.Invoke(this, new AcceptableEventArgs<Point> { Data = point });
+        public void RaiseDragStarted(Point point)
+        {
+            start = last = point;
+            DragStarted?.Invoke(this, new AcceptableEventArgs<Point> { Data = point });
+            gestures.RaiseDragStarted(new DragInfo(PointerKind.MouseLeft, point, point, Vector2.Zero, Vector2.Zero));
+        }
     }
 
     /// <summary>
@@ -381,13 +403,13 @@ namespace Icy.Tests.Input
         public FakeInputEventSystem(IInputSystem inputSystem)
         {
             InputSystem = inputSystem;
-            Drag = new FakeDragEvents(inputSystem);
             Touch = new FakeTouchEvents(inputSystem);
             Text = new FakeTextEvents(inputSystem);
             Navigation = new FakeNavigationEvents(inputSystem);
             Scroll = new FakeScrollEvents(inputSystem);
             Devices = new FakeDeviceEvents(inputSystem);
             Gestures = new FakeGestureEvents(inputSystem);
+            Drag = new FakeDragEvents(inputSystem, Gestures);
         }
 
         public IInputSystem InputSystem { get; }

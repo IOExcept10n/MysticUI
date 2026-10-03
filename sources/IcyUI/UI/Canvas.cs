@@ -10,6 +10,7 @@ using Icy.Data.Bindings;
 using Icy.Data.Markup;
 using Icy.Input;
 using Icy.Input.DragDrop;
+using Icy.Input.Gestures;
 using Icy.Rendering;
 using Icy.Rendering.Brushes;
 using Icy.UI.Styles;
@@ -45,7 +46,7 @@ namespace Icy.UI
         private bool isVisible = true;
         private Vector2 offset;
         private float opacity = 1f;
-        private UIElement? draggedElement;
+        private UIElement? dragOwner;
         private UIElement? pressedElement;
         private ReferenceFit? referenceFit;
         private Size? referenceSize;
@@ -320,6 +321,8 @@ namespace Icy.UI
                 return surfaceTransform;
             }
         }
+
+        private UIElement? LiveDragOwner => dragOwner is { } owner && ReferenceEquals(owner.Canvas, this) ? owner : null;
 
         /// <summary>
         /// Adds a UI element to the canvas.
@@ -686,76 +689,61 @@ namespace Icy.UI
             events.Touch.TouchDown += OnTouchDown;
             events.Touch.TouchUp += OnTouchUp;
             events.Touch.Tap += OnTap;
-            events.Drag.DragStarted += OnDragStarted;
-            events.Drag.DragPerforming += OnDragPerforming;
-            events.Drag.DragEnded += OnDragEnded;
-            events.Drag.DragCanceled += OnDragCanceled;
+            events.Gestures.DragStarted += OnGestureDragStarted;
+            events.Gestures.DragMoved += OnGestureDragMoved;
+            events.Gestures.DragCompleted += OnGestureDragCompleted;
+            events.Gestures.DragCanceled += OnGestureDragCanceled;
             events.Scroll.Scroll += OnScroll;
             events.Navigation.FocusNext += (_, _) => MoveFocus(forward: true);
             events.Navigation.FocusPrevious += (_, _) => MoveFocus(forward: false);
             events.Navigation.CloseModal += OnCloseModal;
         }
 
-        private void OnDragCanceled(object? sender, GenericEventArgs<Point> e)
+        private UIElement? ResolveDragOwner(UIElement? hit, in DragInfo drag)
         {
-            // Release the dragged element like a normal end, so it drops any capture - but never complete a drag-drop:
-            // the payload must not land on whatever target happens to be under the finger.
-            foreach (UIElement element in SelfAndAncestors(draggedElement))
-                element.OnDragEnded(e.Data);
-            draggedElement = null;
-
-            if (dragDropSession is { } session)
+            UIElement? fallback = null;
+            foreach (UIElement element in SelfAndAncestors(hit))
             {
-                session.CurrentTarget?.OnDragLeave(session);
-                if (session.Preview != null)
-                    RemoveOverlay(session.Preview);
-                dragDropSession = null;
+                Vector2 direction = element.PointToLocal(drag.Position) - element.PointToLocal(drag.Start);
+                DragAxes axes = element.GetDragAxes(new DragClaimContext(drag.Kind, drag.Start, direction, drag.StartedFromHold));
+                if (axes == DragAxes.None)
+                    continue;
+
+                DragAxes main = MathF.Abs(direction.X) >= MathF.Abs(direction.Y) ? DragAxes.Horizontal : DragAxes.Vertical;
+                if ((axes & main) != 0)
+                    return element;
+                fallback ??= element;
             }
+
+            return fallback;
         }
 
-        private void OnDragEnded(object? sender, GenericEventArgs<Point> e)
+        private void OnGestureDragStarted(object? sender, AcceptableEventArgs<DragInfo> e)
         {
-            foreach (UIElement element in SelfAndAncestors(draggedElement))
-                element.OnDragEnded(e.Data);
-            draggedElement = null;
-
-            if (dragDropSession is { } session)
+            DragInfo drag = e.Data;
+            UIElement? hit = HitTest(drag.Start);
+            dragOwner = ResolveDragOwner(hit, drag);
+            if (dragOwner != null)
             {
-                session.ScreenPoint = e.Data;
-                if (session.CurrentTarget is { } target && target.CanDrop(session))
-                    target.OnDrop(session);
-                if (session.Preview != null)
-                    RemoveOverlay(session.Preview);
-                dragDropSession = null;
+                dragOwner.OnDragStarted(drag.Start);
+
+                // The gesture already moved past the drag threshold: let the owner catch up to the pointer this frame.
+                if (drag.Position != drag.Start)
+                    dragOwner.OnDragPerforming(drag.Position);
             }
-        }
 
-        private void OnDragPerforming(object? sender, GenericEventArgs<Point> e)
-        {
-            foreach (UIElement element in SelfAndAncestors(draggedElement))
-                element.OnDragPerforming(e.Data);
+            // Touch picks up drag-and-drop sources only after a press-and-hold (a plain finger drag scrolls); the left
+            // mouse starts it immediately; middle-mouse drags only pan.
+            bool dragDropAllowed = drag.Kind == PointerKind.MouseLeft || (drag.Kind == PointerKind.Touch && drag.StartedFromHold);
+            if (!dragDropAllowed)
+                return;
 
-            if (dragDropSession is { } session)
+            foreach (UIElement element in SelfAndAncestors(hit))
             {
-                session.ScreenPoint = e.Data;
-                if (session.Preview != null)
-                    PositionOverlayAtScreenPoint(session.Preview, e.Data);
-                UpdateDragDropTarget(session, e.Data);
-            }
-        }
-
-        private void OnDragStarted(object? sender, AcceptableEventArgs<Point> e)
-        {
-            draggedElement = HitTest(e.Data);
-            foreach (UIElement element in SelfAndAncestors(draggedElement))
-                element.OnDragStarted(e.Data);
-
-            foreach (UIElement element in SelfAndAncestors(draggedElement))
-            {
-                if (element is IDragSource source && source.TryBeginDrag(e.Data, out object? payload, out UIElement? preview))
+                if (element is IDragSource source && source.TryBeginDrag(drag.Start, out object? payload, out UIElement? preview))
                 {
                     // TryBeginDrag's own contract requires a non-null payload on a true return.
-                    dragDropSession = new DragDropSession(element, payload!, e.Data) { Preview = preview };
+                    dragDropSession = new DragDropSession(element, payload!, drag.Start) { Preview = preview };
                     if (preview != null)
                     {
                         // The preview's top-left sits exactly on the cursor (see PositionOverlayAtScreenPoint) and
@@ -765,11 +753,63 @@ namespace Icy.UI
                         // target underneath. The ghost visual must never be a target itself.
                         preview.IsHitTestVisible = false;
                         AddOverlay(preview);
-                        PositionOverlayAtScreenPoint(preview, e.Data);
+                        PositionOverlayAtScreenPoint(preview, drag.Start);
                     }
 
                     break;
                 }
+            }
+        }
+
+        private void OnGestureDragMoved(object? sender, GenericEventArgs<DragInfo> e)
+        {
+            Point position = e.Data.Position;
+            LiveDragOwner?.OnDragPerforming(position);
+
+            if (dragDropSession is { } session)
+            {
+                session.ScreenPoint = position;
+                if (session.Preview != null)
+                    PositionOverlayAtScreenPoint(session.Preview, position);
+                UpdateDragDropTarget(session, position);
+            }
+        }
+
+        private void OnGestureDragCompleted(object? sender, GenericEventArgs<DragInfo> e)
+        {
+            Point position = e.Data.Position;
+            if (LiveDragOwner is { } owner)
+            {
+                owner.OnDragFling(e.Data.Velocity);
+                owner.OnDragEnded(position);
+            }
+
+            dragOwner = null;
+
+            if (dragDropSession is { } session)
+            {
+                session.ScreenPoint = position;
+                if (session.CurrentTarget is { } target && target.CanDrop(session))
+                    target.OnDrop(session);
+                if (session.Preview != null)
+                    RemoveOverlay(session.Preview);
+                dragDropSession = null;
+            }
+        }
+
+        private void OnGestureDragCanceled(object? sender, GenericEventArgs<DragInfo> e)
+        {
+            // Release the owner like a normal end, so it drops any capture - but never complete a drag-drop: the payload
+            // must not land on whatever target happens to be under the finger.
+            LiveDragOwner?.OnDragEnded(e.Data.Position);
+            dragOwner = null;
+
+            if (dragDropSession is { } session)
+            {
+                session.CurrentTarget?.OnDragLeave(session);
+                if (session.Preview != null)
+                    RemoveOverlay(session.Preview);
+                dragDropSession = null;
             }
         }
 

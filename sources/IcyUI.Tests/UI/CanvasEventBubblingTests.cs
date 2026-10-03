@@ -198,6 +198,8 @@ namespace Icy.Tests.UI
 
             public int TapCount { get; private set; }
 
+            protected internal override DragAxes GetDragAxes(in DragClaimContext context) => DragAxes.Both;
+
             protected internal override void OnDragEnded(Point screenPoint) => DragEndedCount++;
 
             protected internal override void OnDragPerforming(Point screenPoint) => DragPerformingCount++;

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using Icy.Data.Markup.Attributes;
+using Icy.Input.Gestures;
 using Icy.Rendering.Brushes;
 
 namespace Icy.UI.Controls
@@ -158,6 +159,11 @@ namespace Icy.UI.Controls
             if (isDragging)
                 UpdateValueFromPoint(screenPoint);
         }
+
+        /// <inheritdoc/>
+        /// <remarks>A <see cref="Slider"/> is horizontal: it claims horizontal touch and left-mouse drags.</remarks>
+        protected internal override DragAxes GetDragAxes(in DragClaimContext context) =>
+            context.Kind is PointerKind.Touch or PointerKind.MouseLeft ? DragAxes.Horizontal : DragAxes.None;
 
         /// <inheritdoc/>
         protected internal override void OnDragStarted(Point screenPoint)

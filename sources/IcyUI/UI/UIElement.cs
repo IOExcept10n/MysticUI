@@ -1255,11 +1255,14 @@ namespace Icy.UI
             if (ClipToBounds && !withinBounds)
                 return null;
 
-            foreach (UIElement child in GetVisualChildren().Reverse())
+            if (CanHitTestChildren())
             {
-                UIElement? hit = child.HitTest(localPoint);
-                if (hit != null)
-                    return hit;
+                foreach (UIElement child in GetVisualChildren().Reverse())
+                {
+                    UIElement? hit = child.HitTest(localPoint);
+                    if (hit != null)
+                        return hit;
+                }
             }
 
             return withinBounds ? this : null;
@@ -1279,6 +1282,13 @@ namespace Icy.UI
                     yield return descendant;
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether <see cref="HitTest(Vector2)"/> descends into this element's children.
+        /// </summary>
+        /// <returns><see langword="true"/> by default. Returning <see langword="false"/> makes the element itself the hit target
+        /// for every point inside it - e.g. a scrolling list during a fling, so the press that stops it doesn't reach an item.</returns>
+        protected virtual bool CanHitTestChildren() => true;
 
         /// <summary>
         /// Enumerates this element's immediate visual children, in paint order (back-to-front), for hit-testing
@@ -1810,8 +1820,27 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Invoked by <see cref="UI.Canvas"/> when a drag sequence that started on this element (or a descendant)
-        /// has ended (see <see cref="Icy.Input.Events.IDragEvents.DragEnded"/>). The base implementation does nothing.
+        /// Returns the axes along which this element wants to own a drag that starts on it or a descendant.
+        /// </summary>
+        /// <param name="context">The starting drag.</param>
+        /// <returns>The claimed axes; the base implementation returns <see cref="DragAxes.None"/>.</returns>
+        /// <remarks>
+        /// <para>
+        /// When a drag starts, <see cref="UI.Canvas"/> asks the hit element and each ancestor in turn. The innermost element
+        /// whose answer contains the drag's main axis (the larger component of
+        /// <see cref="DragClaimContext.LocalDirection"/>) owns the gesture. If none does, the innermost element with any
+        /// answer owns it. Only the owner receives <see cref="OnDragStarted"/>, <see cref="OnDragPerforming"/>,
+        /// <see cref="OnDragFling"/> and <see cref="OnDragEnded"/>.
+        /// </para>
+        /// <para>
+        /// An element that handles drags must override this method: overriding <see cref="OnDragStarted"/> alone receives nothing.
+        /// </para>
+        /// </remarks>
+        protected internal virtual DragAxes GetDragAxes(in DragClaimContext context) => DragAxes.None;
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> when a drag sequence owned by this element (see
+        /// <see cref="GetDragAxes(in DragClaimContext)"/>) has ended - released or canceled. The base implementation does nothing.
         /// </summary>
         /// <param name="screenPoint">The drag's ending position, in screen/window space.</param>
         protected internal virtual void OnDragEnded(Point screenPoint)
@@ -1819,9 +1848,17 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Invoked by <see cref="UI.Canvas"/> every frame while a drag sequence that started on this element (or a
-        /// descendant) is performing (see <see cref="Icy.Input.Events.IDragEvents.DragPerforming"/>). The base
-        /// implementation does nothing.
+        /// Invoked by <see cref="UI.Canvas"/> on the owner of a drag that completed (was released), right before
+        /// <see cref="OnDragEnded"/>. It isn't invoked when the drag is canceled. The base implementation does nothing.
+        /// </summary>
+        /// <param name="screenVelocity">The release velocity, in physical pixels per second.</param>
+        protected internal virtual void OnDragFling(Vector2 screenVelocity)
+        {
+        }
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> whenever the pointer moves during a drag sequence owned by this element (see
+        /// <see cref="GetDragAxes(in DragClaimContext)"/>). The base implementation does nothing.
         /// </summary>
         /// <param name="screenPoint">The drag's current position, in screen/window space.</param>
         protected internal virtual void OnDragPerforming(Point screenPoint)
@@ -1829,8 +1866,9 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Invoked by <see cref="UI.Canvas"/> when a drag sequence starts on this element or a descendant (see
-        /// <see cref="Icy.Input.Events.IDragEvents.DragStarted"/>). The base implementation does nothing.
+        /// Invoked by <see cref="UI.Canvas"/> when a drag sequence starts and this element owns it (see
+        /// <see cref="GetDragAxes(in DragClaimContext)"/>; overriding this method alone receives nothing). The base
+        /// implementation does nothing.
         /// </summary>
         /// <param name="screenPoint">The drag's starting position, in screen/window space.</param>
         protected internal virtual void OnDragStarted(Point screenPoint)

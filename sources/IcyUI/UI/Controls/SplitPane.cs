@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using Icy.Data.Markup.Attributes;
+using Icy.Input.Gestures;
 using Icy.Rendering.Brushes;
 
 namespace Icy.UI.Controls
@@ -264,6 +265,15 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>Claims only drags that start on the divider, along the axis the divider moves.</remarks>
+        protected internal override DragAxes GetDragAxes(in DragClaimContext context)
+        {
+            if (context.Kind is not (PointerKind.Touch or PointerKind.MouseLeft) || !IsPointOnDivider(context.ScreenStart))
+                return DragAxes.None;
+            return Orientation == Orientation.Horizontal ? DragAxes.Horizontal : DragAxes.Vertical;
+        }
+
+        /// <inheritdoc/>
         protected internal override void OnDragEnded(Point screenPoint)
         {
             base.OnDragEnded(screenPoint);
@@ -280,10 +290,9 @@ namespace Icy.UI.Controls
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Only starts tracking the drag when <paramref name="screenPoint"/> actually landed on the divider band -
-        /// <see cref="UI.Canvas"/> bubbles a drag gesture to every ancestor of whatever was hit, so without this
-        /// check a press anywhere inside <see cref="First"/>/<see cref="Second"/> (including a nested
-        /// <see cref="SplitPane"/>'s own divider) would resize this <see cref="SplitPane"/> too.
+        /// Only starts tracking the drag when <paramref name="screenPoint"/> actually landed on the divider band.
+        /// <see cref="GetDragAxes(in DragClaimContext)"/> already limits ownership to divider presses; the check stays
+        /// as a guard.
         /// </remarks>
         protected internal override void OnDragStarted(Point screenPoint)
         {

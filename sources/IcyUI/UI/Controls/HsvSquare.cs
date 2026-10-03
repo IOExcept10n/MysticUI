@@ -2,6 +2,7 @@
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
+using Icy.Input.Gestures;
 using Icy.Rendering;
 
 namespace Icy.UI.Controls
@@ -68,6 +69,10 @@ namespace Icy.UI.Controls
                     SaturationValueChanged?.Invoke(this, EventArgs.Empty);
             }
         }
+
+        /// <inheritdoc/>
+        protected internal override DragAxes GetDragAxes(in DragClaimContext context) =>
+            context.Kind is PointerKind.Touch or PointerKind.MouseLeft ? DragAxes.Both : DragAxes.None;
 
         /// <inheritdoc/>
         protected internal override void OnDragStarted(Point screenPoint)
