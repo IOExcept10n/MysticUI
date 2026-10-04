@@ -37,6 +37,11 @@ namespace Icy.Markup
     /// <param name="configuration">The configuration supplying type resolution, conversion, and the property registry.</param>
     public class MarkupLoader(IcyConfiguration configuration)
     {
+        // Set by LoadMergedDictionary around the asset pipeline call, so the nested load it triggers (in another
+        // MarkupLoader instance, through ResourceDictionaryImporter) reports itself as a merged dictionary.
+        [ThreadStatic]
+        private static MarkupLoadScopeKind? pendingKind;
+
         private readonly MarkupConfiguration markup = configuration.Types.Markup;
         private readonly ITypeConverter converter = configuration.Types.TypeConverter;
         private readonly PropertyRegistry registry = configuration.Types.PropertyRegistry;
@@ -176,22 +181,10 @@ namespace Icy.Markup
             ArgumentNullException.ThrowIfNull(content);
             ArgumentNullException.ThrowIfNull(templatedControl);
 
-            var context = new MarkupLoadContext(sourcePath, new MarkupNameScope()) { TemplatedControl = templatedControl };
-
-            using (PropertyRegistry.UseScope(registry))
-            {
-                object instance = CreateObject(content, context);
-                if (instance is not UIElement element)
-                {
-                    throw MarkupException.At(
-                        $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
-                        content,
-                        sourcePath);
-                }
-
-                MarkupNameScope.SetScope(element, context.Names);
-                return element;
-            }
+            var names = new MarkupNameScope();
+            MarkupLoadScope? scope = BeginTemplateScope(MarkupLoadScopeKind.TemplateContent, sourcePath, names);
+            var context = new MarkupLoadContext(sourcePath, names) { TemplatedControl = templatedControl, Scope = scope };
+            return BuildTemplateRoot(content, context, scope, names, sourcePath);
         }
 
         /// <summary>
@@ -216,22 +209,10 @@ namespace Icy.Markup
         {
             ArgumentNullException.ThrowIfNull(content);
 
-            var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
-
-            using (PropertyRegistry.UseScope(registry))
-            {
-                object instance = CreateObject(content, context);
-                if (instance is not UIElement element)
-                {
-                    throw MarkupException.At(
-                        $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
-                        content,
-                        sourcePath);
-                }
-
-                MarkupNameScope.SetScope(element, context.Names);
-                return element;
-            }
+            var names = new MarkupNameScope();
+            MarkupLoadScope? scope = BeginTemplateScope(MarkupLoadScopeKind.DataTemplateContent, sourcePath, names);
+            var context = new MarkupLoadContext(sourcePath, names) { Scope = scope };
+            return BuildTemplateRoot(content, context, scope, names, sourcePath);
         }
 
         /// <summary>
@@ -244,14 +225,17 @@ namespace Icy.Markup
         /// <returns>The root object the document declares.</returns>
         private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
         {
+            MarkupLoadScopeKind kind = pendingKind ?? MarkupLoadScopeKind.Document;
+            pendingKind = null;
+
             var names = new MarkupNameScope();
             MarkupLoadScope? scope = null;
-            if (ObserverFor(MarkupLoadScopeKind.Document) is { } observer)
+            if (ObserverFor(kind) is { } observer)
             {
                 // Parse exactly the text the observer gets, so its positions and the tree always agree.
                 string text = reader.ReadToEnd();
                 reader = new StringReader(text);
-                scope = new MarkupLoadScope(MarkupLoadScopeKind.Document, sourcePath, text, names, observer);
+                scope = new MarkupLoadScope(kind, sourcePath, text, names, observer);
                 observer.DocumentStarted(scope);
             }
 
@@ -288,6 +272,43 @@ namespace Icy.Markup
         /// </summary>
         private IMarkupLoadObserver? ObserverFor(MarkupLoadScopeKind kind) =>
             markup.LoadObserver is { } observer && (observer.ObservedKinds & kind) != 0 ? observer : null;
+
+        private MarkupLoadScope? BeginTemplateScope(MarkupLoadScopeKind kind, string? sourcePath, MarkupNameScope names)
+        {
+            if (ObserverFor(kind) is not { } observer)
+                return null;
+
+            var scope = new MarkupLoadScope(kind, sourcePath, sourceText: null, names, observer);
+            observer.DocumentStarted(scope);
+            return scope;
+        }
+
+        private UIElement BuildTemplateRoot(XElement content, MarkupLoadContext context, MarkupLoadScope? scope, MarkupNameScope names, string? sourcePath)
+        {
+            try
+            {
+                using (PropertyRegistry.UseScope(registry))
+                {
+                    object instance = CreateObject(content, context);
+                    if (instance is not UIElement element)
+                    {
+                        throw MarkupException.At(
+                            $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
+                            content,
+                            sourcePath);
+                    }
+
+                    MarkupNameScope.SetScope(element, names);
+                    Complete(scope, element);
+                    return element;
+                }
+            }
+            catch (MarkupException ex) when (scope != null)
+            {
+                scope.Observer.DocumentFailed(scope, ex);
+                throw;
+            }
+        }
 
         /// <summary>
         /// Parses the document text into an <see cref="XDocument"/> with position information.
@@ -589,7 +610,16 @@ namespace Icy.Markup
             if (!assetContext.IsAvailable(path))
                 throw MarkupException.At($"No resource dictionary found at '{path}'.", element, context.SourcePath);
 
-            return configuration.Assets.AssetResolver.LoadAsset<ResourceDictionary>(assetContext, path);
+            try
+            {
+                pendingKind = MarkupLoadScopeKind.MergedDictionary;
+                return configuration.Assets.AssetResolver.LoadAsset<ResourceDictionary>(assetContext, path);
+            }
+            finally
+            {
+                // A cached asset never reaches LoadCore, so never let the flag leak into an unrelated later load.
+                pendingKind = null;
+            }
         }
 
         /// <summary>
