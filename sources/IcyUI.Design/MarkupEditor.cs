@@ -125,6 +125,10 @@ namespace Icy.Design
             if (Validate(target, children.Count, index) is { } failure)
                 return failure;
 
+            // Dropping an element back where it already is (a common drag-and-drop outcome) changes nothing.
+            if (ReferenceEquals(target, element.Parent) && target.ContentElements.ToList().IndexOf(element) == index)
+                return EditResult.Success();
+
             string text = document.Text;
             TextSpan removal = MarkupFormatting.GetRemovalSpan(text, element);
             string fragment = text.Substring(element.Span.Start, element.Span.Length);
@@ -134,7 +138,16 @@ namespace Icy.Design
             // Both changes are expressed against the current text; the moved element's new offset must account for the
             // removal when it comes first.
             int newStart = removal.End <= insertion.Span.Start ? offset - removal.Length : offset;
-            var changes = new TextChangeSet([new TextChange(removal, string.Empty), insertion]);
+            TextChangeSet changes;
+            try
+            {
+                changes = new TextChangeSet([new TextChange(removal, string.Empty), insertion]);
+            }
+            catch (ArgumentException)
+            {
+                return EditResult.Failure(element.NameSpan, $"'{element.Name}' can't be moved to that position.");
+            }
+
             return Execute(new EditStep(changes, [new ElementMovedAction(node, newParent, newStart)], $"Move {element.Name}"));
         }
 

@@ -14,14 +14,16 @@ namespace Icy.Design.Editing
     internal sealed class AttributeChangedAction(NodeId node, string name) : MirrorAction
     {
         private readonly List<(object Instance, AppliedMember Member)> droppedRecords = [];
+        private readonly HashSet<object> touched = new(ReferenceEqualityComparer.Instance);
         private bool presentBefore;
         private bool presentAfter;
+        private bool rebuilt;
 
         public override void Execute(MirrorContext context)
         {
             presentBefore = context.GetOldNode(node)?.FindAttribute(name) != null;
             presentAfter = context.Document.GetNode(node)?.FindAttribute(name) != null;
-            Sync(context.Document, presentInOtherText: presentBefore);
+            Sync(context.Document, presentInOtherText: presentBefore, only: null);
         }
 
         public override void Revert(MirrorContext context)
@@ -32,7 +34,20 @@ namespace Icy.Design.Editing
                 context.Document.Map.RecordMember(instance, name, member with { Binding = null });
             droppedRecords.Clear();
 
-            Sync(context.Document, presentInOtherText: presentAfter);
+            // Only undo what Execute actually changed: a value that failed to convert changed nothing, and syncing
+            // that copy anyway could rebuild it (or mark the document for reload) for an edit that never happened.
+            if (rebuilt)
+            {
+                Sync(context.Document, presentInOtherText: presentAfter, only: null);
+            }
+            else if (touched.Count > 0)
+            {
+                var changed = new HashSet<object>(touched, ReferenceEqualityComparer.Instance);
+                Sync(context.Document, presentInOtherText: presentAfter, only: changed);
+            }
+
+            touched.Clear();
+            rebuilt = false;
         }
 
         public override MirrorAction CreateInverse(MirrorContext context) => new AttributeChangedAction(node, name);
@@ -53,7 +68,7 @@ namespace Icy.Design.Editing
             element.Name = newName;
         }
 
-        private void Sync(DesignDocument document, bool presentInOtherText)
+        private void Sync(DesignDocument document, bool presentInOtherText, HashSet<object>? only)
         {
             if (document.GetNode(node) is not { } element)
                 return;
@@ -67,30 +82,38 @@ namespace Icy.Design.Editing
             AttributeKind kind = document.ClassifyAttribute(element, name);
             if (kind == AttributeKind.Directive)
             {
-                document.Rebuild(element);
+                RebuildAll(document, element);
                 return;
             }
 
             AttributeSyntax? attribute = element.FindAttribute(name);
             foreach ((object instance, MarkupLoadScope scope) in document.Map.GetObjects(node))
             {
+                if (only != null && !only.Contains(instance))
+                    continue;
+
                 if (kind == AttributeKind.Name)
                 {
                     SyncName((UIElement)instance, scope, attribute?.Value);
+                    touched.Add(instance);
                     continue;
                 }
 
                 AppliedMember? applied = DropRecord(document, instance);
+                if (applied != null)
+                    touched.Add(instance);
+
                 if (attribute != null)
                 {
                     if (applied == null && presentInOtherText)
                     {
                         // Present before but never recorded: consumed by a constructor, or not a plain member.
-                        document.Rebuild(element);
+                        RebuildAll(document, element);
                         return;
                     }
 
                     document.ApplyAttribute(scope, instance, element, attribute);
+                    touched.Add(instance);
                 }
                 else if (applied?.Member.Reference is { } reference)
                 {
@@ -99,14 +122,22 @@ namespace Icy.Design.Editing
                     // way, and clearing then lets any active tier win over it.
                     reference.RawClearValue(instance);
                     reference.ClearLocalValue(instance);
+                    touched.Add(instance);
                 }
                 else if (applied != null || presentInOtherText)
                 {
                     // A plain CLR property has no "unset" to go back to; only a fresh object has its default.
-                    document.Rebuild(element);
+                    RebuildAll(document, element);
                     return;
                 }
             }
+        }
+
+        private void RebuildAll(DesignDocument document, ElementSyntax element)
+        {
+            // Set first: a rebuild that fails halfway may already have replaced some copies.
+            rebuilt = true;
+            document.Rebuild(element);
         }
 
         private AppliedMember? DropRecord(DesignDocument document, object instance)

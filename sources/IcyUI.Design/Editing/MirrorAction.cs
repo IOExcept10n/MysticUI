@@ -19,6 +19,11 @@ namespace Icy.Design.Editing
         /// </summary>
         public virtual MoveHint? Hint => null;
 
+        /// <summary>
+        /// Gets the removed element this action brings back and its old ids, so they survive the re-parse.
+        /// </summary>
+        public virtual RestoreHint? Restore => null;
+
         public abstract void Execute(MirrorContext context);
 
         public abstract void Revert(MirrorContext context);

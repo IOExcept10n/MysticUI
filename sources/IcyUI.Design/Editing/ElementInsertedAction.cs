@@ -8,11 +8,14 @@ namespace Icy.Design.Editing
 {
     /// <summary>
     /// Builds the element the text now has at <paramref name="start"/> and adds it to every live copy of its parent.
+    /// When <paramref name="restoredIds"/> is given, the element is a removed one coming back, and gets its old ids.
     /// </summary>
-    internal sealed class ElementInsertedAction(NodeId parent, int start) : MirrorAction
+    internal sealed class ElementInsertedAction(NodeId parent, int start, IReadOnlyList<NodeId>? restoredIds = null) : MirrorAction
     {
         private readonly List<(object Parent, UIElement Child, MarkupLoadScope Scope)> inserted = [];
         private NodeId? insertedNode;
+
+        public override RestoreHint? Restore => restoredIds != null ? new RestoreHint(start, restoredIds) : null;
 
         public override void Execute(MirrorContext context)
         {

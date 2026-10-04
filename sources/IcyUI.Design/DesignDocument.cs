@@ -586,6 +586,25 @@ namespace Icy.Design
                     MatchSubtree(moved, target, newIds, newNodes);
             }
 
+            // Removed elements coming back (undo of a remove) take their old ids, in document order.
+            foreach (MirrorAction action in actions)
+            {
+                if (action.Restore is not { } restore || newSyntax.FindElementAt(restore.Start) is not { } restored)
+                    continue;
+
+                using IEnumerator<NodeId> oldIds = restore.Ids.GetEnumerator();
+                foreach (ElementSyntax element in restored.DescendantsAndSelf())
+                {
+                    if (!oldIds.MoveNext())
+                        break;
+                    if (newIds.ContainsKey(element) || newNodes.ContainsKey(oldIds.Current) || ids.ContainsValue(oldIds.Current))
+                        continue;
+
+                    newIds[element] = oldIds.Current;
+                    newNodes[oldIds.Current] = element;
+                }
+            }
+
             // Everything else: an element survives when its start offset survives the change.
             foreach ((ElementSyntax oldElement, NodeId id) in ids)
             {
@@ -632,7 +651,9 @@ namespace Icy.Design
 
         private void Restore(DocumentSnapshot snapshot)
         {
+            // Apply flushed any pending values before taking the snapshot, so its text is also the last parsed one.
             text = snapshot.Text;
+            parsedText = snapshot.Text.Text;
             syntax = snapshot.Syntax;
             lineMap = snapshot.LineMap;
             ids = snapshot.Ids;

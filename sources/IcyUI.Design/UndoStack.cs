@@ -137,8 +137,12 @@ namespace Icy.Design
 
             target.LastEdit = now;
 
-            // The first edit of a run knows the value to go back to; later ones in the same run don't add anything.
-            if (!target.Items.Exists(x => x.CoalescedKey == key))
+            // The first edit of a run knows the value to go back to; later ones in the same run add nothing. A run
+            // ends at a recorded step: its inverse has fixed offsets that assume the value as it was then, so a later
+            // edit of the same attribute needs its own item, undone before that step.
+            int last = target.Items.FindLastIndex(x => x.CoalescedKey == key);
+            bool stepSince = last >= 0 && target.Items.Skip(last + 1).Any(x => x.CoalescedKey == null);
+            if (last < 0 || stepSince)
                 target.Items.Add(UndoItem.ForCoalesced(node, name, originalRaw));
 
             Changed?.Invoke(this, EventArgs.Empty);
@@ -151,19 +155,28 @@ namespace Icy.Design
             if (from.Count == 0)
                 return EditResult.Failure(default, "There is nothing to replay.");
 
+            document.VerifyAccess();
             UndoEntry entry = from[^1];
             from.RemoveAt(from.Count - 1);
 
             var replayed = new UndoEntry(entry.Description);
             for (int i = entry.Items.Count - 1; i >= 0; i--)
             {
-                EditResult result = document.Apply(entry.Items[i].CreateStep(document), out EditStep? inverse);
+                EditResult result;
+                EditStep? inverse = null;
+                try
+                {
+                    result = document.Apply(entry.Items[i].CreateStep(document), out inverse);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // Building the step can find its target gone; that's a failed replay, not a crash.
+                    result = EditResult.Failure(default, ex.Message);
+                }
+
                 if (!result.Succeeded)
                 {
-                    // The history no longer matches the text; replaying any of it later would corrupt the document.
-                    undo.Clear();
-                    redo.Clear();
-                    Changed?.Invoke(this, EventArgs.Empty);
+                    RollBack(entry, replayed, from);
                     return result;
                 }
 
@@ -173,6 +186,30 @@ namespace Icy.Design
             to.Add(replayed);
             Changed?.Invoke(this, EventArgs.Empty);
             return EditResult.Success();
+        }
+
+        /// <summary>
+        /// Puts back what a failed replay already did, so an entry is never left half-applied. When that works the entry
+        /// stays where it was and the history is intact; when it doesn't, the history no longer matches the text and is
+        /// cleared, since replaying any of it later would corrupt the document.
+        /// </summary>
+        private void RollBack(UndoEntry entry, UndoEntry replayed, List<UndoEntry> from)
+        {
+            bool restored = true;
+            for (int j = replayed.Items.Count - 1; j >= 0 && restored; j--)
+                restored = document.Apply(replayed.Items[j].CreateStep(document), out _).Succeeded;
+
+            if (restored)
+            {
+                from.Add(entry);
+            }
+            else
+            {
+                undo.Clear();
+                redo.Clear();
+            }
+
+            Changed?.Invoke(this, EventArgs.Empty);
         }
 
         private void EndTransaction()

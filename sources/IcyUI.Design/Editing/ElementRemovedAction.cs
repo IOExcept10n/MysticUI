@@ -14,6 +14,7 @@ namespace Icy.Design.Editing
         private readonly List<Removal> removals = [];
         private NodeId? parentNode;
         private int originalStart;
+        private List<NodeId> subtreeIds = [];
 
         public override void Execute(MirrorContext context)
         {
@@ -21,6 +22,7 @@ namespace Icy.Design.Editing
             ElementSyntax element = context.GetOldNode(node)
                 ?? throw new InvalidOperationException($"The removed element {node} wasn't in the document.");
             originalStart = element.Span.Start;
+            subtreeIds = [.. element.DescendantsAndSelf().Select(x => context.GetOldId(x)).OfType<NodeId>()];
             parentNode = element.Parent is { } parent ? context.GetOldId(parent) : null;
 
             if (parentNode is not NodeId parentId || !document.IsEditable(element, context.Before.Ids))
@@ -57,7 +59,7 @@ namespace Icy.Design.Editing
         }
 
         public override MirrorAction CreateInverse(MirrorContext context) =>
-            new ElementInsertedAction(parentNode ?? throw new InvalidOperationException("The root element can't be inserted back."), originalStart);
+            new ElementInsertedAction(parentNode ?? throw new InvalidOperationException("The root element can't be inserted back."), originalStart, subtreeIds);
 
         private sealed record Removal(object Parent, UIElement Child, int Index, MarkupLoadScope Scope, List<(string Name, UIElement Element)> Names);
     }
