@@ -19,6 +19,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <AdditionalFiles Include="stylecop.json" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
   </ItemGroup>
 </Project>
