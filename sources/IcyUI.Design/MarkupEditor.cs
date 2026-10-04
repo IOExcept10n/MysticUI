@@ -34,12 +34,18 @@ namespace Icy.Design
         internal MarkupEditor(DesignDocument document)
         {
             this.document = document;
+            UndoStack = new UndoStack(document);
         }
 
         /// <summary>
         /// Gets the document this editor changes.
         /// </summary>
         public DesignDocument Document => document;
+
+        /// <summary>
+        /// Gets the undo and redo history of this editor's edits.
+        /// </summary>
+        public UndoStack UndoStack { get; }
 
         /// <summary>
         /// Inserts an element written in markup as a content child of <paramref name="parent"/>.
@@ -174,7 +180,25 @@ namespace Icy.Design
             return Execute(new EditStep(new TextChangeSet([new TextChange(removal, string.Empty)]), [new AttributeChangedAction(node, name)], $"Clear {name}"));
         }
 
-        internal EditResult Execute(EditStep step) => document.Apply(step, out _);
+        /// <summary>
+        /// Groups every edit made until the returned object is disposed into one undo step.
+        /// </summary>
+        /// <param name="description">What the step does, as <see cref="UndoStack.UndoDescription"/> reports it.</param>
+        /// <returns>The transaction; dispose it to close it. Transactions nest; only the outermost one records a step.</returns>
+        /// <exception cref="ArgumentException"><paramref name="description"/> is <see langword="null"/> or empty.</exception>
+        public IDisposable BeginTransaction(string description)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(description);
+            return UndoStack.BeginTransaction(description);
+        }
+
+        internal EditResult Execute(EditStep step)
+        {
+            EditResult result = document.Apply(step, out EditStep? inverse);
+            if (result.Succeeded)
+                UndoStack.Record(inverse!, step.Description);
+            return result;
+        }
 
         private static EditResult UnknownNode(NodeId id) => EditResult.Failure(default, $"The document has no element {id}.");
 
