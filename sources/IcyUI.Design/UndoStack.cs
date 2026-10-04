@@ -68,14 +68,24 @@ namespace Icy.Design
         /// </summary>
         /// <returns>The outcome; a failure when there is nothing to undo.</returns>
         /// <exception cref="InvalidOperationException">A transaction is open.</exception>
-        public EditResult Undo() => Replay(undo, redo);
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        public EditResult Undo()
+        {
+            document.ThrowIfDisposed();
+            return Replay(undo, redo);
+        }
 
         /// <summary>
         /// Redoes the latest undone step.
         /// </summary>
         /// <returns>The outcome; a failure when there is nothing to redo.</returns>
         /// <exception cref="InvalidOperationException">A transaction is open.</exception>
-        public EditResult Redo() => Replay(redo, undo);
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        public EditResult Redo()
+        {
+            document.ThrowIfDisposed();
+            return Replay(redo, undo);
+        }
 
         /// <summary>
         /// Forgets the whole history.

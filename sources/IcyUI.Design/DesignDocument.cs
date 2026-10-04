@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Icy.Data.Bindings;
@@ -29,6 +30,8 @@ namespace Icy.Design
     /// </remarks>
     public sealed class DesignDocument
     {
+        private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
+
         private readonly List<MarkupLoadScope> scopes = [];
         private readonly Dictionary<(NodeId Node, string Name), PendingValue> pending = [];
         private MarkupText text;
@@ -174,6 +177,38 @@ namespace Icy.Design
             id = default;
             return false;
         }
+
+        /// <summary>
+        /// Writes the text to the file <see cref="SourcePath"/> resolves to through
+        /// <see cref="DesignSession.SourcePathResolver"/>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The document has no source path, or it doesn't resolve to a file.</exception>
+        /// <exception cref="IOException">The file couldn't be written.</exception>
+        public void Save()
+        {
+            string? path = SourcePath != null ? Session.SourcePathResolver(SourcePath) : null;
+            if (path == null)
+            {
+                throw new InvalidOperationException(
+                    $"'{SourcePath ?? "(no source path)"}' doesn't resolve to a file. Use SaveAs, or set DesignSession.SourcePathResolver.");
+            }
+
+            SaveAs(path);
+        }
+
+        /// <summary>
+        /// Writes the text, exactly as it is, to <paramref name="filePath"/> as UTF-8 without a byte order mark.
+        /// </summary>
+        /// <param name="filePath">The file to write.</param>
+        /// <exception cref="ArgumentException"><paramref name="filePath"/> is <see langword="null"/> or empty.</exception>
+        /// <exception cref="IOException">The file couldn't be written.</exception>
+        public void SaveAs(string filePath)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(filePath);
+            File.WriteAllText(filePath, Text, Utf8WithoutBom);
+        }
+
+        internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Session.IsDisposed, this);
 
         internal EditResult Apply(EditStep step, out EditStep? inverse)
         {

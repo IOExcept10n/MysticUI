@@ -31,6 +31,7 @@ namespace Icy.Design
         private readonly List<DesignDocument> documents = [];
         private readonly ConditionalWeakTable<MarkupLoadScope, DesignDocument> scopeDocuments = new();
         private bool disposed;
+        private Func<string, string?> sourcePathResolver = static path => File.Exists(path) ? Path.GetFullPath(path) : null;
 
         private DesignSession(IcyConfiguration configuration)
         {
@@ -54,6 +55,23 @@ namespace Icy.Design
                 documents.RemoveAll(x => !x.IsAlive);
                 return [.. documents];
             }
+        }
+
+        /// <summary>
+        /// Gets or sets how <see cref="DesignDocument.Save"/> turns a document's <see cref="DesignDocument.SourcePath"/>
+        /// into a file to write.
+        /// </summary>
+        /// <remarks>
+        /// A source path is whatever the page was loaded with, often an asset name such as <c>Pages/Main.xml</c>
+        /// resolved through an <see cref="Icy.Assets.IAssetContext"/>. By default an existing file path resolves to its
+        /// full path and anything else to <see langword="null"/>, which makes <see cref="DesignDocument.Save"/> throw.
+        /// Set this to map asset names to source files in your project.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">The value is <see langword="null"/>.</exception>
+        public Func<string, string?> SourcePathResolver
+        {
+            get => sourcePathResolver;
+            set => sourcePathResolver = value ?? throw new ArgumentNullException(nameof(value));
         }
 
         internal IMarkupBuilder Builder { get; }

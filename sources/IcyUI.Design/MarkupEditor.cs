@@ -58,8 +58,10 @@ namespace Icy.Design
         /// <param name="markup">Exactly one element, such as <c>&lt;Button Padding="12,6"&gt;OK&lt;/Button&gt;</c>.</param>
         /// <returns>The outcome; on success <see cref="EditResult.Node"/> is the inserted element.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="markup"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
         public EditResult InsertElement(NodeId parent, int index, string markup)
         {
+            document.ThrowIfDisposed();
             ArgumentNullException.ThrowIfNull(markup);
 
             if (document.GetNode(parent) is not { } parentElement)
@@ -83,8 +85,10 @@ namespace Icy.Design
         /// </summary>
         /// <param name="node">The element to remove. It can't be the root.</param>
         /// <returns>The outcome.</returns>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
         public EditResult RemoveElement(NodeId node)
         {
+            document.ThrowIfDisposed();
             if (document.GetNode(node) is not { } element)
                 return UnknownNode(node);
             if (element.Parent == null)
@@ -104,8 +108,10 @@ namespace Icy.Design
         /// The position among <paramref name="newParent"/>'s content children, counted without <paramref name="node"/>.
         /// </param>
         /// <returns>The outcome.</returns>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
         public EditResult MoveElement(NodeId node, NodeId newParent, int index)
         {
+            document.ThrowIfDisposed();
             if (document.GetNode(node) is not { } element)
                 return UnknownNode(node);
             if (document.GetNode(newParent) is not { } target)
@@ -144,8 +150,10 @@ namespace Icy.Design
         /// <returns>The outcome.</returns>
         /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
         /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
         public EditResult SetAttribute(NodeId node, string name, string value)
         {
+            document.ThrowIfDisposed();
             ArgumentException.ThrowIfNullOrEmpty(name);
             ArgumentNullException.ThrowIfNull(value);
 
@@ -172,8 +180,10 @@ namespace Icy.Design
         /// <param name="name">The attribute name as written in markup.</param>
         /// <returns>The outcome; a success that changed nothing when the element has no such attribute.</returns>
         /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
         public EditResult ClearAttribute(NodeId node, string name)
         {
+            document.ThrowIfDisposed();
             ArgumentException.ThrowIfNullOrEmpty(name);
 
             if (document.GetNode(node) is not { } element)
@@ -193,8 +203,10 @@ namespace Icy.Design
         /// <param name="description">What the step does, as <see cref="UndoStack.UndoDescription"/> reports it.</param>
         /// <returns>The transaction; dispose it to close it. Transactions nest; only the outermost one records a step.</returns>
         /// <exception cref="ArgumentException"><paramref name="description"/> is <see langword="null"/> or empty.</exception>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
         public IDisposable BeginTransaction(string description)
         {
+            document.ThrowIfDisposed();
             ArgumentException.ThrowIfNullOrEmpty(description);
             return UndoStack.BeginTransaction(description);
         }
