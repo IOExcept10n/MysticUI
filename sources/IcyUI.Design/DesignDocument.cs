@@ -4,6 +4,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Icy.Data.Bindings;
 using Icy.Data.Markup;
+using Icy.Design.Editing;
 using Icy.Design.Syntax;
 using Icy.Design.Text;
 using Icy.Design.Tracking;
@@ -149,6 +150,85 @@ namespace Icy.Design
             return false;
         }
 
+        internal EditResult Apply(EditStep step, out EditStep? inverse)
+        {
+            inverse = null;
+            VerifyAccess();
+
+            var before = new DocumentSnapshot(text, syntax, lineMap, ids, nodes);
+            MarkupText newText = text.Apply(step.Change);
+            DocumentSyntax newSyntax = DocumentSyntax.Parse(newText.Text);
+            if (newSyntax.HasErrors && !syntax.HasErrors)
+            {
+                Diagnostic first = newSyntax.Diagnostics[0];
+                return EditResult.Failure(first.Span, $"The edit would make the markup malformed: {first.Message}");
+            }
+
+            List<NodeId> vanished = Resync(newText, newSyntax, step.Change, step.Actions);
+            var context = new MirrorContext(this, before);
+            int executed = 0;
+            try
+            {
+                for (; executed < step.Actions.Count; executed++)
+                    step.Actions[executed].Execute(context);
+            }
+            catch (Exception ex)
+            {
+                Restore(before);
+                for (int i = Math.Min(executed, step.Actions.Count - 1); i >= 0; i--)
+                    step.Actions[i].Revert(context);
+
+                if (ex is MarkupException or DesignEditException)
+                    return EditResult.Failure(step.Change.Count > 0 ? new TextSpan(step.Change[0].Span.Start, 0) : default, ex.Message);
+                throw;
+            }
+
+            foreach (NodeId id in vanished)
+                Map.RemoveNode(id);
+
+            var inverseActions = new List<MirrorAction>(step.Actions.Count);
+            for (int i = step.Actions.Count - 1; i >= 0; i--)
+                inverseActions.Add(step.Actions[i].CreateInverse(context));
+            inverse = new EditStep(step.Change.Invert(before.Text.Text), inverseActions, step.Description);
+
+            Changed?.Invoke(this, new DocumentChangedEventArgs(step.Change, Version));
+            if (before.Syntax.Diagnostics.Count != syntax.Diagnostics.Count)
+                DiagnosticsChanged?.Invoke(this, EventArgs.Empty);
+
+            return EditResult.Success(context.ResultNode);
+        }
+
+        /// <summary>
+        /// Throws when called from a thread other than the one owning this document's pages.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The calling thread doesn't own the pages.</exception>
+        internal void VerifyAccess()
+        {
+            if (Map.FirstAlive() is DispatcherObject owner)
+                owner.VerifyAccess();
+        }
+
+        /// <summary>
+        /// Determines whether edits to <paramref name="element"/> can be mirrored onto the live pages in this phase.
+        /// </summary>
+        internal bool IsEditable(ElementSyntax element) => IsEditable(element, ids);
+
+        internal bool IsEditable(ElementSyntax element, IReadOnlyDictionary<ElementSyntax, NodeId> treeIds)
+        {
+            // Styles, resources, templates and anything else under a property element are opaque in this phase.
+            for (ElementSyntax? current = element; current != null; current = current.Parent)
+            {
+                if (current.IsPropertyElement)
+                    return false;
+            }
+
+            if (!treeIds.TryGetValue(element, out NodeId id))
+                return false;
+
+            List<(object Instance, MarkupLoadScope Scope)> objects = Map.GetObjects(id);
+            return objects.Count > 0 && objects.TrueForAll(x => x.Instance is UI.UIElement);
+        }
+
         internal void AddScope(MarkupLoadScope scope) => scopes.Add(scope);
 
         internal void RemoveScope(MarkupLoadScope scope)
@@ -223,6 +303,70 @@ namespace Icy.Design
                 return frame.LineMap.TryToOffset(node.LineNumber, node.LinePosition, out int local) ? frame.BaseOffset + local : null;
 
             return lineMap.TryToOffset(node.LineNumber, node.LinePosition, out int offset) ? offset : null;
+        }
+
+        private List<NodeId> Resync(MarkupText newText, DocumentSyntax newSyntax, TextChangeSet change, IReadOnlyList<MirrorAction> actions)
+        {
+            var newIds = new Dictionary<ElementSyntax, NodeId>();
+            var newNodes = new Dictionary<NodeId, ElementSyntax>();
+
+            // Moved elements first: their old text was deleted, so offset mapping alone can't find them.
+            foreach (MirrorAction action in actions)
+            {
+                if (action.Hint is { } hint && nodes.TryGetValue(hint.Node, out ElementSyntax? moved) && newSyntax.FindElementAt(hint.NewStart) is { } target)
+                    MatchSubtree(moved, target, newIds, newNodes);
+            }
+
+            // Everything else: an element survives when its start offset survives the change.
+            foreach ((ElementSyntax oldElement, NodeId id) in ids)
+            {
+                if (newNodes.ContainsKey(id) || change.MapPosition(oldElement.Span.Start) is not int mapped)
+                    continue;
+
+                if (newSyntax.FindElementAt(mapped) is { } candidate && candidate.Name == oldElement.Name && !newIds.ContainsKey(candidate))
+                {
+                    newIds[candidate] = id;
+                    newNodes[id] = candidate;
+                }
+            }
+
+            foreach (ElementSyntax element in newSyntax.Elements)
+            {
+                if (!newIds.ContainsKey(element))
+                    AssignNewId(element, newIds, newNodes);
+            }
+
+            List<NodeId> vanished = [.. ids.Values.Where(x => !newNodes.ContainsKey(x))];
+            text = newText;
+            syntax = newSyntax;
+            lineMap = new LineMap(newText.Text);
+            ids = newIds;
+            nodes = newNodes;
+            return vanished;
+        }
+
+        private void MatchSubtree(ElementSyntax oldElement, ElementSyntax newElement, Dictionary<ElementSyntax, NodeId> newIds, Dictionary<NodeId, ElementSyntax> newNodes)
+        {
+            if (oldElement.Name != newElement.Name || !ids.TryGetValue(oldElement, out NodeId id))
+                return;
+
+            newIds[newElement] = id;
+            newNodes[id] = newElement;
+
+            // A move carries the element's text over verbatim, so its children line up one to one.
+            using IEnumerator<ElementSyntax> oldChildren = oldElement.Elements.GetEnumerator();
+            using IEnumerator<ElementSyntax> newChildren = newElement.Elements.GetEnumerator();
+            while (oldChildren.MoveNext() && newChildren.MoveNext())
+                MatchSubtree(oldChildren.Current, newChildren.Current, newIds, newNodes);
+        }
+
+        private void Restore(DocumentSnapshot snapshot)
+        {
+            text = snapshot.Text;
+            syntax = snapshot.Syntax;
+            lineMap = snapshot.LineMap;
+            ids = snapshot.Ids;
+            nodes = snapshot.Nodes;
         }
 
         private sealed record FragmentFrame(int BaseOffset, LineMap LineMap);
