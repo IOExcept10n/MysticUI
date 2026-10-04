@@ -9,6 +9,7 @@ using Icy.Design.Syntax;
 using Icy.Design.Text;
 using Icy.Design.Tracking;
 using Icy.Markup;
+using Icy.UI;
 
 namespace Icy.Design
 {
@@ -17,7 +18,7 @@ namespace Icy.Design
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The text is the source of truth. Every edit made through <c>Editor</c> changes the text with a minimal
+    /// The text is the source of truth. Every edit made through <see cref="Editor"/> changes the text with a minimal
     /// <see cref="TextChangeSet"/>, re-parses it, and mirrors the change onto every live tree built from this file.
     /// Saving writes the text as is, so formatting, comments and anything the editor doesn't understand survive.
     /// </para>
@@ -46,6 +47,8 @@ namespace Icy.Design
             lineMap = new LineMap(text);
             foreach (ElementSyntax element in syntax.Elements)
                 AssignNewId(element, ids, nodes);
+
+            Editor = new MarkupEditor(this);
         }
 
         /// <summary>
@@ -99,6 +102,11 @@ namespace Icy.Design
         /// The text is still right; reload the page to see it.
         /// </summary>
         public bool NeedsReload { get; private set; }
+
+        /// <summary>
+        /// Gets the editor that changes this document and mirrors every change onto its live pages.
+        /// </summary>
+        public MarkupEditor Editor { get; }
 
         internal ObjectMap Map { get; } = new();
 
@@ -227,6 +235,62 @@ namespace Icy.Design
 
             List<(object Instance, MarkupLoadScope Scope)> objects = Map.GetObjects(id);
             return objects.Count > 0 && objects.TrueForAll(x => x.Instance is UI.UIElement);
+        }
+
+        internal object? FindObject(NodeId id, MarkupLoadScope scope) => Map.FindObject(id, scope);
+
+        /// <summary>
+        /// Builds a fresh live subtree from <paramref name="element"/>'s current text, for <paramref name="liveParent"/>.
+        /// If the build fails, every name it already registered is unregistered again.
+        /// </summary>
+        internal UIElement BuildElement(MarkupLoadScope scope, ElementSyntax element, UIElement liveParent)
+        {
+            MarkupNameScope names = scope.NameScope
+                ?? throw new DesignEditException("The page this document was loaded into no longer exists.");
+            var namesBefore = new HashSet<string>(names.Names.Keys, StringComparer.Ordinal);
+            string elementText = Text.Substring(element.Span.Start, element.Span.Length);
+
+            try
+            {
+                XElement fragment = Session.Builder.ParseFragment(elementText, syntax.GetNamespacesInScope(element));
+                using (EnterFragment(element.Span.Start, elementText))
+                {
+                    object built = Session.Builder.BuildFragment(scope, fragment, liveParent);
+                    return built as UIElement
+                        ?? throw new DesignEditException($"'{element.Name}' isn't a UI element, so it can't be placed in the element tree.");
+                }
+            }
+            catch
+            {
+                foreach (string name in names.Names.Keys.Where(x => !namesBefore.Contains(x)).ToList())
+                    names.Unregister(name);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Computes where <paramref name="element"/>'s live copy goes among <paramref name="liveParent"/>'s children:
+        /// right after the nearest earlier sibling that is live there, or else right before the nearest later one, or
+        /// else at the end. Runtime content the game added therefore never shifts the markup order.
+        /// </summary>
+        internal int ComputeLiveIndex(ElementSyntax element, object liveParent, MarkupLoadScope scope)
+        {
+            List<ElementSyntax> siblings = [.. element.Parent!.ContentElements];
+            int position = siblings.IndexOf(element);
+
+            for (int i = position - 1; i >= 0; i--)
+            {
+                if (FindLiveIndex(siblings[i], liveParent, scope) is int index)
+                    return index + 1;
+            }
+
+            for (int i = position + 1; i < siblings.Count; i++)
+            {
+                if (FindLiveIndex(siblings[i], liveParent, scope) is int index)
+                    return index;
+            }
+
+            return LiveContent.Count(liveParent, Registry);
         }
 
         internal void AddScope(MarkupLoadScope scope) => scopes.Add(scope);
@@ -367,6 +431,15 @@ namespace Icy.Design
             lineMap = snapshot.LineMap;
             ids = snapshot.Ids;
             nodes = snapshot.Nodes;
+        }
+
+        private int? FindLiveIndex(ElementSyntax sibling, object liveParent, MarkupLoadScope scope)
+        {
+            if (GetNodeId(sibling) is not NodeId id || FindObject(id, scope) is not { } instance)
+                return null;
+
+            int index = LiveContent.IndexOf(liveParent, instance, Registry);
+            return index >= 0 ? index : null;
         }
 
         private sealed record FragmentFrame(int BaseOffset, LineMap LineMap);

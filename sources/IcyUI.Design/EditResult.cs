@@ -26,7 +26,7 @@ namespace Icy.Design
         public bool Succeeded { get; }
 
         /// <summary>
-        /// Gets the element the edit created, such as the one <c>MarkupEditor.InsertElement</c> inserted;
+        /// Gets the element the edit created, such as the one <see cref="MarkupEditor.InsertElement"/> inserted;
         /// otherwise <see langword="null"/>.
         /// </summary>
         public NodeId? Node { get; }

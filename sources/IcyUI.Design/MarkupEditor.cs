@@ -1,0 +1,162 @@
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Collections;
+using Icy.Design.Editing;
+using Icy.Design.Syntax;
+using Icy.Design.Text;
+using Icy.Markup;
+using Icy.UI;
+
+namespace Icy.Design
+{
+    /// <summary>
+    /// Edits a <see cref="DesignDocument"/>: every edit changes the markup text minimally and is mirrored onto every
+    /// live page built from it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every edit is all-or-nothing. When it can't be made, or the live page rejects it (a value that doesn't
+    /// convert, say), the method returns a failed <see cref="EditResult"/> and neither the text nor any page changed.
+    /// </para>
+    /// <para>
+    /// Edits to opaque parts of the markup (styles, resources, templates, anything under a property element such as
+    /// <c>&lt;Grid.RowDefinitions&gt;</c>) change the text only, and set <see cref="DesignDocument.NeedsReload"/>.
+    /// </para>
+    /// <para>
+    /// Call the editor on the thread that owns the document's pages; other threads get an
+    /// <see cref="InvalidOperationException"/>.
+    /// </para>
+    /// </remarks>
+    public sealed class MarkupEditor
+    {
+        private readonly DesignDocument document;
+
+        internal MarkupEditor(DesignDocument document)
+        {
+            this.document = document;
+        }
+
+        /// <summary>
+        /// Gets the document this editor changes.
+        /// </summary>
+        public DesignDocument Document => document;
+
+        /// <summary>
+        /// Inserts an element written in markup as a content child of <paramref name="parent"/>.
+        /// </summary>
+        /// <param name="parent">The element to insert into.</param>
+        /// <param name="index">
+        /// The position among <paramref name="parent"/>'s content children (property elements such as
+        /// <c>&lt;Grid.RowDefinitions&gt;</c> don't count), from 0 to their count.
+        /// </param>
+        /// <param name="markup">Exactly one element, such as <c>&lt;Button Padding="12,6"&gt;OK&lt;/Button&gt;</c>.</param>
+        /// <returns>The outcome; on success <see cref="EditResult.Node"/> is the inserted element.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="markup"/> is <see langword="null"/>.</exception>
+        public EditResult InsertElement(NodeId parent, int index, string markup)
+        {
+            ArgumentNullException.ThrowIfNull(markup);
+
+            if (document.GetNode(parent) is not { } parentElement)
+                return UnknownNode(parent);
+
+            string fragment = markup.Trim();
+            DocumentSyntax parsed = DocumentSyntax.Parse(fragment);
+            if (parsed.HasErrors || parsed.Root == null || parsed.Nodes.Count != 1)
+                return EditResult.Failure(parentElement.NameSpan, "The inserted markup must be exactly one well-formed element.");
+
+            List<ElementSyntax> children = [.. parentElement.ContentElements];
+            if (Validate(parentElement, children.Count, index) is { } failure)
+                return failure;
+
+            (TextChange change, int offset) = MarkupFormatting.CreateInsertion(document.Syntax, parentElement, children, index, fragment, stripIndent: null);
+            return Execute(new EditStep(new TextChangeSet([change]), [new ElementInsertedAction(parent, offset)], $"Insert {parsed.Root.Name}"));
+        }
+
+        /// <summary>
+        /// Removes an element and everything in it.
+        /// </summary>
+        /// <param name="node">The element to remove. It can't be the root.</param>
+        /// <returns>The outcome.</returns>
+        public EditResult RemoveElement(NodeId node)
+        {
+            if (document.GetNode(node) is not { } element)
+                return UnknownNode(node);
+            if (element.Parent == null)
+                return EditResult.Failure(element.NameSpan, "The root element can't be removed.");
+
+            TextSpan removal = MarkupFormatting.GetRemovalSpan(document.Text, element);
+            return Execute(new EditStep(new TextChangeSet([new TextChange(removal, string.Empty)]), [new ElementRemovedAction(node)], $"Remove {element.Name}"));
+        }
+
+        /// <summary>
+        /// Moves an element to another parent, or to another position in the same parent. The live element keeps its
+        /// identity and runtime state.
+        /// </summary>
+        /// <param name="node">The element to move. It can't be the root.</param>
+        /// <param name="newParent">The element to move it into. It can't be <paramref name="node"/> or inside it.</param>
+        /// <param name="index">
+        /// The position among <paramref name="newParent"/>'s content children, counted without <paramref name="node"/>.
+        /// </param>
+        /// <returns>The outcome.</returns>
+        public EditResult MoveElement(NodeId node, NodeId newParent, int index)
+        {
+            if (document.GetNode(node) is not { } element)
+                return UnknownNode(node);
+            if (document.GetNode(newParent) is not { } target)
+                return UnknownNode(newParent);
+            if (element.Parent == null)
+                return EditResult.Failure(element.NameSpan, "The root element can't be moved.");
+            if (ReferenceEquals(element, target) || element.IsAncestorOf(target))
+                return EditResult.Failure(target.NameSpan, "An element can't be moved into itself.");
+
+            List<ElementSyntax> children = [.. target.ContentElements.Where(x => !ReferenceEquals(x, element))];
+            if (Validate(target, children.Count, index) is { } failure)
+                return failure;
+
+            string text = document.Text;
+            TextSpan removal = MarkupFormatting.GetRemovalSpan(text, element);
+            string fragment = text.Substring(element.Span.Start, element.Span.Length);
+            string oldIndent = MarkupFormatting.StartsLine(text, element.Span.Start) ? MarkupFormatting.GetIndentation(text, element.Span.Start) : string.Empty;
+            (TextChange insertion, int offset) = MarkupFormatting.CreateInsertion(document.Syntax, target, children, index, fragment, oldIndent);
+
+            // Both changes are expressed against the current text; the moved element's new offset must account for the
+            // removal when it comes first.
+            int newStart = removal.End <= insertion.Span.Start ? offset - removal.Length : offset;
+            var changes = new TextChangeSet([new TextChange(removal, string.Empty), insertion]);
+            return Execute(new EditStep(changes, [new ElementMovedAction(node, newParent, newStart)], $"Move {element.Name}"));
+        }
+
+        internal EditResult Execute(EditStep step) => document.Apply(step, out _);
+
+        private static EditResult UnknownNode(NodeId id) => EditResult.Failure(default, $"The document has no element {id}.");
+
+        private EditResult? Validate(ElementSyntax parent, int contentCount, int index)
+        {
+            if ((uint)index > (uint)contentCount)
+                return EditResult.Failure(parent.NameSpan, $"Index {index} is outside 0..{contentCount}.");
+
+            string text = document.Text;
+            foreach (MarkupSyntaxNode node in parent.Content)
+            {
+                if (node is TextSyntax or CDataSyntax && !text.AsSpan(node.Span.Start, node.Span.Length).IsWhiteSpace())
+                    return EditResult.Failure(parent.NameSpan, $"'{parent.Name}' holds text, so it can't also hold elements.");
+            }
+
+            // Opaque parents have no live copy to check; the text still changes and the page needs a reload.
+            if (!document.IsEditable(parent))
+                return null;
+
+            foreach (object instance in document.GetObjects(document.GetNodeId(parent)!.Value))
+            {
+                if (!LiveContent.TryResolve(instance, document.Registry, out MarkupMember? member, out IList? list))
+                    return EditResult.Failure(parent.NameSpan, $"'{parent.Name}' can't hold child elements.");
+                if (!LiveContent.Accepts(member, list, typeof(UIElement)))
+                    return EditResult.Failure(parent.NameSpan, $"'{parent.Name}.{member.Name}' can't hold elements.");
+                if (list == null && contentCount > 0)
+                    return EditResult.Failure(parent.NameSpan, $"'{parent.Name}' holds a single child in '{member.Name}', and already has one.");
+            }
+
+            return null;
+        }
+    }
+}
