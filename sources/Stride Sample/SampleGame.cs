@@ -21,7 +21,7 @@ namespace Icy.StrideSample
     /// <see cref="MarkupStylesDemo"/>, <see cref="ControlTemplateDemo"/>, <see cref="ItemsControlDemo"/>,
     /// <see cref="SplitPaneDemo"/>, <see cref="ExpanderDemo"/>, <see cref="SelectorDemo"/>, <see cref="WrapGridDemo"/>,
     /// <see cref="ListBoxDemo"/>, <see cref="DialogDemo"/>, <see cref="TabControlDemo"/>,
-    /// <see cref="ColorPickerDemo"/>, <see cref="PropertyGridDemo"/>, and <see cref="ScalingDemo"/> - the same demos <c>MonoGame Sample</c>'s
+    /// <see cref="ColorPickerDemo"/>, <see cref="PropertyGridDemo"/>, <see cref="ScalingDemo"/>, and <see cref="DesignDemo"/> - the same demos <c>MonoGame Sample</c>'s
     /// per-demo samples run - PageUp/PageDown/Shift+Tab
     /// cycles between them (Stride has no multi-sample runner like MonoGame's <c>SamplesRunner</c>, so this just
     /// toggles which demo root is visible).
@@ -53,6 +53,7 @@ namespace Icy.StrideSample
         private UIElement? colorPickerRoot;
         private UIElement? propertyGridRoot;
         private UIElement? scalingRoot;
+        private UIElement? designRoot;
         private int selectedDemo;
 
         protected override void BeginRun()
@@ -101,6 +102,9 @@ namespace Icy.StrideSample
             colorPickerRoot = ColorPickerDemo.Build(configuration, "Airfool");
             propertyGridRoot = PropertyGridDemo.Build(configuration, "Airfool");
             scalingRoot = ScalingDemo.Build(configuration, "Airfool");
+
+            // Last on purpose: it attaches a design session, which tracks every page loaded after it.
+            designRoot = DesignDemo.Build(configuration, "Airfool");
             canvas.Add(controlsRoot);
             canvas.Add(stylesRoot);
             canvas.Add(markupRoot);
@@ -118,11 +122,12 @@ namespace Icy.StrideSample
             canvas.Add(colorPickerRoot);
             canvas.Add(propertyGridRoot);
             canvas.Add(scalingRoot);
+            canvas.Add(designRoot);
             UpdateSelectedDemo();
 
             var switchDemo = new RelayCommand(() =>
             {
-                selectedDemo = (selectedDemo + 1) % 17;
+                selectedDemo = (selectedDemo + 1) % 18;
                 UpdateSelectedDemo();
             });
             configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
@@ -166,6 +171,7 @@ namespace Icy.StrideSample
             colorPickerRoot!.IsVisible = selectedDemo == 14;
             propertyGridRoot!.IsVisible = selectedDemo == 15;
             scalingRoot!.IsVisible = selectedDemo == 16;
+            designRoot!.IsVisible = selectedDemo == 17;
         }
     }
 }

@@ -37,6 +37,7 @@
     <Compile Include="..\Shared Samples\MarkupDemo.cs" Link="Markup\MarkupDemo.cs" />
     <Compile Include="..\Shared Samples\ControlTemplateDemo.cs" Link="Markup\ControlTemplateDemo.cs" />
     <Compile Include="..\Shared Samples\ScalingDemo.cs" Link="Samples\ScalingDemo.cs" />
+    <Compile Include="..\Shared Samples\DesignDemo.cs" Link="Samples\DesignDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>

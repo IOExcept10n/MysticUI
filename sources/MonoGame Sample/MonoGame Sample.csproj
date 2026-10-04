@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\IcyUI.MonoGame\IcyUI.MonoGame.csproj" />
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
+    <ProjectReference Include="..\IcyUI.Design\IcyUI.Design.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Shared Samples\ControlsDemo.cs" Link="Samples\ControlsDemo.cs" />
@@ -42,6 +43,7 @@
     <Compile Include="..\Shared Samples\ColorPickerDemo.cs" Link="Samples\ColorPickerDemo.cs" />
     <Compile Include="..\Shared Samples\PropertyGridDemo.cs" Link="Samples\PropertyGridDemo.cs" />
     <Compile Include="..\Shared Samples\ScalingDemo.cs" Link="Samples\ScalingDemo.cs" />
+    <Compile Include="..\Shared Samples\DesignDemo.cs" Link="Samples\DesignDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

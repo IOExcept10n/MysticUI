@@ -56,7 +56,8 @@ namespace Icy.MonoGameSample
                 new TabControlSample(this, uiConfiguration, canvas),
                 new ColorPickerSample(this, uiConfiguration, canvas),
                 new PropertyGridSample(this, uiConfiguration, canvas),
-                new ScalingSample(this, uiConfiguration, canvas)
+                new ScalingSample(this, uiConfiguration, canvas),
+                new DesignSample(this, uiConfiguration, canvas)
                 ]);
 
             var upCommand = new RelayCommand(() => samplesRunner.Selection++);
