@@ -12,6 +12,7 @@ IcyUI is a cross-engine game UI library: an engine-agnostic core plus thin per-e
 | Project | Status | Notes |
 |---|---|---|
 | `IcyUI` | Core | RootNamespace `Icy`. Controls, layout, markup, styles/templates, binding, animations, input routing, rendering abstractions. Must not reference any engine types. |
+| `IcyUI.Design` | Dev-time tooling | Markup design document and edit engine (Phase 10). References only `IcyUI`; games never need it at runtime. |
 | `IcyUI.MonoGame` | Primary integration | References `MonoGame.Framework.DesktopGL`. |
 | `IcyUI.Stride` | Real integration | References `Stride.Core`/`Stride.Engine`. |
 | `IcyUI.FNA` | Stub | Only the SDK template `Class1.cs`. Treat FNA work as greenfield, modelled on `IcyUI.MonoGame`. |

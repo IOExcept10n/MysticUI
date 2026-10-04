@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IcyUI\IcyUI.csproj" />
+    <ProjectReference Include="..\IcyUI.Design\IcyUI.Design.csproj" />
   </ItemGroup>
 
   <ItemGroup>
