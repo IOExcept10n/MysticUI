@@ -56,6 +56,14 @@ namespace Icy.Design
         public string? RedoDescription => redo.Count > 0 ? redo[^1].Description : null;
 
         /// <summary>
+        /// Gets or sets how close together repeated sets of the same attribute must be to merge into one undo step,
+        /// as during a drag. 500 ms by default.
+        /// </summary>
+        public TimeSpan CoalesceWindow { get; set; } = TimeSpan.FromMilliseconds(500);
+
+        internal TimeProvider Clock { get; set; } = TimeProvider.System;
+
+        /// <summary>
         /// Undoes the latest step.
         /// </summary>
         /// <returns>The outcome; a failure when there is nothing to undo.</returns>
@@ -98,6 +106,31 @@ namespace Icy.Design
             var entry = new UndoEntry(description);
             entry.Items.Add(UndoItem.ForStep(inverse));
             undo.Add(entry);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        internal void RecordCoalesced(NodeId node, string name, string originalRaw, string description)
+        {
+            (NodeId, string) key = (node, name);
+            DateTimeOffset now = Clock.GetUtcNow();
+            redo.Clear();
+
+            UndoEntry? target = transaction;
+            if (target == null && undo.Count > 0 && undo[^1].CoalesceKey == key && now - undo[^1].LastEdit <= CoalesceWindow)
+                target = undo[^1];
+
+            if (target == null)
+            {
+                target = new UndoEntry(description) { CoalesceKey = key };
+                undo.Add(target);
+            }
+
+            target.LastEdit = now;
+
+            // The first edit of a run knows the value to go back to; later ones in the same run don't add anything.
+            if (!target.Items.Exists(x => x.CoalescedKey == key))
+                target.Items.Add(UndoItem.ForCoalesced(node, name, originalRaw));
+
             Changed?.Invoke(this, EventArgs.Empty);
         }
 

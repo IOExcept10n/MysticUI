@@ -1,5 +1,6 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Diagnostics.CodeAnalysis;
 using System.Xml;
 using System.Xml.Linq;
 using Icy.Data.Bindings;
@@ -29,6 +30,7 @@ namespace Icy.Design
     public sealed class DesignDocument
     {
         private readonly List<MarkupLoadScope> scopes = [];
+        private readonly Dictionary<(NodeId Node, string Name), PendingValue> pending = [];
         private MarkupText text;
         private DocumentSyntax syntax;
         private LineMap lineMap;
@@ -37,13 +39,15 @@ namespace Icy.Design
         private int nextNodeId;
         private FragmentFrame? fragment;
         private int recordingSuppressed;
+        private string parsedText;
 
         internal DesignDocument(DesignSession session, string? sourcePath, string text)
         {
             Session = session;
             SourcePath = sourcePath;
             this.text = new MarkupText(text);
-            syntax = DocumentSyntax.Parse(text);
+            parsedText = text;
+            syntax = Parse(text);
             lineMap = new LineMap(text);
             foreach (ElementSyntax element in syntax.Elements)
                 AssignNewId(element, ids, nodes);
@@ -94,7 +98,14 @@ namespace Icy.Design
         /// <summary>
         /// Gets the current syntax tree.
         /// </summary>
-        public DocumentSyntax Syntax => syntax;
+        public DocumentSyntax Syntax
+        {
+            get
+            {
+                FlushPending();
+                return syntax;
+            }
+        }
 
         /// <summary>
         /// Gets a value indicating whether an edit changed the text in a way the live pages couldn't follow (an edit
@@ -107,6 +118,8 @@ namespace Icy.Design
         /// Gets the editor that changes this document and mirrors every change onto its live pages.
         /// </summary>
         public MarkupEditor Editor { get; }
+
+        internal int ParseCount { get; private set; }
 
         internal ObjectMap Map { get; } = new();
 
@@ -123,7 +136,11 @@ namespace Icy.Design
         /// </summary>
         /// <param name="id">The element's id.</param>
         /// <returns>The element, or <see langword="null"/> when no element of the current text has that id.</returns>
-        public ElementSyntax? GetNode(NodeId id) => nodes.GetValueOrDefault(id);
+        public ElementSyntax? GetNode(NodeId id)
+        {
+            FlushPending();
+            return nodes.GetValueOrDefault(id);
+        }
 
         /// <summary>
         /// Gets the id of an element of the current syntax tree.
@@ -162,10 +179,11 @@ namespace Icy.Design
         {
             inverse = null;
             VerifyAccess();
+            FlushPending();
 
             var before = new DocumentSnapshot(text, syntax, lineMap, ids, nodes);
             MarkupText newText = text.Apply(step.Change);
-            DocumentSyntax newSyntax = DocumentSyntax.Parse(newText.Text);
+            DocumentSyntax newSyntax = Parse(newText.Text);
             if (newSyntax.HasErrors && !syntax.HasErrors)
             {
                 Diagnostic first = newSyntax.Diagnostics[0];
@@ -361,6 +379,88 @@ namespace Icy.Design
             }
         }
 
+        /// <summary>
+        /// Folds pending fast-path values into a real re-parse. Every id survives, because the values only changed
+        /// inside start tags.
+        /// </summary>
+        internal void FlushPending()
+        {
+            if (pending.Count == 0)
+                return;
+
+            var change = new TextChangeSet(pending.Values.Select(x => new TextChange(x.ParsedSpan, x.Raw)));
+            pending.Clear();
+            foreach (NodeId id in Resync(text, Parse(text.Text), change, []))
+                Map.RemoveNode(id);
+        }
+
+        /// <summary>
+        /// Sets an existing literal attribute without re-parsing, when every live copy can take the new value in place.
+        /// </summary>
+        /// <returns>
+        /// <see langword="false"/> when the edit needs the normal path. Otherwise <see langword="true"/>, with the outcome
+        /// in <paramref name="result"/> and, on success, the value text before this edit in <paramref name="originalRaw"/>.
+        /// </returns>
+        internal bool TryFastSetAttribute(NodeId node, string name, string value, [NotNullWhen(true)] out EditResult? result, out string? originalRaw)
+        {
+            result = null;
+            originalRaw = null;
+
+            // Pending values must all belong to one element, so their parsed spans stay valid.
+            if (pending.Keys.Any(x => x.Node != node))
+                FlushPending();
+
+            if (value.StartsWith('{')
+                || !nodes.TryGetValue(node, out ElementSyntax? element)
+                || element.FindAttribute(name) is not { IsMissingValue: false } attribute
+                || attribute.Quote == '\0'
+                || ClassifyAttribute(element, name) != AttributeKind.Property
+                || !IsEditable(element))
+            {
+                return false;
+            }
+
+            var key = (node, name);
+            string currentRaw = pending.TryGetValue(key, out PendingValue? current)
+                ? current.Raw
+                : parsedText.Substring(attribute.ValueSpan.Start, attribute.ValueSpan.Length);
+            if (currentRaw.StartsWith('{'))
+                return false;
+
+            List<(object Instance, MarkupLoadScope Scope)> objects = Map.GetObjects(node);
+            foreach ((object instance, _) in objects)
+            {
+                if (!Map.TryGetEntry(instance, out ObjectMap.Entry? entry) || !entry.Members.ContainsKey(name))
+                    return false;
+            }
+
+            VerifyAccess();
+            string raw = MarkupEscaping.EscapeAttributeValue(value, attribute.Quote);
+            int applied = 0;
+            try
+            {
+                for (; applied < objects.Count; applied++)
+                    ApplyAttributeValue(objects[applied].Scope, objects[applied].Instance, element, name, raw, attribute.Quote);
+            }
+            catch (MarkupException ex)
+            {
+                for (int i = 0; i <= applied && i < objects.Count; i++)
+                    ApplyAttributeValue(objects[i].Scope, objects[i].Instance, element, name, currentRaw, attribute.Quote);
+
+                result = EditResult.Failure(attribute.ValueSpan, ex.Message);
+                return true;
+            }
+
+            var patch = new TextChangeSet([new TextChange(new TextSpan(CurrentOffset(attribute.ValueSpan.Start, key), currentRaw.Length), raw)]);
+            pending[key] = new PendingValue(attribute.ValueSpan, raw);
+            text = new MarkupText(patch.Apply(text.Text), text.Version + 1);
+            originalRaw = currentRaw;
+
+            Changed?.Invoke(this, new DocumentChangedEventArgs(patch, Version));
+            result = EditResult.Success();
+            return true;
+        }
+
         internal void AddScope(MarkupLoadScope scope) => scopes.Add(scope);
 
         internal void RemoveScope(MarkupLoadScope scope)
@@ -474,6 +574,7 @@ namespace Icy.Design
             lineMap = new LineMap(newText.Text);
             ids = newIds;
             nodes = newNodes;
+            parsedText = newText.Text;
             return vanished;
         }
 
@@ -510,7 +611,38 @@ namespace Icy.Design
             return index >= 0 ? index : null;
         }
 
+        private DocumentSyntax Parse(string value)
+        {
+            ParseCount++;
+            return DocumentSyntax.Parse(value);
+        }
+
+        /// <summary>
+        /// Maps an offset in the last parsed text to the current text, through every other pending value.
+        /// </summary>
+        private int CurrentOffset(int parsedOffset, (NodeId Node, string Name) key)
+        {
+            int offset = parsedOffset;
+            foreach (((NodeId Node, string Name) other, PendingValue value) in pending)
+            {
+                if (other != key && value.ParsedSpan.Start < parsedOffset)
+                    offset += value.Raw.Length - value.ParsedSpan.Length;
+            }
+
+            return offset;
+        }
+
+        private void ApplyAttributeValue(MarkupLoadScope scope, object instance, ElementSyntax element, string name, string raw, char quote)
+        {
+            // A one-attribute start tag is enough for the loader; the existing record of the member stays as it is.
+            XElement fragment = Session.Builder.ParseFragment($"<{element.Name} {name}={quote}{raw}{quote}/>", syntax.GetNamespacesInScope(element, includeSelf: true));
+            using (SuppressRecording())
+                Session.Builder.ApplyAttribute(scope, instance, fragment.Attributes().Single(x => !x.IsNamespaceDeclaration));
+        }
+
         private sealed record FragmentFrame(int BaseOffset, LineMap LineMap);
+
+        private sealed record PendingValue(TextSpan ParsedSpan, string Raw);
 
         private sealed class Restorer(Action restore) : IDisposable
         {

@@ -149,6 +149,13 @@ namespace Icy.Design
             ArgumentException.ThrowIfNullOrEmpty(name);
             ArgumentNullException.ThrowIfNull(value);
 
+            if (MarkupParser.IsValidName(name) && document.TryFastSetAttribute(node, name, value, out EditResult? fast, out string? originalRaw))
+            {
+                if (fast.Succeeded)
+                    UndoStack.RecordCoalesced(node, name, originalRaw!, $"Set {name}");
+                return fast;
+            }
+
             if (document.GetNode(node) is not { } element)
                 return UnknownNode(node);
             if (ValidateAttributeName(element, name) is { } failure)

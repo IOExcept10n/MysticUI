@@ -13,5 +13,15 @@ namespace Icy.Design.Editing
         /// Gets the items, in the order their edits were made. Replaying goes through them backwards.
         /// </summary>
         public List<UndoItem> Items { get; } = [];
+
+        /// <summary>
+        /// Gets the attribute a run of coalesced edits targets, or <see langword="null"/> for any other entry.
+        /// </summary>
+        public (NodeId Node, string Name)? CoalesceKey { get; init; }
+
+        /// <summary>
+        /// Gets or sets when the entry last grew.
+        /// </summary>
+        public DateTimeOffset LastEdit { get; set; }
     }
 }
