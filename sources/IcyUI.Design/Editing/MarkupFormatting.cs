@@ -127,6 +127,45 @@ namespace Icy.Design.Editing
         }
 
         /// <summary>
+        /// Creates the change that sets attribute <paramref name="name"/> to <paramref name="value"/>: the value in
+        /// place when it exists, otherwise a new attribute after the last one (on its own line when the attributes
+        /// are written one per line), quoted like its neighbours.
+        /// </summary>
+        public static TextChange CreateAttributeChange(string text, ElementSyntax element, string name, string value)
+        {
+            AttributeSyntax? existing = element.FindAttribute(name);
+            if (existing is { IsMissingValue: false } && existing.Quote != '\0')
+                return new TextChange(existing.ValueSpan, MarkupEscaping.EscapeAttributeValue(value, existing.Quote));
+
+            IReadOnlyList<AttributeSyntax> attributes = element.Attributes;
+            char quote = attributes.Count > 0 && attributes[^1].Quote != '\0' ? attributes[^1].Quote : '"';
+            string attributeText = $"{name}={quote}{MarkupEscaping.EscapeAttributeValue(value, quote)}{quote}";
+
+            // A broken attribute of the same name (no value, or unquoted) is replaced whole.
+            if (existing != null)
+                return new TextChange(existing.Span, attributeText);
+
+            if (attributes.Count == 0)
+                return new TextChange(new TextSpan(element.NameSpan.End, 0), " " + attributeText);
+
+            AttributeSyntax last = attributes[^1];
+            bool onePerLine = StartsLine(text, last.Span.Start) && GetLineStart(text, last.Span.Start) != GetLineStart(text, element.Span.Start);
+            string separator = onePerLine ? DetectNewLine(text) + GetIndentation(text, last.Span.Start) : " ";
+            return new TextChange(new TextSpan(last.Span.End, 0), separator + attributeText);
+        }
+
+        /// <summary>
+        /// Gets what to delete to remove an attribute: the attribute and the whitespace before it.
+        /// </summary>
+        public static TextSpan GetAttributeRemovalSpan(string text, AttributeSyntax attribute)
+        {
+            int start = attribute.Span.Start;
+            while (start > 0 && char.IsWhiteSpace(text[start - 1]))
+                start--;
+            return TextSpan.FromBounds(start, attribute.Span.End);
+        }
+
+        /// <summary>
         /// Creates the insertion of <paramref name="fragment"/> as content child number <paramref name="index"/> of
         /// <paramref name="parent"/>.
         /// </summary>

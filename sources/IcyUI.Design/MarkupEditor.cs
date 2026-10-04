@@ -126,9 +126,66 @@ namespace Icy.Design
             return Execute(new EditStep(changes, [new ElementMovedAction(node, newParent, newStart)], $"Move {element.Name}"));
         }
 
+        /// <summary>
+        /// Sets an attribute, adding it when the element doesn't have it yet.
+        /// </summary>
+        /// <param name="node">The element.</param>
+        /// <param name="name">The attribute name as written in markup: <c>Width</c>, <c>Grid.Row</c>, <c>x:Name</c>.</param>
+        /// <param name="value">
+        /// The value as the property should receive it, or a markup extension such as <c>{Binding Path=Name}</c>. It is
+        /// escaped for the attribute's quote character; don't escape it yourself.
+        /// </param>
+        /// <returns>The outcome.</returns>
+        /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
+        public EditResult SetAttribute(NodeId node, string name, string value)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(name);
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (document.GetNode(node) is not { } element)
+                return UnknownNode(node);
+            if (ValidateAttributeName(element, name) is { } failure)
+                return failure;
+
+            TextChange change = MarkupFormatting.CreateAttributeChange(document.Text, element, name, value);
+            return Execute(new EditStep(new TextChangeSet([change]), [new AttributeChangedAction(node, name)], $"Set {name}"));
+        }
+
+        /// <summary>
+        /// Removes an attribute, so the property falls back to its style or default value.
+        /// </summary>
+        /// <param name="node">The element.</param>
+        /// <param name="name">The attribute name as written in markup.</param>
+        /// <returns>The outcome; a success that changed nothing when the element has no such attribute.</returns>
+        /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
+        public EditResult ClearAttribute(NodeId node, string name)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(name);
+
+            if (document.GetNode(node) is not { } element)
+                return UnknownNode(node);
+            if (ValidateAttributeName(element, name) is { } failure)
+                return failure;
+            if (element.FindAttribute(name) is not { } attribute)
+                return EditResult.Success();
+
+            TextSpan removal = MarkupFormatting.GetAttributeRemovalSpan(document.Text, attribute);
+            return Execute(new EditStep(new TextChangeSet([new TextChange(removal, string.Empty)]), [new AttributeChangedAction(node, name)], $"Clear {name}"));
+        }
+
         internal EditResult Execute(EditStep step) => document.Apply(step, out _);
 
         private static EditResult UnknownNode(NodeId id) => EditResult.Failure(default, $"The document has no element {id}.");
+
+        private EditResult? ValidateAttributeName(ElementSyntax element, string name)
+        {
+            if (!MarkupParser.IsValidName(name))
+                return EditResult.Failure(element.NameSpan, $"'{name}' isn't a valid attribute name.");
+            if (document.ClassifyAttribute(element, name) == AttributeKind.NamespaceDeclaration)
+                return EditResult.Failure(element.NameSpan, "Namespace declarations can't be edited.");
+            return null;
+        }
 
         private EditResult? Validate(ElementSyntax parent, int contentCount, int index)
         {

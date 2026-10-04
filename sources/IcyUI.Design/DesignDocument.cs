@@ -293,6 +293,74 @@ namespace Icy.Design
             return LiveContent.Count(liveParent, Registry);
         }
 
+        internal AttributeKind ClassifyAttribute(ElementSyntax element, string name)
+        {
+            if (name == "xmlns" || name.StartsWith("xmlns:", StringComparison.Ordinal))
+                return AttributeKind.NamespaceDeclaration;
+
+            int colon = name.IndexOf(':', StringComparison.Ordinal);
+            if (colon > 0 && syntax.ResolvePrefix(element, name[..colon]) == MarkupNamespaces.Directives)
+                return name[(colon + 1)..] == MarkupDirectives.Name ? AttributeKind.Name : AttributeKind.Directive;
+
+            return AttributeKind.Property;
+        }
+
+        /// <summary>
+        /// Applies one attribute of the current text to a live object, through the loader, so the observer records it
+        /// as it would during a load.
+        /// </summary>
+        internal void ApplyAttribute(MarkupLoadScope scope, object instance, ElementSyntax element, AttributeSyntax attribute)
+        {
+            // The start tag alone, closed, keeps the attribute at the same offset relative to the element.
+            string tag = Text.Substring(element.Span.Start, element.StartTagEnd - element.Span.Start);
+            if (!element.IsSelfClosing)
+                tag = string.Concat(tag.AsSpan(0, tag.Length - 1), "/>");
+
+            XElement fragment = Session.Builder.ParseFragment(tag, syntax.GetNamespacesInScope(element));
+            var tagLines = new LineMap(tag);
+            int relative = attribute.NameSpan.Start - element.Span.Start;
+            XAttribute xml = fragment.Attributes().First(x =>
+                x is IXmlLineInfo info && tagLines.TryToOffset(info.LineNumber, info.LinePosition, out int offset) && offset == relative);
+
+            using (EnterFragment(element.Span.Start, tag))
+                Session.Builder.ApplyAttribute(scope, instance, xml);
+        }
+
+        /// <summary>
+        /// Replaces every live copy of <paramref name="element"/> with a fresh build of its current text. The root can't
+        /// be swapped out of a parent, so for the root this only sets <see cref="NeedsReload"/>.
+        /// </summary>
+        internal void Rebuild(ElementSyntax element)
+        {
+            if (element.Parent is not { } parentElement || GetNodeId(element) is not NodeId id || GetNodeId(parentElement) is not NodeId parentId)
+            {
+                MarkNeedsReload();
+                return;
+            }
+
+            foreach ((object instance, MarkupLoadScope scope) in Map.GetObjects(id))
+            {
+                if (instance is not UIElement old || FindObject(parentId, scope) is not UIElement liveParent || LiveContent.IndexOf(liveParent, old, Registry) < 0)
+                    continue;
+
+                List<(string Name, UIElement Element)> names = LiveTree.UnregisterNames(scope, old);
+                UIElement built;
+                try
+                {
+                    built = BuildElement(scope, element, liveParent);
+                }
+                catch
+                {
+                    LiveTree.RegisterNames(scope, names);
+                    throw;
+                }
+
+                LiveContent.Replace(liveParent, old, built, Registry);
+                Map.RemoveSubtree(old);
+                RaiseSubtreeReplaced(new SubtreeReplacedEventArgs(id, old, built));
+            }
+        }
+
         internal void AddScope(MarkupLoadScope scope) => scopes.Add(scope);
 
         internal void RemoveScope(MarkupLoadScope scope)
