@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using Icy.Assets;
 using Icy.Configuration;
 using Icy.Data;
+using Icy.Data.Bindings;
 using Icy.Data.Markup;
 using Icy.UI;
 
@@ -243,24 +244,50 @@ namespace Icy.Markup
         /// <returns>The root object the document declares.</returns>
         private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
         {
-            XDocument document = ParseDocument(reader, sourcePath);
-            root = document.Root
-                ?? throw new MarkupException("The document is empty.", sourcePath);
-
-            var context = new MarkupLoadContext(sourcePath, new MarkupNameScope());
-
-            // Construct the whole tree against the configuration's registry, so every element captures the same one
-            // the loader resolves properties through.
-            using (PropertyRegistry.UseScope(registry))
+            var names = new MarkupNameScope();
+            MarkupLoadScope? scope = null;
+            if (ObserverFor(MarkupLoadScopeKind.Document) is { } observer)
             {
-                object instance = CreateObject(root, context);
-                if (instance is UIElement element)
+                // Parse exactly the text the observer gets, so its positions and the tree always agree.
+                string text = reader.ReadToEnd();
+                reader = new StringReader(text);
+                scope = new MarkupLoadScope(MarkupLoadScopeKind.Document, sourcePath, text, names, observer);
+                observer.DocumentStarted(scope);
+            }
+
+            var context = new MarkupLoadContext(sourcePath, names) { Scope = scope };
+
+            try
+            {
+                XDocument document = ParseDocument(reader, sourcePath);
+                root = document.Root
+                    ?? throw new MarkupException("The document is empty.", sourcePath);
+
+                // Construct the whole tree against the configuration's registry, so every element captures the same
+                // one the loader resolves properties through.
+                using (PropertyRegistry.UseScope(registry))
                 {
-                    MarkupNameScope.SetScope(element, context.Names);
+                    object instance = CreateObject(root, context);
+                    if (instance is UIElement element)
+                        MarkupNameScope.SetScope(element, names);
+
+                    Complete(scope, instance);
+                    return instance;
                 }
-                return instance;
+            }
+            catch (MarkupException ex) when (scope != null)
+            {
+                scope.Observer.DocumentFailed(scope, ex);
+                throw;
             }
         }
+
+        /// <summary>
+        /// Returns the installed observer when it wants to hear about <paramref name="kind"/>, so an unobserved load
+        /// never creates a scope.
+        /// </summary>
+        private IMarkupLoadObserver? ObserverFor(MarkupLoadScopeKind kind) =>
+            markup.LoadObserver is { } observer && (observer.ObservedKinds & kind) != 0 ? observer : null;
 
         /// <summary>
         /// Parses the document text into an <see cref="XDocument"/> with position information.
@@ -307,6 +334,21 @@ namespace Icy.Markup
         {
             string text = string.Concat(element.Nodes().OfType<XText>().Select(x => x.Value));
             return text.Trim();
+        }
+
+        private static void Complete(MarkupLoadScope? scope, object root)
+        {
+            if (scope == null)
+                return;
+
+            scope.SetRoot(root);
+            scope.Observer.DocumentCompleted(scope, root);
+        }
+
+        private static void NotifyObjectCreated(MarkupLoadContext context, XElement element, object instance)
+        {
+            if (context.Scope is { } scope)
+                scope.Observer.ObjectCreated(scope, element, instance);
         }
 
         /// <summary>
@@ -456,7 +498,11 @@ namespace Icy.Markup
             // it never runs its own attribute/child resolution and must never be pushed onto ElementStack or have
             // SetterTargetType touched for it.
             if (instance is ResourceDictionary && element.Attribute("Source") is { } source)
-                return LoadMergedDictionary(source.Value, element, context);
+            {
+                ResourceDictionary merged = LoadMergedDictionary(source.Value, element, context);
+                NotifyObjectCreated(context, element, merged);
+                return merged;
+            }
 
             // A ControlTemplate's content is built fresh per control instance that applies it (see
             // ControlTemplate.LoadContent), not once here at document-load time - the freshly constructed instance
@@ -475,6 +521,7 @@ namespace Icy.Markup
                 }
 
                 controlTemplate.SetContent(templateChildren[0], configuration, context.SourcePath);
+                NotifyObjectCreated(context, element, instance);
                 return instance;
             }
 
@@ -493,8 +540,11 @@ namespace Icy.Markup
                 }
 
                 dataTemplate.SetContent(dataTemplateChildren[0], configuration, context.SourcePath);
+                NotifyObjectCreated(context, element, instance);
                 return instance;
             }
+
+            NotifyObjectCreated(context, element, instance);
 
             Type? previousSetterTargetType = context.SetterTargetType;
             if (instance is Icy.UI.Styles.Style style)
@@ -983,11 +1033,23 @@ namespace Icy.Markup
         /// </remarks>
         private void AssignValue(object instance, MarkupMember member, object? value, IXmlLineInfo? node, MarkupLoadContext context)
         {
-            object? resolved = ConvertValue(value, member.PropertyType, node, context, instance, member);
-            if (ReferenceEquals(resolved, MarkupValue.Unset))
-                return;
+            MarkupLoadScope? scope = context.Scope;
+            IBindingTarget? bindingTarget = scope != null ? instance as IBindingTarget : null;
+            int bindingsBefore = bindingTarget?.Bindings.Count ?? 0;
 
-            member.SetValue(instance, resolved);
+            object? resolved = ConvertValue(value, member.PropertyType, node, context, instance, member);
+            if (!ReferenceEquals(resolved, MarkupValue.Unset))
+                member.SetValue(instance, resolved);
+
+            if (scope != null && node is XObject xmlNode)
+            {
+                // A markup extension such as {Binding} attaches its binding instead of returning a value, so the only
+                // way to report it is to notice the target gained one while the value was resolved.
+                IBinding? binding = bindingTarget != null && bindingTarget.Bindings.Count > bindingsBefore
+                    ? bindingTarget.Bindings.Last()
+                    : null;
+                scope.Observer.MemberApplied(scope, xmlNode, instance, member, resolved, binding);
+            }
         }
 
         /// <summary>
@@ -1140,6 +1202,11 @@ namespace Icy.Markup
             /// and threaded into every <see cref="MarkupExtensionContext"/> this load resolves.
             /// </summary>
             public UIElement? TemplatedControl { get; init; }
+
+            /// <summary>
+            /// Gets the observed scope this load reports to, or <see langword="null"/> when nothing observes it.
+            /// </summary>
+            public MarkupLoadScope? Scope { get; init; }
         }
     }
 }

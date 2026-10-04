@@ -34,6 +34,21 @@ namespace Icy.Markup
         public IMarkupActivator Activator { get; set; } = new DefaultMarkupActivator();
 
         /// <summary>
+        /// Gets or sets the observer notified about what every <see cref="MarkupLoader"/> using this configuration
+        /// builds, and from which markup node.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see langword="null"/> by default, and then loading does no extra work at all. Design tooling installs an
+        /// observer here, typically only in development builds; see <see cref="IMarkupLoadObserver"/>.
+        /// </para>
+        /// <para>
+        /// This is a single slot. Tooling that installs an observer should refuse to replace one it didn't install.
+        /// </para>
+        /// </remarks>
+        public IMarkupLoadObserver? LoadObserver { get; set; }
+
+        /// <summary>
         /// Gets the adapters consulted, in order, to turn bare element text into a value its content property can
         /// hold.
         /// </summary>
