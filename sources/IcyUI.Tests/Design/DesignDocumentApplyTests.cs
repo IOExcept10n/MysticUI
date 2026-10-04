@@ -114,13 +114,49 @@ namespace Icy.Tests.Design
         }
 
         [Fact]
-        public async Task Apply_FromAnotherThread_Throws()
+        public void Apply_FromAnotherThread_Throws()
         {
             using var host = new DesignTestHost();
             (_, DesignDocument document) = host.Load(Page);
             var step = new EditStep(ReplaceWidth(document, "20"), [], "test");
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => { document.Apply(step, out _); }));
+            Assert.IsType<InvalidOperationException>(RunOnOtherThread(() => document.Apply(step, out _)));
+        }
+
+        [Fact]
+        public void Apply_FromAnotherThread_ThrowsEvenAfterThePageWasCollected()
+        {
+            using var host = new DesignTestHost();
+            DesignDocument document = LoadAndDropThePage(host);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            var step = new EditStep(ReplaceWidth(document, "20"), [], "test");
+
+            Assert.IsType<InvalidOperationException>(RunOnOtherThread(() => document.Apply(step, out _)));
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static DesignDocument LoadAndDropThePage(DesignTestHost host) => host.Load(Page).Document;
+
+        // A dedicated thread: Task.Run can land back on the test's own pool thread once the test awaits.
+        private static Exception? RunOnOtherThread(Action action)
+        {
+            Exception? caught = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    caught = ex;
+                }
+            });
+            thread.Start();
+            thread.Join();
+            return caught;
         }
 
         private static TextChangeSet ReplaceWidth(DesignDocument document, string value)

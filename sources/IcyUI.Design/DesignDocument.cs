@@ -33,6 +33,7 @@ namespace Icy.Design
         private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
 
         private readonly List<MarkupLoadScope> scopes = [];
+        private readonly Dispatcher owner = Dispatcher.GetCurrentThreadDispatcher();
         private readonly Dictionary<(NodeId Node, string Name), PendingValue> pending = [];
         private MarkupText text;
         private DocumentSyntax syntax;
@@ -265,8 +266,9 @@ namespace Icy.Design
         /// <exception cref="InvalidOperationException">The calling thread doesn't own the pages.</exception>
         internal void VerifyAccess()
         {
-            if (Map.FirstAlive() is DispatcherObject owner)
-                owner.VerifyAccess();
+            // The dispatcher of the thread that loaded the page, not a live object's: the check must still hold
+            // once every page built from this document has been collected.
+            owner.VerifyAccess();
         }
 
         /// <summary>
