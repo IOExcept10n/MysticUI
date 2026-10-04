@@ -33,9 +33,13 @@ namespace Icy.Markup
     /// Loading is all-or-nothing: the first error raises a <see cref="MarkupException"/> carrying the file position,
     /// and no partially-built tree is returned.
     /// </para>
+    /// <para>
+    /// The loader also implements <see cref="IMarkupBuilder"/>, the seam design tooling uses to build fragments and
+    /// apply single attributes in the context of an already loaded document.
+    /// </para>
     /// </remarks>
     /// <param name="configuration">The configuration supplying type resolution, conversion, and the property registry.</param>
-    public class MarkupLoader(IcyConfiguration configuration)
+    public class MarkupLoader(IcyConfiguration configuration) : IMarkupBuilder
     {
         // Set by LoadMergedDictionary around the asset pipeline call, so the nested load it triggers (in another
         // MarkupLoader instance, through ResourceDictionaryImporter) reports itself as a merged dictionary.
@@ -215,6 +219,52 @@ namespace Icy.Markup
             return BuildTemplateRoot(content, context, scope, names, sourcePath);
         }
 
+        /// <inheritdoc/>
+        XElement IMarkupBuilder.ParseFragment(string text, IReadOnlyDictionary<string, string> namespaces)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+            ArgumentNullException.ThrowIfNull(namespaces);
+
+            using var reader = new StringReader(text);
+            XDocument document = ParseDocument(reader, sourcePath: null, namespaces);
+            return document.Root ?? throw new MarkupException("The fragment is empty.", null);
+        }
+
+        /// <inheritdoc/>
+        object IMarkupBuilder.BuildFragment(MarkupLoadScope scope, XElement fragment, UIElement? liveParent)
+        {
+            ArgumentNullException.ThrowIfNull(scope);
+            ArgumentNullException.ThrowIfNull(fragment);
+
+            MarkupLoadContext context = CreateBuilderContext(scope, liveParent);
+            using (PropertyRegistry.UseScope(registry))
+                return CreateObject(fragment, context);
+        }
+
+        /// <inheritdoc/>
+        void IMarkupBuilder.ApplyAttribute(MarkupLoadScope scope, object target, XAttribute attribute)
+        {
+            ArgumentNullException.ThrowIfNull(scope);
+            ArgumentNullException.ThrowIfNull(target);
+            ArgumentNullException.ThrowIfNull(attribute);
+            XElement owner = attribute.Parent
+                ?? throw new ArgumentException("The attribute must belong to an element, so its namespace and directives resolve.", nameof(attribute));
+
+            if (attribute.IsNamespaceDeclaration)
+                return;
+
+            MarkupLoadContext context = CreateBuilderContext(scope, target as UIElement);
+            using (PropertyRegistry.UseScope(registry))
+            {
+                if (MarkupNamespaces.IsDirective(attribute.Name.Namespace))
+                    ApplyDirective(owner, target, attribute, context);
+                else if (attribute.Name.LocalName.Contains('.', StringComparison.Ordinal))
+                    ApplyAttachedProperty(target, attribute, context);
+                else
+                    ApplyProperty(target, attribute.Name.LocalName, attribute.Value, attribute, context);
+            }
+        }
+
         /// <summary>
         /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
         /// turns out to be - the two families only differ in how they react to that root.
@@ -322,13 +372,25 @@ namespace Icy.Markup
         /// an <c>xmlns:x</c> line of its own. A document that declares the prefix itself is unaffected - its own
         /// declaration simply shadows this one with the same value.
         /// </remarks>
-        protected static XDocument ParseDocument(TextReader reader, string? sourcePath)
+        protected static XDocument ParseDocument(TextReader reader, string? sourcePath) =>
+            ParseDocument(reader, sourcePath, namespaces: null);
+
+        private static XDocument ParseDocument(TextReader reader, string? sourcePath, IReadOnlyDictionary<string, string>? namespaces)
         {
             ArgumentNullException.ThrowIfNull(reader);
 
             var nameTable = new NameTable();
-            var namespaces = new XmlNamespaceManager(nameTable);
-            namespaces.AddNamespace("x", MarkupNamespaces.Directives);
+            var manager = new XmlNamespaceManager(nameTable);
+            manager.AddNamespace("x", MarkupNamespaces.Directives);
+            if (namespaces != null)
+            {
+                foreach ((string prefix, string uri) in namespaces)
+                {
+                    // "xml" and "xmlns" are reserved and always bound; the manager refuses them.
+                    if (prefix is not ("xml" or "xmlns"))
+                        manager.AddNamespace(prefix, uri);
+                }
+            }
 
             var settings = new XmlReaderSettings
             {
@@ -339,13 +401,33 @@ namespace Icy.Markup
 
             try
             {
-                using XmlReader xml = XmlReader.Create(reader, settings, new XmlParserContext(nameTable, namespaces, null, XmlSpace.None));
+                using XmlReader xml = XmlReader.Create(reader, settings, new XmlParserContext(nameTable, manager, null, XmlSpace.None));
                 return XDocument.Load(xml, LoadOptions.SetLineInfo);
             }
             catch (XmlException ex)
             {
                 throw new MarkupException(ex.Message, sourcePath, ex.LineNumber, ex.LinePosition, ex);
             }
+        }
+
+        /// <summary>
+        /// Recreates, for a builder call, the context a whole-document load would have had at that point.
+        /// </summary>
+        /// <remarks>
+        /// The element stack <c>{StaticResource}</c> walks only exists during a load, so it's rebuilt from the live
+        /// parent chain. At runtime that chain can reach containers above the document's own root; resources found
+        /// there resolve too, which is what an author editing the live page would expect.
+        /// </remarks>
+        private static MarkupLoadContext CreateBuilderContext(MarkupLoadScope scope, UIElement? innermost)
+        {
+            MarkupNameScope names = scope.NameScope
+                ?? throw new InvalidOperationException("The document this scope belongs to has already been collected.");
+
+            var context = new MarkupLoadContext(scope.SourcePath, names) { Scope = scope };
+            for (UIElement? element = innermost; element != null; element = element.Parent)
+                context.ElementStack.Insert(0, element);
+
+            return context;
         }
 
         /// <summary>

@@ -75,6 +75,18 @@ namespace Icy.Markup
         }
 
         /// <summary>
+        /// Removes <paramref name="name"/> from this scope, so it can be registered again for another element.
+        /// </summary>
+        /// <param name="name">The name to remove.</param>
+        /// <returns><see langword="true"/> when the name was registered.</returns>
+        /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
+        public bool Unregister(string name)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(name);
+            return names.Remove(name);
+        }
+
+        /// <summary>
         /// Finds the element registered under <paramref name="name"/>.
         /// </summary>
         /// <param name="name">The name to look up.</param>

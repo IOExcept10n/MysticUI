@@ -14,7 +14,7 @@ namespace Icy.Markup
     /// <para>
     /// A scope never keeps the loaded tree alive: <see cref="Root"/> and <see cref="NameScope"/> are weak, and
     /// become <see langword="null"/> once the tree has been collected. Pass the scope back to
-    /// <c>IMarkupBuilder</c> to build or update objects in the same document context.
+    /// <see cref="IMarkupBuilder"/> to build or update objects in the same document context.
     /// </para>
     /// </remarks>
     public sealed class MarkupLoadScope

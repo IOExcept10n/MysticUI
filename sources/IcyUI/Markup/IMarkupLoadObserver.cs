@@ -26,7 +26,7 @@ namespace Icy.Markup
     /// <item><description><see cref="DocumentCompleted"/> or <see cref="DocumentFailed"/>, once.</description></item>
     /// </list>
     /// <para>
-    /// Calls made through <c>IMarkupBuilder</c> report <see cref="ObjectCreated"/> and
+    /// Calls made through <see cref="IMarkupBuilder"/> report <see cref="ObjectCreated"/> and
     /// <see cref="MemberApplied"/> against the scope that was passed in, without a start or completion.
     /// </para>
     /// <para>

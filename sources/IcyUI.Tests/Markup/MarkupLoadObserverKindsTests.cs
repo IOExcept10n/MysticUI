@@ -96,9 +96,17 @@ namespace Icy.Tests.Markup
             for (int i = 0; i < 5; i++)
                 loader.Load(Page);
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            loader.Load(Page);
-            return GC.GetAllocatedBytesForCurrentThread() - before;
+            // The minimum of several runs: a process-wide table (such as the ConditionalWeakTable behind attached
+            // properties) that other tests fill in parallel can grow on this thread during any single run.
+            long minimum = long.MaxValue;
+            for (int i = 0; i < 10; i++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                loader.Load(Page);
+                minimum = Math.Min(minimum, GC.GetAllocatedBytesForCurrentThread() - before);
+            }
+
+            return minimum;
         }
 
         private static (MarkupLoader Loader, RecordingLoadObserver Observer) Create(MarkupLoadScopeKind kinds, bool registerDictionaryImporter = false)
