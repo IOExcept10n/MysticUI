@@ -30,5 +30,15 @@ namespace Icy.Tests.Samples
             DesignDemo.Build(configuration, "Airfool");
             DesignDemo.Build(configuration, "Airfool");
         }
+
+        [Fact]
+        public void Build_OffersTheTextEdits()
+        {
+            IcyConfiguration configuration = MarkupLoadObserverTests.CreateConfiguration();
+
+            var root = (StackPanel)DesignDemo.Build(configuration, "Airfool");
+
+            Assert.Equal(8, ((StackPanel)root.Children[1]).Children.Count);
+        }
     }
 }

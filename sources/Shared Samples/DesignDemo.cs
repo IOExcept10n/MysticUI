@@ -15,8 +15,9 @@ using Icy.UI.Controls;
 namespace Icy.SharedSamples
 {
     /// <summary>
-    /// Edits a markup page live through <see cref="MarkupEditor"/>, and shows the markup text every edit produces.
-    /// The manual check for the markup design document (Phase 10.1).
+    /// Edits a markup page live through <see cref="MarkupEditor"/>, shows the markup text every edit produces, and
+    /// applies whole-text edits through <see cref="DesignDocument.ApplyText"/>, showing whether the page is in sync.
+    /// The manual check for the markup design document (Phases 10.1 and 10.2).
     /// </summary>
     public static class DesignDemo
     {
@@ -81,6 +82,15 @@ namespace Icy.SharedSamples
                 editor.MoveElement(IdOf("first"), IdOf("content"), 1)));
             toolbar.Children.Add(CreateButton("Undo", status, editor.UndoStack.Undo));
             toolbar.Children.Add(CreateButton("Redo", status, editor.UndoStack.Redo));
+            toolbar.Children.Add(CreateTextButton("Text: retitle", status, document, () =>
+                document.Text.Replace("Edited live, saved as markup", "Changed through ApplyText", StringComparison.Ordinal)));
+            toolbar.Children.Add(CreateTextButton("Text: break", status, document, () =>
+            {
+                // Drop the root's end tag: well-formedness breaks, the page keeps showing the last valid markup.
+                int end = document.Text.LastIndexOf("</Border>", StringComparison.Ordinal);
+                return end < 0 ? document.Text : document.Text[..end];
+            }));
+            toolbar.Children.Add(CreateTextButton("Text: restore", status, document, () => Markup));
 
             var root = new StackPanel
             {
@@ -108,6 +118,24 @@ namespace Icy.SharedSamples
             {
                 EditResult result = action();
                 status.Text = result.Succeeded ? "OK" : $"Failed: {result.Error?.Message}";
+            };
+            return button;
+        }
+
+        private static Button CreateTextButton(string label, TextBlock status, DesignDocument document, Func<string> nextText)
+        {
+            var button = new Button
+            {
+                Content = new TextBlock { Text = label },
+                Padding = new Thickness(12, 6),
+                Margin = new Thickness(0, 0, 8, 0),
+            };
+            button.Click += (_, _) =>
+            {
+                document.ApplyText(nextText());
+                status.Text = document.IsInSync
+                    ? "In sync"
+                    : $"Out of sync: {(document.LiveErrors.Count > 0 ? document.LiveErrors[0].Message : "the markup has errors")}";
             };
             return button;
         }
