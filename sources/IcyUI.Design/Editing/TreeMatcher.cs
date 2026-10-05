@@ -105,26 +105,27 @@ namespace Icy.Design.Editing
 
         private static string NamespaceDeclarations(ElementSyntax element)
         {
-            var builder = new StringBuilder();
+            // Most elements declare nothing, so the builder only exists when there's something to collect.
+            StringBuilder? builder = null;
             foreach (AttributeSyntax attribute in element.Attributes)
             {
                 if (attribute.IsNamespaceDeclaration)
-                    builder.Append(attribute.Name).Append('=').Append(attribute.Value).Append(';');
+                    (builder ??= new StringBuilder()).Append(attribute.Name).Append('=').Append(attribute.Value).Append(';');
             }
 
-            return builder.ToString();
+            return builder?.ToString() ?? string.Empty;
         }
 
         private static string OwnText(DocumentSyntax document, ElementSyntax element)
         {
-            var builder = new StringBuilder();
+            StringBuilder? builder = null;
             foreach (MarkupSyntaxNode node in element.Content)
             {
                 if (node is TextSyntax or CDataSyntax)
-                    builder.Append(document.Text, node.Span.Start, node.Span.Length);
+                    (builder ??= new StringBuilder()).Append(document.Text, node.Span.Start, node.Span.Length);
             }
 
-            return builder.ToString().Trim();
+            return builder?.ToString().Trim() ?? string.Empty;
         }
 
         private static string SpanText(DocumentSyntax document, ElementSyntax element) =>
@@ -183,6 +184,11 @@ namespace Icy.Design.Editing
         private void Align(ElementSyntax old, ElementSyntax current)
         {
             alignedOld.Add(old);
+
+            // Leaves are most of a page and have nothing to align.
+            if (!old.Elements.Any() && !current.Elements.Any())
+                return;
+
             AlignPropertyElements(old, current);
 
             // Named elements whose partner lives under another parent are handled there, as moves.
@@ -298,25 +304,40 @@ namespace Icy.Design.Editing
 
         private List<(ElementSyntax Old, ElementSyntax New)> LongestCommonSubsequence(List<ElementSyntax> oldChildren, List<ElementSyntax> newChildren)
         {
-            int rows = oldChildren.Count;
-            int columns = newChildren.Count;
+            // A common prefix and suffix always belong to some longest common subsequence, so they're paired directly
+            // and only the middle pays for the table. A typical save touches a few children, which keeps a wide parent
+            // linear instead of quadratic.
+            int prefix = 0;
+            int limit = Math.Min(oldChildren.Count, newChildren.Count);
+            while (prefix < limit && Same(oldChildren[prefix], newChildren[prefix]))
+                prefix++;
+
+            int suffix = 0;
+            while (suffix < limit - prefix && Same(oldChildren[^(suffix + 1)], newChildren[^(suffix + 1)]))
+                suffix++;
+
+            var pairs = new List<(ElementSyntax, ElementSyntax)>();
+            for (int k = 0; k < prefix; k++)
+                pairs.Add((oldChildren[k], newChildren[k]));
+
+            int rows = oldChildren.Count - prefix - suffix;
+            int columns = newChildren.Count - prefix - suffix;
             int[,] lengths = new int[rows + 1, columns + 1];
             for (int i = rows - 1; i >= 0; i--)
             {
                 for (int j = columns - 1; j >= 0; j--)
                 {
-                    lengths[i, j] = Same(oldChildren[i], newChildren[j])
+                    lengths[i, j] = Same(oldChildren[prefix + i], newChildren[prefix + j])
                         ? lengths[i + 1, j + 1] + 1
                         : Math.Max(lengths[i + 1, j], lengths[i, j + 1]);
                 }
             }
 
-            var pairs = new List<(ElementSyntax, ElementSyntax)>();
             for (int i = 0, j = 0; i < rows && j < columns;)
             {
-                if (Same(oldChildren[i], newChildren[j]))
+                if (Same(oldChildren[prefix + i], newChildren[prefix + j]))
                 {
-                    pairs.Add((oldChildren[i], newChildren[j]));
+                    pairs.Add((oldChildren[prefix + i], newChildren[prefix + j]));
                     i++;
                     j++;
                 }
@@ -329,6 +350,9 @@ namespace Icy.Design.Editing
                     j++;
                 }
             }
+
+            for (int k = suffix; k > 0; k--)
+                pairs.Add((oldChildren[^k], newChildren[^k]));
 
             return pairs;
         }

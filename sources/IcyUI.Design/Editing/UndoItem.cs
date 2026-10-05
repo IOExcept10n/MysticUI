@@ -14,23 +14,36 @@ namespace Icy.Design.Editing
         private readonly NodeId node;
         private readonly string? name;
         private readonly string? originalRaw;
+        private readonly string? text;
 
-        private UndoItem(EditStep? step, NodeId node, string? name, string? originalRaw)
+        private UndoItem(EditStep? step, NodeId node, string? name, string? originalRaw, string? text = null)
         {
             this.step = step;
             this.node = node;
             this.name = name;
             this.originalRaw = originalRaw;
+            this.text = text;
         }
 
         public (NodeId Node, string Name)? CoalescedKey => name != null ? (node, name) : null;
+
+        /// <summary>
+        /// Gets the whole text to apply when replaying this item, or <see langword="null"/> for a step or a coalesced
+        /// value.
+        /// </summary>
+        public string? Text => text;
 
         public static UndoItem ForStep(EditStep step) => new(step, default, null, null);
 
         public static UndoItem ForCoalesced(NodeId node, string name, string originalRaw) => new(null, node, name, originalRaw);
 
+        public static UndoItem ForText(string previousText) => new(null, default, null, null, previousText);
+
         public EditStep CreateStep(DesignDocument document)
         {
+            if (text != null)
+                throw new InvalidOperationException("A text item is replayed with ApplyText, not as a step.");
+
             if (step != null)
                 return step;
 

@@ -35,6 +35,8 @@ namespace Icy.Design
         private readonly List<MarkupLoadScope> scopes = [];
         private readonly Dispatcher owner = Dispatcher.GetCurrentThreadDispatcher();
         private readonly Dictionary<(NodeId Node, string Name), PendingValue> pending = [];
+        private readonly HashSet<NodeId> outOfSync = [];
+        private readonly List<Diagnostic> liveErrors = [];
         private MarkupText text;
         private DocumentSyntax syntax;
         private LineMap lineMap;
@@ -44,6 +46,8 @@ namespace Icy.Design
         private FragmentFrame? fragment;
         private int recordingSuppressed;
         private string parsedText;
+        private DocumentSyntax liveSyntax;
+        private bool rootProblem;
 
         internal DesignDocument(DesignSession session, string? sourcePath, string text)
         {
@@ -52,6 +56,7 @@ namespace Icy.Design
             this.text = new MarkupText(text);
             parsedText = text;
             syntax = Parse(text);
+            liveSyntax = syntax;
             lineMap = new LineMap(text);
             foreach (ElementSyntax element in syntax.Elements)
                 AssignNewId(element, ids, nodes);
@@ -117,6 +122,19 @@ namespace Icy.Design
         /// The text is still right; reload the page to see it.
         /// </summary>
         public bool NeedsReload { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the live pages reflect the current text: the text has no syntax errors,
+        /// every part of the last <see cref="ApplyText"/> was mirrored, and the root didn't change in a way that needs
+        /// a reload.
+        /// </summary>
+        public bool IsInSync => !syntax.HasErrors && outOfSync.Count == 0 && !rootProblem;
+
+        /// <summary>
+        /// Gets why the live pages don't reflect the current text: the parts of the last <see cref="ApplyText"/> that
+        /// failed to mirror, with the text they concern. Syntax errors are in <see cref="DocumentSyntax.Diagnostics"/>.
+        /// </summary>
+        public IReadOnlyList<Diagnostic> LiveErrors => liveErrors;
 
         /// <summary>
         /// Gets the editor that changes this document and mirrors every change onto its live pages.
@@ -207,6 +225,63 @@ namespace Icy.Design
         {
             ArgumentException.ThrowIfNullOrEmpty(filePath);
             File.WriteAllText(filePath, Text, Utf8WithoutBom);
+        }
+
+        /// <summary>
+        /// Replaces the whole text and updates the live pages to match, keeping every element that still corresponds,
+        /// with its runtime state. This is how saved files and typed text reach a running page.
+        /// </summary>
+        /// <param name="newText">The new markup text.</param>
+        /// <returns>
+        /// Always a success: the text is stored and recorded as one undo step even when the live pages can't follow
+        /// all of it. Check <see cref="IsInSync"/> and <see cref="LiveErrors"/> for that.
+        /// </returns>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>Malformed text changes nothing live; the pages wait for the next well-formed text.</description></item>
+        /// <item><description>
+        /// Well-formed text is diffed against the last tree the pages followed. Each part is mirrored on its own: one
+        /// part that fails (a value that doesn't convert, say) is reported in <see cref="LiveErrors"/> and doesn't stop
+        /// the others, and the next <see cref="ApplyText"/> rebuilds what failed.
+        /// </description></item>
+        /// <item><description>Identical text changes nothing and records nothing.</description></item>
+        /// </list>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="newText"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <exception cref="InvalidOperationException">The calling thread doesn't own the document's pages.</exception>
+        public EditResult ApplyText(string newText)
+        {
+            ArgumentNullException.ThrowIfNull(newText);
+            ThrowIfDisposed();
+            VerifyAccess();
+            FlushPending();
+
+            string previous = text.Text;
+            if (string.Equals(previous, newText, StringComparison.Ordinal))
+                return EditResult.Success();
+
+            ApplyTextCore(newText);
+            Editor.UndoStack.RecordText(previous, "Apply text");
+            return EditResult.Success();
+        }
+
+        /// <summary>
+        /// Reads the file <see cref="SourcePath"/> resolves to through <see cref="DesignSession.SourcePathResolver"/>,
+        /// and applies its text with <see cref="ApplyText"/>.
+        /// </summary>
+        /// <returns><see langword="false"/>, changing nothing, when the source path doesn't resolve to a file.</returns>
+        /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <exception cref="IOException">The file couldn't be read.</exception>
+        public bool ReloadFromSource()
+        {
+            ThrowIfDisposed();
+            string? path = SourcePath != null ? Session.SourcePathResolver(SourcePath) : null;
+            if (path == null || !File.Exists(path))
+                return false;
+
+            ApplyText(File.ReadAllText(path));
+            return true;
         }
 
         internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Session.IsDisposed, this);
@@ -379,6 +454,26 @@ namespace Icy.Design
 
             using (EnterFragment(element.Span.Start, tag))
                 Session.Builder.ApplyAttribute(scope, instance, xml);
+        }
+
+        /// <summary>
+        /// Stores <paramref name="newText"/> and mirrors it, without recording undo: <see cref="ApplyText"/> and undo
+        /// replay both come through here.
+        /// </summary>
+        internal void ApplyTextCore(string newText)
+        {
+            FlushPending();
+            TextChange change = DiffText(text.Text, newText);
+            text = new MarkupText(newText, text.Version + 1);
+            parsedText = newText;
+            syntax = Parse(newText);
+            lineMap = new LineMap(newText);
+
+            // Malformed text: the id map and the live pages stay on the last tree they could follow.
+            if (!syntax.HasErrors)
+                MirrorText();
+
+            Changed?.Invoke(this, new DocumentChangedEventArgs(new TextChangeSet([change]), Version));
         }
 
         /// <summary>
@@ -561,6 +656,20 @@ namespace Icy.Design
             NeedsReloadChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        private static TextChange DiffText(string before, string after)
+        {
+            int limit = Math.Min(before.Length, after.Length);
+            int prefix = 0;
+            while (prefix < limit && before[prefix] == after[prefix])
+                prefix++;
+
+            int suffix = 0;
+            while (suffix < limit - prefix && before[before.Length - 1 - suffix] == after[after.Length - 1 - suffix])
+                suffix++;
+
+            return new TextChange(new TextSpan(prefix, before.Length - prefix - suffix), after.Substring(prefix, after.Length - prefix - suffix));
+        }
+
         private void AssignNewId(ElementSyntax element, Dictionary<ElementSyntax, NodeId> targetIds, Dictionary<NodeId, ElementSyntax> targetNodes)
         {
             var id = new NodeId(++nextNodeId);
@@ -636,6 +745,7 @@ namespace Icy.Design
             ids = newIds;
             nodes = newNodes;
             parsedText = newText.Text;
+            liveSyntax = newSyntax;
             return vanished;
         }
 
@@ -660,6 +770,7 @@ namespace Icy.Design
             text = snapshot.Text;
             parsedText = snapshot.Text.Text;
             syntax = snapshot.Syntax;
+            liveSyntax = snapshot.Syntax;
             lineMap = snapshot.LineMap;
             ids = snapshot.Ids;
             nodes = snapshot.Nodes;
@@ -673,6 +784,94 @@ namespace Icy.Design
             int index = LiveContent.IndexOf(liveParent, instance, Registry);
             return index >= 0 ? index : null;
         }
+
+        private void MirrorText()
+        {
+            TreeDiff diff = TreeMatcher.Match(liveSyntax, syntax);
+            liveErrors.Clear();
+            rootProblem = diff.RootProblem != null;
+            if (diff.RootProblem is { } problem)
+            {
+                // The root can't be swapped in place: keep everything on the last tree until the root matches again.
+                liveErrors.Add(new Diagnostic(syntax.Root!.NameSpan, problem));
+                MarkNeedsReload();
+                return;
+            }
+
+            if (diff.OpaqueChanged)
+                MarkNeedsReload();
+
+            var before = new DocumentSnapshot(new MarkupText(liveSyntax.Text), liveSyntax, new LineMap(liveSyntax.Text), ids, nodes);
+            var newIds = new Dictionary<ElementSyntax, NodeId>();
+            var newNodes = new Dictionary<NodeId, ElementSyntax>();
+            foreach ((ElementSyntax current, ElementSyntax old) in diff.Pairs)
+            {
+                if (ids.TryGetValue(old, out NodeId id))
+                {
+                    newIds[current] = id;
+                    newNodes[id] = current;
+                }
+            }
+
+            foreach (ElementSyntax element in syntax.Elements)
+            {
+                if (!newIds.ContainsKey(element))
+                    AssignNewId(element, newIds, newNodes);
+            }
+
+            List<NodeId> vanished = [.. ids.Values.Where(x => !newNodes.ContainsKey(x))];
+            ids = newIds;
+            nodes = newNodes;
+            liveSyntax = syntax;
+
+            var context = new MirrorContext(this, before);
+            foreach (TextUnit unit in CreateUnits(diff, before))
+                RunUnit(unit, context, before);
+
+            foreach (NodeId id in vanished)
+                Map.RemoveNode(id);
+        }
+
+        /// <summary>
+        /// Turns a diff into units, ordered so insertions anchor against the final set of siblings: removals, moves,
+        /// replacements, insertions, then attribute changes.
+        /// </summary>
+        private List<TextUnit> CreateUnits(TreeDiff diff, DocumentSnapshot before)
+        {
+            var oldToNew = new Dictionary<ElementSyntax, ElementSyntax>();
+            foreach ((ElementSyntax current, ElementSyntax old) in diff.Pairs)
+                oldToNew[old] = current;
+
+            var units = new List<TextUnit>();
+            foreach (ElementSyntax old in diff.Removed)
+            {
+                TextSpan span = old.Parent != null && oldToNew.TryGetValue(old.Parent, out ElementSyntax? parent) ? parent.NameSpan : default;
+                units.Add(new TextUnit(new ElementRemovedAction(before.Ids[old]), null, span));
+            }
+
+            foreach ((_, ElementSyntax current) in diff.Moved)
+                units.Add(new TextUnit(new ElementMovedAction(ids[current], ids[current.Parent!], current.Span.Start), ids[current], current.NameSpan));
+
+            var rebuilt = new HashSet<ElementSyntax>();
+            foreach ((_, ElementSyntax current) in diff.Replaced)
+            {
+                rebuilt.Add(current);
+                units.Add(new TextUnit(new ElementReplacedAction(ids[current]), ids[current], current.NameSpan));
+            }
+
+            foreach (ElementSyntax current in diff.Inserted)
+                units.Add(new TextUnit(new ElementInsertedAction(ids[current.Parent!], current.Span.Start), ids[current], current.NameSpan));
+
+            foreach ((ElementSyntax element, string name) in diff.ChangedAttributes)
+            {
+                if (!rebuilt.Contains(element))
+                    units.Add(new TextUnit(new AttributeChangedAction(ids[element], name), ids[element], element.FindAttribute(name)?.Span ?? element.NameSpan));
+            }
+
+            return units;
+        }
+
+        private void RunUnit(TextUnit unit, MirrorContext context, DocumentSnapshot before) => unit.Action.Execute(context);
 
         private DocumentSyntax Parse(string value)
         {

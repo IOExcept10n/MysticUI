@@ -119,6 +119,21 @@ namespace Icy.Design
             Changed?.Invoke(this, EventArgs.Empty);
         }
 
+        internal void RecordText(string previousText, string description)
+        {
+            redo.Clear();
+            if (transaction != null)
+            {
+                transaction.Items.Add(UndoItem.ForText(previousText));
+                return;
+            }
+
+            var entry = new UndoEntry(description);
+            entry.Items.Add(UndoItem.ForText(previousText));
+            undo.Add(entry);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
         internal void RecordCoalesced(NodeId node, string name, string originalRaw, string description)
         {
             (NodeId, string) key = (node, name);
@@ -162,30 +177,51 @@ namespace Icy.Design
             var replayed = new UndoEntry(entry.Description);
             for (int i = entry.Items.Count - 1; i >= 0; i--)
             {
-                EditResult result;
-                EditStep? inverse = null;
-                try
-                {
-                    result = document.Apply(entry.Items[i].CreateStep(document), out inverse);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    // Building the step can find its target gone; that's a failed replay, not a crash.
-                    result = EditResult.Failure(default, ex.Message);
-                }
-
+                EditResult result = ReplayItem(entry.Items[i], out UndoItem? undone);
                 if (!result.Succeeded)
                 {
                     RollBack(entry, replayed, from);
                     return result;
                 }
 
-                replayed.Items.Add(UndoItem.ForStep(inverse!));
+                replayed.Items.Add(undone!);
             }
 
             to.Add(replayed);
             Changed?.Invoke(this, EventArgs.Empty);
             return EditResult.Success();
+        }
+
+        /// <summary>
+        /// Replays one item and gives back the item that would undo the replay.
+        /// </summary>
+        private EditResult ReplayItem(UndoItem item, out UndoItem? undone)
+        {
+            undone = null;
+            if (item.Text is { } previousText)
+            {
+                // Applying text never fails: the text always wins, and live gaps show in LiveErrors.
+                string current = document.Text;
+                document.ApplyTextCore(previousText);
+                undone = UndoItem.ForText(current);
+                return EditResult.Success();
+            }
+
+            EditResult result;
+            EditStep? inverse = null;
+            try
+            {
+                result = document.Apply(item.CreateStep(document), out inverse);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Building the step can find its target gone; that's a failed replay, not a crash.
+                result = EditResult.Failure(default, ex.Message);
+            }
+
+            if (result.Succeeded)
+                undone = UndoItem.ForStep(inverse!);
+            return result;
         }
 
         /// <summary>
@@ -197,7 +233,7 @@ namespace Icy.Design
         {
             bool restored = true;
             for (int j = replayed.Items.Count - 1; j >= 0 && restored; j--)
-                restored = document.Apply(replayed.Items[j].CreateStep(document), out _).Succeeded;
+                restored = ReplayItem(replayed.Items[j], out _).Succeeded;
 
             if (restored)
             {
