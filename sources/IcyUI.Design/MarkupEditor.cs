@@ -59,10 +59,15 @@ namespace Icy.Design
         /// <returns>The outcome; on success <see cref="EditResult.Node"/> is the inserted element.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="markup"/> is <see langword="null"/>.</exception>
         /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <remarks>
+        /// <para>Refused while <see cref="DesignDocument.IsInSync"/> is <see langword="false"/>: fix the markup first.</para>
+        /// </remarks>
         public EditResult InsertElement(NodeId parent, int index, string markup)
         {
             document.ThrowIfDisposed();
             ArgumentNullException.ThrowIfNull(markup);
+            if (RefuseWhileOutOfSync() is { } refused)
+                return refused;
 
             if (document.GetNode(parent) is not { } parentElement)
                 return UnknownNode(parent);
@@ -86,9 +91,14 @@ namespace Icy.Design
         /// <param name="node">The element to remove. It can't be the root.</param>
         /// <returns>The outcome.</returns>
         /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <remarks>
+        /// <para>Refused while <see cref="DesignDocument.IsInSync"/> is <see langword="false"/>: fix the markup first.</para>
+        /// </remarks>
         public EditResult RemoveElement(NodeId node)
         {
             document.ThrowIfDisposed();
+            if (RefuseWhileOutOfSync() is { } refused)
+                return refused;
             if (document.GetNode(node) is not { } element)
                 return UnknownNode(node);
             if (element.Parent == null)
@@ -109,9 +119,14 @@ namespace Icy.Design
         /// </param>
         /// <returns>The outcome.</returns>
         /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <remarks>
+        /// <para>Refused while <see cref="DesignDocument.IsInSync"/> is <see langword="false"/>: fix the markup first.</para>
+        /// </remarks>
         public EditResult MoveElement(NodeId node, NodeId newParent, int index)
         {
             document.ThrowIfDisposed();
+            if (RefuseWhileOutOfSync() is { } refused)
+                return refused;
             if (document.GetNode(node) is not { } element)
                 return UnknownNode(node);
             if (document.GetNode(newParent) is not { } target)
@@ -164,11 +179,16 @@ namespace Icy.Design
         /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
         /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
         /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <remarks>
+        /// <para>Refused while <see cref="DesignDocument.IsInSync"/> is <see langword="false"/>: fix the markup first.</para>
+        /// </remarks>
         public EditResult SetAttribute(NodeId node, string name, string value)
         {
             document.ThrowIfDisposed();
             ArgumentException.ThrowIfNullOrEmpty(name);
             ArgumentNullException.ThrowIfNull(value);
+            if (RefuseWhileOutOfSync() is { } refused)
+                return refused;
 
             if (MarkupParser.IsValidName(name) && document.TryFastSetAttribute(node, name, value, out EditResult? fast, out string? originalRaw))
             {
@@ -194,10 +214,15 @@ namespace Icy.Design
         /// <returns>The outcome; a success that changed nothing when the element has no such attribute.</returns>
         /// <exception cref="ArgumentException"><paramref name="name"/> is <see langword="null"/> or empty.</exception>
         /// <exception cref="ObjectDisposedException">The document's session was disposed.</exception>
+        /// <remarks>
+        /// <para>Refused while <see cref="DesignDocument.IsInSync"/> is <see langword="false"/>: fix the markup first.</para>
+        /// </remarks>
         public EditResult ClearAttribute(NodeId node, string name)
         {
             document.ThrowIfDisposed();
             ArgumentException.ThrowIfNullOrEmpty(name);
+            if (RefuseWhileOutOfSync() is { } refused)
+                return refused;
 
             if (document.GetNode(node) is not { } element)
                 return UnknownNode(node);
@@ -242,6 +267,9 @@ namespace Icy.Design
                 return EditResult.Failure(element.NameSpan, "Namespace declarations can't be edited.");
             return null;
         }
+
+        private EditResult? RefuseWhileOutOfSync() =>
+            document.IsInSync ? null : EditResult.Failure(default, "The markup has errors; fix them first.");
 
         private EditResult? Validate(ElementSyntax parent, int contentCount, int index)
         {

@@ -46,8 +46,11 @@ namespace Icy.Design
         private FragmentFrame? fragment;
         private int recordingSuppressed;
         private string parsedText;
+        private List<object>? building;
         private DocumentSyntax liveSyntax;
         private bool rootProblem;
+        private bool reportedInSync = true;
+        private Diagnostic[] reportedErrors = [];
 
         internal DesignDocument(DesignSession session, string? sourcePath, string text)
         {
@@ -83,6 +86,11 @@ namespace Icy.Design
         /// Occurs when the syntax tree's <see cref="DocumentSyntax.Diagnostics"/> changed.
         /// </summary>
         public event EventHandler? DiagnosticsChanged;
+
+        /// <summary>
+        /// Occurs when <see cref="IsInSync"/> or <see cref="LiveErrors"/> changed.
+        /// </summary>
+        public event EventHandler? SyncStateChanged;
 
         /// <summary>
         /// Gets the session tracking this document.
@@ -379,6 +387,8 @@ namespace Icy.Design
                 ?? throw new DesignEditException("The page this document was loaded into no longer exists.");
             var namesBefore = new HashSet<string>(names.Names.Keys, StringComparer.Ordinal);
             string elementText = Text.Substring(element.Span.Start, element.Span.Length);
+            List<object>? outer = building;
+            building = [];
 
             try
             {
@@ -394,7 +404,16 @@ namespace Icy.Design
             {
                 foreach (string name in names.Names.Keys.Where(x => !namesBefore.Contains(x)).ToList())
                     names.Unregister(name);
+
+                // The objects created before the failure were tracked as they were made; they never reach a page.
+                foreach (object orphan in building)
+                    Map.Remove(orphan);
                 throw;
+            }
+            finally
+            {
+                outer?.AddRange(building);
+                building = outer;
             }
         }
 
@@ -474,6 +493,7 @@ namespace Icy.Design
                 MirrorText();
 
             Changed?.Invoke(this, new DocumentChangedEventArgs(new TextChangeSet([change]), Version));
+            UpdateSyncState();
         }
 
         /// <summary>
@@ -612,7 +632,10 @@ namespace Icy.Design
                 return;
 
             if (syntax.FindElementByNameStart(offset) is { } element && ids.TryGetValue(element, out NodeId id))
+            {
                 Map.Add(id, instance, scope);
+                building?.Add(instance);
+            }
         }
 
         internal void OnMemberApplied(XObject node, object target, MarkupMember member, IBinding? binding)
@@ -802,6 +825,8 @@ namespace Icy.Design
                 MarkNeedsReload();
 
             var before = new DocumentSnapshot(new MarkupText(liveSyntax.Text), liveSyntax, new LineMap(liveSyntax.Text), ids, nodes);
+            HashSet<NodeId> previouslyOutOfSync = [.. outOfSync];
+            outOfSync.Clear();
             var newIds = new Dictionary<ElementSyntax, NodeId>();
             var newNodes = new Dictionary<NodeId, ElementSyntax>();
             foreach ((ElementSyntax current, ElementSyntax old) in diff.Pairs)
@@ -825,22 +850,51 @@ namespace Icy.Design
             liveSyntax = syntax;
 
             var context = new MirrorContext(this, before);
-            foreach (TextUnit unit in CreateUnits(diff, before))
+            foreach (TextUnit unit in CreateUnits(diff, before, previouslyOutOfSync))
                 RunUnit(unit, context, before);
 
             foreach (NodeId id in vanished)
                 Map.RemoveNode(id);
+
+            SyncNames();
         }
 
         /// <summary>
         /// Turns a diff into units, ordered so insertions anchor against the final set of siblings: removals, moves,
-        /// replacements, insertions, then attribute changes.
+        /// replacements, insertions, then attribute changes. Elements left out of sync by an earlier apply are rebuilt,
+        /// or inserted when they have no live copy yet.
         /// </summary>
-        private List<TextUnit> CreateUnits(TreeDiff diff, DocumentSnapshot before)
+        private List<TextUnit> CreateUnits(TreeDiff diff, DocumentSnapshot before, HashSet<NodeId> previouslyOutOfSync)
         {
             var oldToNew = new Dictionary<ElementSyntax, ElementSyntax>();
             foreach ((ElementSyntax current, ElementSyntax old) in diff.Pairs)
                 oldToNew[old] = current;
+
+            var rebuilt = new HashSet<ElementSyntax>();
+            var replaced = new List<ElementSyntax>();
+            var inserted = new List<ElementSyntax>();
+            foreach ((_, ElementSyntax current) in diff.Replaced)
+            {
+                if (rebuilt.Add(current))
+                    replaced.Add(current);
+            }
+
+            foreach (ElementSyntax current in diff.Inserted)
+            {
+                if (rebuilt.Add(current))
+                    inserted.Add(current);
+            }
+
+            foreach (NodeId id in previouslyOutOfSync)
+            {
+                if (!nodes.TryGetValue(id, out ElementSyntax? element) || !rebuilt.Add(element))
+                    continue;
+
+                if (Map.GetObjects(id).Count > 0)
+                    replaced.Add(element);
+                else if (element.Parent is { } parent && ids.TryGetValue(parent, out NodeId parentId) && Map.GetObjects(parentId).Count > 0)
+                    inserted.Add(element);
+            }
 
             var units = new List<TextUnit>();
             foreach (ElementSyntax old in diff.Removed)
@@ -852,14 +906,10 @@ namespace Icy.Design
             foreach ((_, ElementSyntax current) in diff.Moved)
                 units.Add(new TextUnit(new ElementMovedAction(ids[current], ids[current.Parent!], current.Span.Start), ids[current], current.NameSpan));
 
-            var rebuilt = new HashSet<ElementSyntax>();
-            foreach ((_, ElementSyntax current) in diff.Replaced)
-            {
-                rebuilt.Add(current);
+            foreach (ElementSyntax current in replaced)
                 units.Add(new TextUnit(new ElementReplacedAction(ids[current]), ids[current], current.NameSpan));
-            }
 
-            foreach (ElementSyntax current in diff.Inserted)
+            foreach (ElementSyntax current in inserted)
                 units.Add(new TextUnit(new ElementInsertedAction(ids[current.Parent!], current.Span.Start), ids[current], current.NameSpan));
 
             foreach ((ElementSyntax element, string name) in diff.ChangedAttributes)
@@ -871,7 +921,79 @@ namespace Icy.Design
             return units;
         }
 
-        private void RunUnit(TextUnit unit, MirrorContext context, DocumentSnapshot before) => unit.Action.Execute(context);
+        /// <summary>
+        /// Makes every named live element resolvable by its <c>x:Name</c> again. An element moved out of a container the
+        /// same apply removed had its name unregistered with that container.
+        /// </summary>
+        private void SyncNames()
+        {
+            foreach (ElementSyntax element in syntax.Elements)
+            {
+                if (TreeMatcher.GetDirective(syntax, element, MarkupDirectives.Name) is not { } name || !ids.TryGetValue(element, out NodeId id))
+                    continue;
+
+                foreach ((object instance, MarkupLoadScope scope) in Map.GetObjects(id))
+                {
+                    if (instance is not UIElement live || scope.NameScope is not { } names || ReferenceEquals(names.Find(name), live))
+                        continue;
+
+                    names.Unregister(name);
+                    names.Register(name, live);
+                }
+            }
+        }
+
+        private void UpdateSyncState()
+        {
+            bool inSync = IsInSync;
+            if (inSync == reportedInSync && liveErrors.SequenceEqual(reportedErrors))
+                return;
+
+            reportedInSync = inSync;
+            reportedErrors = [.. liveErrors];
+            SyncStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Runs one unit. A unit that fails is reverted on the old tree, reported, and remembered as out of sync, and
+        /// the other units still run.
+        /// </summary>
+        private void RunUnit(TextUnit unit, MirrorContext context, DocumentSnapshot before)
+        {
+            try
+            {
+                unit.Action.Execute(context);
+            }
+            catch (Exception ex) when (!Failures.IsFatal(ex))
+            {
+                RevertOnOldTree(unit.Action, context, before);
+                liveErrors.Add(new Diagnostic(unit.Span, Failures.Describe(ex)));
+                if (unit.Node is NodeId failed)
+                    outOfSync.Add(failed);
+            }
+        }
+
+        /// <summary>
+        /// Reverts a failed unit with the document showing the old tree, which is what every action's Revert expects,
+        /// then puts the new tree back.
+        /// </summary>
+        private void RevertOnOldTree(MirrorAction action, MirrorContext context, DocumentSnapshot before)
+        {
+            var after = new DocumentSnapshot(text, syntax, lineMap, ids, nodes);
+            Restore(before);
+            try
+            {
+                action.Revert(context);
+            }
+            catch (Exception ex) when (!Failures.IsFatal(ex))
+            {
+                // A revert that fails too leaves the element behind the text; it's reported and rebuilt next time.
+            }
+            finally
+            {
+                Restore(after);
+            }
+        }
 
         private DocumentSyntax Parse(string value)
         {
