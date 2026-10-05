@@ -104,8 +104,11 @@ public sealed class EditorSession : IDisposable
 public sealed record EditorSelection(DesignDocument Document, NodeId Node, UIElement Instance);
 ```
 
-**Lifetime.** `Attach` works on one canvas, across every tracked document whose pages are on it. `Dispose` restores
-everything it changed.
+**Lifetime.** `Attach` works on one canvas, across every tracked document whose pages are on it. `Dispose` removes only
+the editor's own footprint: its bindings, and the focus and navigation state it changed. **Edits are never rolled
+back.** Every gesture is a real 10.1 edit, so the live page and `DesignDocument.Text` keep the change and the document
+keeps its undo history. Documents belong to the `DesignSession`, so they can be saved before or after detaching, and no
+reload is needed: the live page already shows what will be saved.
 
 **Modes.**
 - **Entering Edit:** remembers and clears the canvas's focused element (so no TextBox takes typing), sets
@@ -172,11 +175,22 @@ public interface IPlacementStrategy
   size and attributes at the gesture's start, which the session captures, so rounding never accumulates.
 
 **The registry.** `PlacementRegistry` maps a container type to a strategy; the most-derived registered type wins. The
-defaults are `StackPanel`, `Grid`, and `Panel` (the fallback). A game registers its own panel's strategy the same way.
+defaults are `StackPanel` and `Grid`. A game registers its own container's strategy the same way. A container with no
+registered strategy gets one by what its markup content property holds (the same distinction 10.1's `LiveContent`
+makes):
+- **a list** (`Panel` and the like): the margin fallback;
+- **a single slot** (`ContentControl`, `Border`, any custom one): the margin fallback for moving, nudging and resizing
+  the child, which is positioned by alignment and margin inside its slot, as in a generic panel. It accepts a drop
+  **only when empty**; a drop onto a filled slot is refused, never a replacement.
+
+**Containers are logical.** A child's container, and the drop container, always come from the markup parent (the
+syntax tree's parent element, mapped to its live object in the same load scope), never from `UIElement.Parent`. A
+`ContentControl`'s child is visually parented by the `ContentPresenter` in its template, so `UIElement.Parent` is the
+wrong object, the same rule 10.1's mirroring follows.
 
 **Choosing the drop container.** The deepest editable container under the pointer that isn't the dragged element or
-inside it. Single-child containers (`Border`, `ContentControl`) accept a drop only when empty. When nothing accepts
-the drop, the move does nothing.
+inside it. Single-slot containers accept a drop only when empty. When nothing accepts the drop, the move does
+nothing.
 
 **StackPanel.**
 - **Drop:** the index of the nearest gap between children along the panel's orientation, decided by each child's
@@ -309,3 +323,7 @@ editing works on both engines.
 - Snapping and alignment guides.
 - Handles that follow a rotated canvas.
 - Default gamepad bindings (the commands are ready for them).
+- **Saving from inside the editor.** Saving is left to the hosts (10.5). Keep it in mind while developing: the
+  in-game utility will want a "modified since save" flag on `DesignDocument` (version vs. last saved or loaded
+  version, with a change event) and a Save command saving every modified document on the canvas. Nothing in 10.3
+  should make those harder to add.
