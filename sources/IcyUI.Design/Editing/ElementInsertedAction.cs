@@ -34,7 +34,18 @@ namespace Icy.Design.Editing
             foreach ((object liveParent, MarkupLoadScope scope) in document.Map.GetObjects(parent))
             {
                 UIElement built = document.BuildElement(scope, element, (UIElement)liveParent);
-                LiveContent.Insert(liveParent, document.ComputeLiveIndex(element, liveParent, scope), built, document.Registry);
+                try
+                {
+                    LiveContent.Insert(liveParent, document.ComputeLiveIndex(element, liveParent, scope), built, document.Registry);
+                }
+                catch
+                {
+                    // Built but never added: Revert won't see it, so take its names and map entries back here.
+                    LiveTree.UnregisterNames(scope, built);
+                    document.Map.RemoveSubtree(built);
+                    throw;
+                }
+
                 inserted.Add((liveParent, built, scope));
             }
         }

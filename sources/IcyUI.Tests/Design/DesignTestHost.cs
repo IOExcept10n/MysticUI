@@ -18,6 +18,8 @@ namespace Icy.Tests.Design
             Configuration = MarkupLoadObserverTests.CreateConfiguration();
             Configuration.Types.Markup.RegisterShortName<ClrBox>();
             Configuration.Types.Markup.RegisterShortName<Labeled>();
+            Configuration.Types.Markup.RegisterShortName<ThrowingBox>();
+            Configuration.Types.Markup.RegisterShortName<PickyPanel>();
             Session = DesignSession.Attach(Configuration);
             Loader = new MarkupLoader(Configuration);
         }

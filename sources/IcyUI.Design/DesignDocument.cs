@@ -240,8 +240,8 @@ namespace Icy.Design
                 for (int i = Math.Min(executed, step.Actions.Count - 1); i >= 0; i--)
                     step.Actions[i].Revert(context);
 
-                if (ex is MarkupException or DesignEditException)
-                    return EditResult.Failure(step.Change.Count > 0 ? new TextSpan(step.Change[0].Span.Start, 0) : default, ex.Message);
+                if (!Failures.IsFatal(ex))
+                    return EditResult.Failure(step.Change.Count > 0 ? new TextSpan(step.Change[0].Span.Start, 0) : default, Failures.Describe(ex));
                 throw;
             }
 
@@ -479,12 +479,12 @@ namespace Icy.Design
                 for (; applied < objects.Count; applied++)
                     ApplyAttributeValue(objects[applied].Scope, objects[applied].Instance, element, name, raw, attribute.Quote);
             }
-            catch (MarkupException ex)
+            catch (Exception ex) when (!Failures.IsFatal(ex))
             {
                 for (int i = 0; i <= applied && i < objects.Count; i++)
                     ApplyAttributeValue(objects[i].Scope, objects[i].Instance, element, name, currentRaw, attribute.Quote);
 
-                result = EditResult.Failure(attribute.ValueSpan, ex.Message);
+                result = EditResult.Failure(attribute.ValueSpan, Failures.Describe(ex));
                 return true;
             }
 
@@ -498,7 +498,12 @@ namespace Icy.Design
             return true;
         }
 
-        internal void AddScope(MarkupLoadScope scope) => scopes.Add(scope);
+        internal void AddScope(MarkupLoadScope scope)
+        {
+            // A page loaded from the current text must correlate against it, not against the last parsed text.
+            FlushPending();
+            scopes.Add(scope);
+        }
 
         internal void RemoveScope(MarkupLoadScope scope)
         {

@@ -38,4 +38,41 @@ namespace Icy.Tests.Design
         {
         }
     }
+
+    /// <summary>
+    /// An element whose plain CLR setter throws a non-markup exception for bad values, like a game's own validation.
+    /// </summary>
+    internal sealed class ThrowingBox : UIElement
+    {
+        private int count;
+
+        public int Count
+        {
+            get => count;
+            set
+            {
+                ArgumentOutOfRangeException.ThrowIfNegative(value);
+                count = value;
+            }
+        }
+
+        protected override Size MeasureContent() => Size.Empty;
+
+        protected override void ArrangeContent()
+        {
+        }
+    }
+
+    /// <summary>
+    /// A panel that refuses text blocks, so adding one fails after the child was already built.
+    /// </summary>
+    internal sealed class PickyPanel : Icy.UI.Controls.StackPanel
+    {
+        protected override void OnChildAdding(object? sender, Icy.Data.CancellableEventArgs<UIElement> e)
+        {
+            if (e.Data is Icy.UI.Controls.TextBlock)
+                throw new InvalidOperationException("No text blocks here.");
+            base.OnChildAdding(sender, e);
+        }
+    }
 }
