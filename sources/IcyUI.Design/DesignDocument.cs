@@ -482,6 +482,7 @@ namespace Icy.Design
         internal void ApplyTextCore(string newText)
         {
             FlushPending();
+            int diagnosticsBefore = syntax.Diagnostics.Count;
             TextChange change = DiffText(text.Text, newText);
             text = new MarkupText(newText, text.Version + 1);
             parsedText = newText;
@@ -493,6 +494,8 @@ namespace Icy.Design
                 MirrorText();
 
             Changed?.Invoke(this, new DocumentChangedEventArgs(new TextChangeSet([change]), Version));
+            if (diagnosticsBefore != syntax.Diagnostics.Count)
+                DiagnosticsChanged?.Invoke(this, EventArgs.Empty);
             UpdateSyncState();
         }
 
@@ -693,6 +696,17 @@ namespace Icy.Design
             return new TextChange(new TextSpan(prefix, before.Length - prefix - suffix), after.Substring(prefix, after.Length - prefix - suffix));
         }
 
+        private static bool HasRebuiltAncestor(ElementSyntax element, HashSet<ElementSyntax> rebuilt)
+        {
+            for (ElementSyntax? current = element.Parent; current != null; current = current.Parent)
+            {
+                if (rebuilt.Contains(current))
+                    return true;
+            }
+
+            return false;
+        }
+
         private void AssignNewId(ElementSyntax element, Dictionary<ElementSyntax, NodeId> targetIds, Dictionary<NodeId, ElementSyntax> targetNodes)
         {
             var id = new NodeId(++nextNodeId);
@@ -885,11 +899,20 @@ namespace Icy.Design
                     inserted.Add(current);
             }
 
+            var healing = new List<ElementSyntax>();
             foreach (NodeId id in previouslyOutOfSync)
             {
-                if (!nodes.TryGetValue(id, out ElementSyntax? element) || !rebuilt.Add(element))
+                if (nodes.TryGetValue(id, out ElementSyntax? element) && rebuilt.Add(element))
+                    healing.Add(element);
+            }
+
+            foreach (ElementSyntax element in healing)
+            {
+                // An ancestor rebuilt from the text brings this element along; healing it as well would build it twice.
+                if (HasRebuiltAncestor(element, rebuilt))
                     continue;
 
+                NodeId id = ids[element];
                 if (Map.GetObjects(id).Count > 0)
                     replaced.Add(element);
                 else if (element.Parent is { } parent && ids.TryGetValue(parent, out NodeId parentId) && Map.GetObjects(parentId).Count > 0)

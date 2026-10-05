@@ -182,6 +182,40 @@ namespace Icy.Tests.Design
             Assert.Empty(document.LiveErrors);
         }
 
+        [Fact]
+        public void MalformedText_RaisesDiagnosticsChanged()
+        {
+            using var host = new DesignTestHost();
+            (_, DesignDocument document) = host.Load(Page);
+            int fired = 0;
+            document.DiagnosticsChanged += (_, _) => fired++;
+
+            document.ApplyText(Page[..^"</StackPanel>".Length]);
+            Assert.Equal(1, fired);
+
+            document.ApplyText(Page);
+            Assert.Equal(2, fired);
+        }
+
+        [Fact]
+        public void HealingAParentAndAChildTogether_InsertsTheChildOnce()
+        {
+            using var host = new DesignTestHost();
+            (UIElement root, DesignDocument document) = host.Load(Page);
+            string broken = Page
+                .Replace("<StackPanel x:Name=\"right\">", "<StackPanel x:Name=\"right\" Width=\"abc\">", StringComparison.Ordinal)
+                .Replace("<TextBlock x:Name=\"label\">Hi</TextBlock>", "<TextBlock x:Name=\"label\">Hi</TextBlock><Border x:Name=\"late\" Width=\"abc\"/>", StringComparison.Ordinal);
+            document.ApplyText(broken);
+            Assert.Equal(2, document.LiveErrors.Count);
+
+            document.ApplyText(broken.Replace("Width=\"abc\"", "Width=\"50\"", StringComparison.Ordinal));
+
+            Assert.True(document.IsInSync, string.Join("; ", document.LiveErrors.Select(x => x.Message)));
+            var right = DesignTestHost.Named<StackPanel>(root, "right");
+            Assert.Equal(2, right.Children.Count);
+            Assert.Equal(50f, right.Width);
+        }
+
         private static void ApplyBadWidthAndAnInsertion(DesignDocument document) =>
             document.ApplyText(Page
                 .Replace("Width=\"10\"", "Width=\"abc\"", StringComparison.Ordinal)
