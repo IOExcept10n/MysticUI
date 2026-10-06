@@ -35,6 +35,7 @@
     <Compile Include="..\Shared Samples\ScalingDemo.cs" Link="ScalingDemo.cs" />
     <Compile Include="..\Shared Samples\DesignDemo.cs" Link="DesignDemo.cs" />
     <Compile Include="..\Shared Samples\EditorDemo.cs" Link="EditorDemo.cs" />
+    <Compile Include="..\Shared Samples\TreeViewDemo.cs" Link="TreeViewDemo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">

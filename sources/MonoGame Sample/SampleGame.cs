@@ -57,6 +57,7 @@ namespace Icy.MonoGameSample
                 new ColorPickerSample(this, uiConfiguration, canvas),
                 new PropertyGridSample(this, uiConfiguration, canvas),
                 new ScalingSample(this, uiConfiguration, canvas),
+                new TreeViewSample(this, uiConfiguration, canvas),
                 new DesignSample(this, uiConfiguration, canvas),
                 new EditorSample(this, uiConfiguration, canvas)
                 ]);
