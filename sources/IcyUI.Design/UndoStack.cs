@@ -97,6 +97,18 @@ namespace Icy.Design
             Changed?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Forgets the redo history, after an undo that only took back an abandoned gesture.
+        /// </summary>
+        internal void DropRedo()
+        {
+            if (redo.Count == 0)
+                return;
+
+            redo.Clear();
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
         internal IDisposable BeginTransaction(string description)
         {
             if (transactionDepth++ == 0)

@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using Icy.Design.Editor.Placement;
 using Icy.Design.Syntax;
 using Icy.Markup;
 using Icy.UI;
@@ -118,6 +119,17 @@ namespace Icy.Design.Editor
             : selection!.Document.LiveErrors.Count > 0 ? selection.Document.LiveErrors[0].Message : "The markup has errors; fix them first.";
 
         /// <summary>
+        /// Gets the placement strategies, by container type. Register strategies for custom containers here.
+        /// </summary>
+        public PlacementRegistry Placement { get; } = new();
+
+        /// <summary>
+        /// Gets the document the last gesture or command edited, or <see langword="null"/>. Undo and redo use it when
+        /// nothing is selected.
+        /// </summary>
+        public DesignDocument? LastEdited { get; private set; }
+
+        /// <summary>
         /// Gets the overlays that belong to the editor itself. They never take part in <see cref="HitTest"/>.
         /// </summary>
         internal ISet<UIElement> OwnLayers { get; } = new HashSet<UIElement>();
@@ -211,6 +223,90 @@ namespace Icy.Design.Editor
         public void Clear() => SetSelection(null);
 
         /// <summary>
+        /// Starts moving the selected element from <paramref name="screenPoint"/>.
+        /// </summary>
+        /// <param name="screenPoint">Where the pointer went down, in screen space.</param>
+        /// <returns>
+        /// The gesture, or <see langword="null"/> when nothing is selected, the selection is the root, or the session is
+        /// <see cref="IsBlocked"/>.
+        /// </returns>
+        /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
+        public MoveGesture? BeginMove(Point screenPoint)
+        {
+            ThrowIfDisposed();
+            if (selection is not { } current || blocked || Syntax(current)?.Parent == null || ScopeOf(current.Document, current.Instance) is not { } scope)
+                return null;
+
+            return new MoveGesture(this, current, scope, FindLogicalParent(current), screenPoint);
+        }
+
+        /// <summary>
+        /// Starts resizing the selected element from one of its handles.
+        /// </summary>
+        /// <param name="handle">The dragged handle.</param>
+        /// <param name="screenPoint">Where the pointer went down, in screen space.</param>
+        /// <returns>The gesture, or <see langword="null"/> when nothing is selected or the session is <see cref="IsBlocked"/>.</returns>
+        /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
+        public ResizeGesture? BeginResize(ResizeHandle handle, Point screenPoint)
+        {
+            ThrowIfDisposed();
+            if (selection is not { } current || blocked || handle == ResizeHandle.None)
+                return null;
+
+            // The root has no markup parent; its canvas slot works like a generic panel.
+            UIElement container = FindLogicalParent(current) ?? (UIElement?)current.Instance.Parent ?? current.Instance;
+            var context = new PlacementContext(container, current.Instance, [], 0, PlacementContext.ToLocal(container, current.Instance.ActualBounds), isCurrentContainer: true);
+            IResizeOperation operation = ReferenceEquals(container, current.Instance)
+                ? new MarginPlacement().BeginResize(context, handle)
+                : Placement.Resolve(container).BeginResize(context, handle);
+            return new ResizeGesture(this, current, container, operation, screenPoint);
+        }
+
+        /// <summary>
+        /// Moves the selected element by its margin, alignment-aware, in any container.
+        /// </summary>
+        /// <param name="dx">The horizontal offset, in layout units.</param>
+        /// <param name="dy">The vertical offset, in layout units.</param>
+        /// <returns>The outcome; a failure when nothing is selected or the session is <see cref="IsBlocked"/>.</returns>
+        /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
+        public EditResult Nudge(int dx, int dy)
+        {
+            ThrowIfDisposed();
+            if (selection is not { } current)
+                return EditResult.Failure(default, "Nothing is selected.");
+            if (blocked)
+                return EditResult.Failure(default, BlockedReason!);
+
+            Thickness margin = LayoutMath.Move(current.Instance, current.Instance.Margin, dx, dy);
+            using var gesture = new GestureEdits(current.Document, "Nudge");
+            EditResult result = gesture.Apply(current.Node, [new AttributeEdit("Margin", MarkupValues.Format(margin))]);
+            if (result.Succeeded)
+                NoteEdited(current.Document);
+            else
+                gesture.Rollback();
+            return result;
+        }
+
+        /// <summary>
+        /// Removes the selected element and clears the selection.
+        /// </summary>
+        /// <returns>The outcome; a failure for the root, when nothing is selected, or while <see cref="IsBlocked"/>.</returns>
+        /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
+        public EditResult DeleteSelection()
+        {
+            ThrowIfDisposed();
+            if (selection is not { } current)
+                return EditResult.Failure(default, "Nothing is selected.");
+            if (blocked)
+                return EditResult.Failure(default, BlockedReason!);
+
+            EditResult result = current.Document.Editor.RemoveElement(current.Node);
+            if (result.Succeeded)
+                NoteEdited(current.Document);
+            return result;
+        }
+
+        /// <summary>
         /// Detaches the editor: restores the canvas's focus and navigation, and stops watching documents. Edits stay.
         /// </summary>
         public void Dispose()
@@ -259,6 +355,8 @@ namespace Icy.Design.Editor
 
             return FindInstance(selection.Document, parentId, scope);
         }
+
+        internal void NoteEdited(DesignDocument document) => LastEdited = document;
 
         internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 

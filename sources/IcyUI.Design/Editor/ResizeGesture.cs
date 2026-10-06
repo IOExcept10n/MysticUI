@@ -1,0 +1,83 @@
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Distributed under MIT license. See LICENSE.md file in the project root for more information
+using System.Drawing;
+using System.Numerics;
+using Icy.Design.Editor.Placement;
+using Icy.UI;
+
+namespace Icy.Design.Editor
+{
+    /// <summary>
+    /// A resize in progress: every <see cref="Update"/> writes the new attributes through the fast path, so the element
+    /// follows the pointer live, and the whole gesture is one undo step.
+    /// </summary>
+    public sealed class ResizeGesture
+    {
+        private readonly EditorSession session;
+        private readonly EditorSelection selection;
+        private readonly UIElement container;
+        private readonly IResizeOperation operation;
+        private readonly GestureEdits edits;
+        private readonly Vector2 start;
+        private EditResult? failure;
+        private bool finished;
+
+        internal ResizeGesture(EditorSession session, EditorSelection selection, UIElement container, IResizeOperation operation, Point start)
+        {
+            this.session = session;
+            this.selection = selection;
+            this.container = container;
+            this.operation = operation;
+            this.start = container.PointToLocal(start);
+            edits = new GestureEdits(selection.Document, $"Resize {EditorSession.Syntax(selection)?.Name}");
+        }
+
+        /// <summary>
+        /// Resizes to the pointer at <paramref name="screenPoint"/>.
+        /// </summary>
+        /// <param name="screenPoint">The pointer, in screen space.</param>
+        public void Update(Point screenPoint)
+        {
+            if (finished || failure != null)
+                return;
+
+            Vector2 delta = container.PointToLocal(screenPoint) - start;
+            EditResult result = edits.Apply(selection.Node, operation.Update(delta));
+            if (!result.Succeeded)
+                failure = result;
+        }
+
+        /// <summary>
+        /// Keeps the resize as one undo step.
+        /// </summary>
+        /// <returns>The outcome; when an update failed, the gesture is rolled back and the failure returned.</returns>
+        public EditResult Complete()
+        {
+            if (finished)
+                return failure ?? EditResult.Success();
+            finished = true;
+
+            if (failure != null)
+            {
+                edits.Rollback();
+                return failure;
+            }
+
+            edits.Commit();
+            session.NoteEdited(selection.Document);
+            return EditResult.Success();
+        }
+
+        /// <summary>
+        /// Abandons the resize and puts everything back, leaving no undo entry.
+        /// </summary>
+        public void Cancel()
+        {
+            if (finished)
+                return;
+
+            finished = true;
+            edits.Rollback();
+        }
+    }
+}
