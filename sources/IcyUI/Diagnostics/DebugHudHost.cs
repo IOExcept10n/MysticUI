@@ -14,7 +14,7 @@ namespace Icy.Diagnostics
     /// </summary>
     /// <remarks>
     /// Attached via <c>UIElement.Canvas = canvas</c> directly rather than <see cref="Canvas.Add"/>, so it never
-    /// enters <see cref="Canvas.HitTest"/>/focus traversal - a debug HUD that stole clicks or Tab-stops from the
+    /// enters <see cref="Canvas.HitTest(System.Drawing.Point)"/>/focus traversal - a debug HUD that stole clicks or Tab-stops from the
     /// app it's inspecting would defeat its own purpose.
     /// </remarks>
     /// <param name="canvas">The canvas this host builds a HUD for.</param>
