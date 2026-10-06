@@ -48,6 +48,8 @@ namespace Icy.UI.Controls
         private Func<object, DataTemplate>? itemTemplateSelector;
         private float indent = 16;
         private bool settingNodeState;
+        private object? selectedItem;
+        private FlatRow? currentRow;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TreeView"/> class.
@@ -55,7 +57,9 @@ namespace Icy.UI.Controls
         public TreeView()
         {
             IsFocusable = true;
-            list = new TreeViewList(this) { ItemsSource = rows };
+            // Assigned before ItemsSource: setting it calls back into OnRowsChanged, which uses the list.
+            list = new TreeViewList(this);
+            list.ItemsSource = rows;
             scrollViewer = new ScrollViewer { Content = list };
             ((Border)Chrome).Child = scrollViewer;
             Items.CollectionChanged += Items_CollectionChanged;
@@ -69,6 +73,9 @@ namespace Icy.UI.Controls
 
         /// <summary>Occurs when an item is collapsed, through the API, the UI, or a visible <see cref="TreeViewNode"/>'s <see cref="TreeViewNode.IsExpanded"/>.</summary>
         public event EventHandler<TreeViewItemEventArgs>? ItemCollapsed;
+
+        /// <summary>Occurs when <see cref="SelectedItem"/> changes.</summary>
+        public event EventHandler? SelectionChanged;
 
         /// <summary>
         /// Gets the inline root items, the markup content of the tree. Used when <see cref="ItemsSource"/> isn't set.
@@ -126,7 +133,11 @@ namespace Icy.UI.Controls
             set
             {
                 if (SetProperty(ref isItemSelectable, value))
+                {
                     list.RestampAll();
+                    if (selectedItem != null && !IsSelectable(selectedItem))
+                        Select(null, reveal: false);
+                }
             }
         }
 
@@ -177,6 +188,25 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Gets or sets the selected data item, or <see langword="null"/> for none.
+        /// </summary>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>Setting a selectable item reveals it (see <see cref="Reveal(object)"/>) and selects it.</description></item>
+        /// <item><description>Setting an item that isn't in the tree, or can't be selected, clears the selection.</description></item>
+        /// <item><description>Collapsing an ancestor keeps the selection; removing the item from the data clears it.</description></item>
+        /// </list>
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(null)]
+        [RegisterReference]
+        public object? SelectedItem
+        {
+            get => selectedItem;
+            set => Select(value, reveal: true);
+        }
+
         /// <summary>Gets the visible rows, top to bottom.</summary>
         internal IReadOnlyList<FlatRow> Rows => rows;
 
@@ -215,6 +245,37 @@ namespace Icy.UI.Controls
         /// <param name="item">The item.</param>
         /// <exception cref="ArgumentNullException"><paramref name="item"/> is <see langword="null"/>.</exception>
         public void Collapse(object item) => SetExpanded(item, false);
+
+        /// <summary>
+        /// Makes <paramref name="item"/> visible: expands every ancestor on its path from a root, then scrolls its row into
+        /// view.
+        /// </summary>
+        /// <param name="item">The item.</param>
+        /// <returns><see langword="false"/> when the item isn't anywhere in the tree.</returns>
+        /// <remarks>
+        /// An item that is already visible only scrolls. Otherwise the tree searches its data depth-first through child
+        /// resolution, which is O(n) in the number of items; the search never revisits an item, so cyclic data terminates.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="item"/> is <see langword="null"/>.</exception>
+        public bool Reveal(object item)
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            int index = IndexOfVisible(item);
+            if (index < 0)
+            {
+                if (FindPath(item) is not { } path)
+                    return false;
+
+                for (int i = 0; i < path.Count - 1; i++)
+                    Expand(path[i]);
+                index = IndexOfVisible(item);
+                if (index < 0)
+                    return false;
+            }
+
+            list.ScrollIntoView(index);
+            return true;
+        }
 
         /// <summary>Gets <paramref name="item"/>'s children, following the resolution order in the class remarks.</summary>
         /// <param name="item">The item.</param>
@@ -255,20 +316,43 @@ namespace Icy.UI.Controls
         internal void Stamp(TreeViewItem container, FlatRow row) =>
             container.Update(row.Depth, row.Depth * indent, HasChildren(row.Item), IsExpanded(row.Item), IsSelectable(row.Item));
 
-        /// <summary>Handles a tap on a row (outside its chevron).</summary>
+        /// <summary>Handles a tap on a row (outside its chevron): selects it, or toggles a non-selectable branch.</summary>
         /// <param name="row">The tapped row.</param>
         internal void OnRowTapped(FlatRow row)
         {
-            if (!IsSelectable(row.Item) && HasChildren(row.Item))
+            currentRow = row;
+            if (IsSelectable(row.Item))
+                Select(row.Item, reveal: false);
+            else if (HasChildren(row.Item))
                 Toggle(row.Item);
+            SyncList();
         }
 
-        /// <summary>Handles a tap on a row's chevron.</summary>
+        /// <summary>Handles a tap on a row's chevron: toggles it without selecting.</summary>
         /// <param name="row">The row.</param>
-        internal void OnExpanderTapped(FlatRow row) => Toggle(row.Item);
+        internal void OnExpanderTapped(FlatRow row)
+        {
+            currentRow = row;
+            Toggle(row.Item);
+            SyncList();
+        }
 
-        /// <summary>Called by the list after every change to the rows.</summary>
-        internal void OnRowsChanged() => SyncList();
+        /// <summary>
+        /// Called by the list after every change to the rows: moves a current row that disappeared to its nearest visible
+        /// ancestor, and maps the selection and current row back to row indices.
+        /// </summary>
+        internal void OnRowsChanged()
+        {
+            if (currentRow != null && rows.IndexOf(currentRow) < 0)
+            {
+                FlatRow? ancestor = currentRow.Parent;
+                while (ancestor != null && rows.IndexOf(ancestor) < 0)
+                    ancestor = ancestor.Parent;
+                currentRow = ancestor;
+            }
+
+            SyncList();
+        }
 
         /// <inheritdoc/>
         protected override void OnAttached()
@@ -290,6 +374,7 @@ namespace Icy.UI.Controls
             foreach (object item in Roots)
                 AppendVisible(item, 0, null, built);
             rows.ResetTo(built);
+            ClearSelectionIfGone();
         }
 
         /// <summary>Appends <paramref name="item"/>'s row and, while expanded, its visible descendants.</summary>
@@ -344,6 +429,69 @@ namespace Icy.UI.Controls
 
         private void SyncList()
         {
+            int selected = selectedItem == null ? -1 : IndexOfVisible(selectedItem);
+            if (list.SelectedIndex != selected)
+                list.SelectedIndex = selected;
+            list.CurrentIndex = IsFocused && currentRow != null ? rows.IndexOf(currentRow) : -1;
+        }
+
+        private void Select(object? item, bool reveal)
+        {
+            if (item != null && (!IsSelectable(item) || !(reveal ? Reveal(item) : IndexOfVisible(item) >= 0)))
+                item = null;
+
+            if (SetProperty(ref selectedItem, item, nameof(SelectedItem)))
+            {
+                SyncList();
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                SyncList();
+            }
+        }
+
+        /// <summary>Finds the path from a root to <paramref name="target"/>, depth-first through child resolution.</summary>
+        /// <returns>The items from the root to the target inclusive, or <see langword="null"/> when it isn't in the tree.</returns>
+        private List<object>? FindPath(object target)
+        {
+            var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            var path = new List<object>();
+            foreach (object root in Roots)
+            {
+                if (Search(root))
+                    return path;
+            }
+
+            return null;
+
+            bool Search(object item)
+            {
+                if (!visited.Add(item))
+                    return false;
+
+                path.Add(item);
+                if (ReferenceEquals(item, target))
+                    return true;
+                if (GetChildren(item) is { } children)
+                {
+                    foreach (object child in children)
+                    {
+                        if (Search(child))
+                            return true;
+                    }
+                }
+
+                path.RemoveAt(path.Count - 1);
+                return false;
+            }
+        }
+
+        /// <summary>Clears the selection when its item is no longer anywhere in the tree's data.</summary>
+        private void ClearSelectionIfGone()
+        {
+            if (selectedItem != null && IndexOfVisible(selectedItem) < 0 && FindPath(selectedItem) == null)
+                Select(null, reveal: false);
         }
 
         private void Toggle(object item) => SetExpanded(item, !IsExpanded(item));
