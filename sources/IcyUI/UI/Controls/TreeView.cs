@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.Diagnostics;
 using Icy.Data;
 using Icy.Data.Markup.Attributes;
@@ -42,7 +43,9 @@ namespace Icy.UI.Controls
         private readonly TreeViewList list;
         private readonly ScrollViewer scrollViewer;
         private readonly RangeObservableCollection<FlatRow> rows = [];
-        private readonly HashSet<object> expanded = new(ReferenceEqualityComparer.Instance);
+        // Weak, keyed by reference: expanding an item never keeps it alive after the data drops it.
+        private static readonly object ExpandedMark = new();
+        private readonly ConditionalWeakTable<object, object> expanded = [];
         private IEnumerable? itemsSource;
         private Func<object, IEnumerable?>? childrenSelector;
         private Func<object, bool>? isItemSelectable;
@@ -50,6 +53,7 @@ namespace Icy.UI.Controls
         private Func<object, DataTemplate>? itemTemplateSelector;
         private float indent = 16;
         private bool settingNodeState;
+        private bool detached;
         private INavigationEvents? subscribedNavigation;
         private readonly Dictionary<object, Subscription> subscriptions = new(ReferenceEqualityComparer.Instance);
         private INotifyCollectionChanged? observedRoots;
@@ -233,7 +237,7 @@ namespace Icy.UI.Controls
         public bool IsExpanded(object item)
         {
             ArgumentNullException.ThrowIfNull(item);
-            return item is TreeViewNode node ? node.IsExpanded : expanded.Contains(item);
+            return item is TreeViewNode node ? node.IsExpanded : expanded.TryGetValue(item, out _);
         }
 
         /// <summary>
@@ -279,7 +283,8 @@ namespace Icy.UI.Controls
                     return false;
             }
 
-            list.ScrollIntoView(index);
+            if (!detached)
+                list.ScrollIntoView(index);
             return true;
         }
 
@@ -364,13 +369,19 @@ namespace Icy.UI.Controls
         protected override void OnAttached()
         {
             base.OnAttached();
+            detached = false;
             Rebuild();
+
+            // Focus survives Canvas.Remove, so a tree that was focused when it left never gets FocusChanged again.
+            if (IsFocused)
+                SubscribeNavigation();
         }
 
         /// <inheritdoc/>
         protected override void OnDetached()
         {
             base.OnDetached();
+            detached = true;
             UnsubscribeAll();
             UnsubscribeNavigation();
         }
@@ -499,8 +510,11 @@ namespace Icy.UI.Controls
                 int index = rows.IndexOf(parent);
                 if (index < 0)
                     continue;
-                if (IsExpanded(parentItem))
+                // A row that repeats one of its ancestors (cyclic data) is shown but never expanded.
+                if (IsExpanded(parentItem) && !HasAncestor(parent.Parent, parentItem))
                     ApplyChildrenChange(parent, index, e);
+                else if (e.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Replace or NotifyCollectionChangedAction.Reset)
+                    ClearSelectionIfGone();
                 list.Restamp(parent);
             }
         }
@@ -540,9 +554,14 @@ namespace Icy.UI.Controls
                     return;
 
                 case NotifyCollectionChangedAction.Replace when e.OldStartingIndex >= 0:
-                    foreach (object old in e.OldItems!)
-                        expanded.Remove(old);
-                    int at = RemoveChildren(start, end, depth, e.OldStartingIndex, e.OldItems.Count);
+                    int at = RemoveChildren(start, end, depth, e.OldStartingIndex, e.OldItems!.Count);
+                    foreach (object old in e.OldItems)
+                    {
+                        // Still shown under another parent: that copy keeps its expansion.
+                        if (!subscriptions.ContainsKey(old))
+                            expanded.Remove(old);
+                    }
+
                     InsertRows(at, BuildRows(e.NewItems!, depth, parent));
                     return;
 
@@ -719,6 +738,11 @@ namespace Icy.UI.Controls
 
         private void SyncList()
         {
+            // A detached list stops following the rows (ItemsControl.OnDetached), so its indices are stale until
+            // OnAttached rebuilds; the tree's own state stays current meanwhile.
+            if (detached)
+                return;
+
             int selected = selectedItem == null ? -1 : IndexOfVisible(selectedItem);
             if (list.SelectedIndex != selected)
                 list.SelectedIndex = selected;
@@ -809,7 +833,7 @@ namespace Icy.UI.Controls
             }
             else if (value)
             {
-                expanded.Add(item);
+                expanded.AddOrUpdate(item, ExpandedMark);
             }
             else
             {
@@ -838,6 +862,8 @@ namespace Icy.UI.Controls
                     }
 
                     InsertRows(index + 1, subtree);
+                    if (selectedItem != null && IndexOfVisible(selectedItem) < 0)
+                        ClearSelectionIfGone();
                 }
                 else
                 {
