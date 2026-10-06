@@ -857,9 +857,9 @@ namespace Icy.UI
 
         private void OnGestureDragCanceled(object? sender, GenericEventArgs<DragInfo> e)
         {
-            // Release the owner like a normal end, so it drops any capture - but never complete a drag-drop: the payload
-            // must not land on whatever target happens to be under the finger.
-            LiveDragOwner?.OnDragEnded(e.Data.Position);
+            // Let the owner undo its drag (by default, a normal end that drops any capture) - but never complete a
+            // drag-drop: the payload must not land on whatever target happens to be under the finger.
+            LiveDragOwner?.OnDragCanceled(e.Data.Position);
             dragOwner = null;
 
             if (dragDropSession is { } session)

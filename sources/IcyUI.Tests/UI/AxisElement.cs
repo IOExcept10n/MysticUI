@@ -37,4 +37,20 @@ namespace Icy.Tests.UI
 
         protected internal override void OnDragEnded(Point screenPoint) => Log.Add("end");
     }
+
+    /// <summary>
+    /// An <see cref="AxisElement"/> that tells a cancel from an end.
+    /// </summary>
+    internal sealed class CancelAwareElement(DragAxes axes) : UIElement
+    {
+        public List<string> Log { get; } = [];
+
+        protected internal override DragAxes GetDragAxes(in DragClaimContext context) => axes;
+
+        protected internal override void OnDragStarted(Point screenPoint) => Log.Add("start");
+
+        protected internal override void OnDragEnded(Point screenPoint) => Log.Add("end");
+
+        protected internal override void OnDragCanceled(Point screenPoint) => Log.Add("cancel");
+    }
 }

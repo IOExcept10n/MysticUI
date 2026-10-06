@@ -1880,6 +1880,17 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Called on the element that owns a drag when the gesture recognizer cancels it (a second pointer, lost focus)
+        /// instead of completing it.
+        /// </summary>
+        /// <param name="screenPoint">The last pointer position, in screen space.</param>
+        /// <remarks>
+        /// The base implementation calls <see cref="OnDragEnded(Point)"/>, so an element that doesn't care about the
+        /// difference releases its drag state the same way. Override it to undo whatever the drag did, rather than commit it.
+        /// </remarks>
+        protected internal virtual void OnDragCanceled(Point screenPoint) => OnDragEnded(screenPoint);
+
+        /// <summary>
         /// Invoked by <see cref="UI.Canvas"/> on the owner of a drag that completed (was released), right before
         /// <see cref="OnDragEnded"/>. It isn't invoked when the drag is canceled. The base implementation does nothing.
         /// </summary>
