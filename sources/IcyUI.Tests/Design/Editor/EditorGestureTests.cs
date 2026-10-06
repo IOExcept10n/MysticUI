@@ -224,6 +224,44 @@ namespace Icy.Tests.Design.Editor
             Assert.Same(host.Document, host.Session.LastEdited);
         }
 
+        [Theory]
+        [InlineData(ResizeHandle.Right, 20, 0)]
+        [InlineData(ResizeHandle.Left, -20, 0)]
+        [InlineData(ResizeHandle.Bottom, 0, 10)]
+        [InlineData(ResizeHandle.Top, 0, -10)]
+        public void ASizelessStackChild_GrowsWithTheDrag_AndTheStackGrowsWithIt(ResizeHandle handle, int dx, int dy)
+        {
+            using var host = new EditorTestHost(SizelessStack);
+            host.Render();
+            var one = host.Named<UIElement>("one");
+            var stack = host.Named<StackPanel>("stack");
+            RectangleF before = one.ActualBounds;
+            RectangleF stackBefore = stack.ActualBounds;
+            host.Session.Select(one);
+            Point start = host.At(one, 2, 2);
+
+            ResizeGesture resize = host.Session.BeginResize(handle, start)!;
+            resize.Update(new Point(start.X + dx, start.Y + dy));
+            Assert.True(resize.Complete().Succeeded);
+            host.Render();
+
+            Assert.Equal(before.Width + Math.Abs(dx), one.ActualBounds.Width);
+            Assert.Equal(before.Height + Math.Abs(dy), one.ActualBounds.Height);
+            Assert.Equal(stackBefore.Width + Math.Abs(dx), stack.ActualBounds.Width);
+            Assert.Equal(stackBefore.Height + Math.Abs(dy), stack.ActualBounds.Height);
+            Assert.Contains("<Button x:Name=\"one\" Padding=\"12,6\" Margin=\"0,0,8,0\"", host.Document.Text, StringComparison.Ordinal);
+        }
+
+        private const string SizelessStack =
+            """
+            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top">
+              <StackPanel x:Name="stack" Orientation="Horizontal">
+                <Button x:Name="one" Padding="12,6" Margin="0,0,8,0">One</Button>
+                <Button Padding="12,6">Two</Button>
+              </StackPanel>
+            </StackPanel>
+            """;
+
         /// <summary>
         /// A grid placement whose drop writes an attribute that isn't valid, so the move succeeds and the edit fails.
         /// </summary>

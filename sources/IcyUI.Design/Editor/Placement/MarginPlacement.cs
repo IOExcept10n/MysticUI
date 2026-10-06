@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
@@ -106,7 +106,14 @@ namespace Icy.Design.Editor.Placement
         /// <summary>
         /// The size-or-margin resize every strategy builds on.
         /// </summary>
-        protected internal sealed class Resize(PlacementContext context, ResizeHandle handle, bool anchorHorizontal, bool anchorVertical) : IResizeOperation
+        /// <param name="context">The container and the resized element.</param>
+        /// <param name="handle">The dragged handle.</param>
+        /// <param name="anchorHorizontal">Whether the container anchors the element horizontally, so only the width changes.</param>
+        /// <param name="anchorVertical">Whether the container anchors the element vertically, so only the height changes.</param>
+        /// <param name="sizeStretched">
+        /// Whether a stretched axis gets an explicit size rather than a margin, for containers whose slots follow the element.
+        /// </param>
+        protected internal sealed class Resize(PlacementContext context, ResizeHandle handle, bool anchorHorizontal, bool anchorVertical, bool sizeStretched = false) : IResizeOperation
         {
             private readonly Rectangle bounds = context.ElementBounds;
             private readonly Thickness margin = context.Element.Margin;
@@ -120,7 +127,7 @@ namespace Icy.Design.Editor.Placement
                 int left = margin.Left, top = margin.Top, right = margin.Right, bottom = margin.Bottom;
                 if ((handle & (ResizeHandle.Left | ResizeHandle.Right)) != 0)
                 {
-                    AxisResize x = LayoutMath.ResizeAxis(horizontal, bounds.Width, margin.Left, margin.Right, (int)MathF.Round(delta.X), (handle & ResizeHandle.Left) != 0, anchorHorizontal);
+                    AxisResize x = LayoutMath.ResizeAxis(horizontal, bounds.Width, margin.Left, margin.Right, (int)MathF.Round(delta.X), (handle & ResizeHandle.Left) != 0, anchorHorizontal, sizeStretched);
                     if (x.Size is int width)
                         edits.Add(new AttributeEdit("Width", MarkupValues.Format(width)));
                     (left, right) = (x.MarginStart, x.MarginEnd);
@@ -128,7 +135,7 @@ namespace Icy.Design.Editor.Placement
 
                 if ((handle & (ResizeHandle.Top | ResizeHandle.Bottom)) != 0)
                 {
-                    AxisResize y = LayoutMath.ResizeAxis(vertical, bounds.Height, margin.Top, margin.Bottom, (int)MathF.Round(delta.Y), (handle & ResizeHandle.Top) != 0, anchorVertical);
+                    AxisResize y = LayoutMath.ResizeAxis(vertical, bounds.Height, margin.Top, margin.Bottom, (int)MathF.Round(delta.Y), (handle & ResizeHandle.Top) != 0, anchorVertical, sizeStretched);
                     if (y.Size is int height)
                         edits.Add(new AttributeEdit("Height", MarkupValues.Format(height)));
                     (top, bottom) = (y.MarginStart, y.MarginEnd);

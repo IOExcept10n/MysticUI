@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
@@ -9,7 +9,8 @@ namespace Icy.Design.Editor.Placement
 {
     /// <summary>
     /// Places elements in a <see cref="StackPanel"/>: a drop lands in the nearest gap between children, and a resize along
-    /// the stacking direction changes only the size, since a stack anchors its children there.
+    /// the stacking direction changes only the size, since a stack anchors its children there. A stretched child gets an
+    /// explicit size on the cross axis too: the stack sizes itself to its children, so a margin couldn't grow it.
     /// </summary>
     public sealed class StackPanelPlacement : MarginPlacement
     {
@@ -52,7 +53,8 @@ namespace Icy.Design.Editor.Placement
         {
             ArgumentNullException.ThrowIfNull(context);
             bool vertical = ((StackPanel)context.Container).Orientation == Orientation.Vertical;
-            return new Resize(context, handle, anchorHorizontal: !vertical, anchorVertical: vertical);
+            // A stack sizes its slots to the children, on the cross axis too: only an explicit size grows a stretched child.
+            return new Resize(context, handle, anchorHorizontal: !vertical, anchorVertical: vertical, sizeStretched: true);
         }
     }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.UI;
 
@@ -45,11 +45,23 @@ namespace Icy.Design.Editor.Placement
         /// <param name="isStartEdge">Whether the start edge (left or top) is dragged.</param>
         /// <param name="anchored">
         /// <see langword="true"/> when the container anchors the element on this axis (a stack's stacking direction), so
-        /// only the size changes.
+        /// only the size changes, whatever the alignment.
+        /// </param>
+        /// <param name="sizeStretched">
+        /// <see langword="true"/> when the container sizes its slot to the element on this axis (a stack's cross axis), so a
+        /// <see cref="AxisKind.Stretched"/> element gets an explicit size instead of a margin: a margin can't grow a slot that
+        /// follows the element.
         /// </param>
         /// <returns>The new size (<see langword="null"/> when the size isn't written) and margins.</returns>
-        public static AxisResize ResizeAxis(AxisKind kind, int startSize, int startMarginStart, int startMarginEnd, int delta, bool isStartEdge, bool anchored)
+        public static AxisResize ResizeAxis(AxisKind kind, int startSize, int startMarginStart, int startMarginEnd, int delta, bool isStartEdge, bool anchored, bool sizeStretched = false)
         {
+            int size = Math.Max(1, isStartEdge ? startSize - delta : startSize + delta);
+            int applied = isStartEdge ? startSize - size : size - startSize;
+
+            // Checked before the stretched case: the slot follows the element here, so only a size can grow it.
+            if (anchored || (kind == AxisKind.Stretched && sizeStretched))
+                return new AxisResize(size, startMarginStart, startMarginEnd);
+
             if (kind == AxisKind.Stretched)
             {
                 // A size would turn the element into a centered one; move the margin on the dragged side instead.
@@ -57,11 +69,6 @@ namespace Icy.Design.Editor.Placement
                     ? new AxisResize(null, startMarginStart + delta, startMarginEnd)
                     : new AxisResize(null, startMarginStart, startMarginEnd - delta);
             }
-
-            int size = Math.Max(1, isStartEdge ? startSize - delta : startSize + delta);
-            int applied = isStartEdge ? startSize - size : size - startSize;
-            if (anchored)
-                return new AxisResize(size, startMarginStart, startMarginEnd);
 
             if (!isStartEdge)
             {
