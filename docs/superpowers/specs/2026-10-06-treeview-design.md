@@ -280,3 +280,28 @@ so no article is added.
 - Lazy or asynchronous child loading.
 - Checkbox trees.
 - The samples shell and the editor scope, which are the next two specs.
+
+## Plan-time revisions
+
+Found while reading the code for the implementation plan (`docs/superpowers/plans/2026-10-06-treeview-plan.md`). The
+plan implements the design with these changes:
+
+1. **No `ControlTemplate`/`PART_List` for `TreeView`.** `ScrollViewer` isn't template-safe yet (see the theme's own
+   note), so `TreeView` composes its `ScrollViewer` and the internal list in code, like `TabControl` and `ColorPicker`.
+   `TreeViewItem` does get a theme template.
+2. **The chevron is a public `TreeViewExpander : Icon`** (`ChevronRight`/`ChevronDown`), not a text glyph that the
+   sample fonts may not have. Core `OnTap` bubbles to every ancestor with no "handled" flag, so the expander raises its
+   own `Tapped`, and `TreeViewItem` skips its row tap for that tap.
+3. **No double-tap toggle.** The core has no double-tap gesture. The chevron, Enter and Right cover expansion.
+4. **Subscriptions per visible item, reference-counted,** not per expanded node. Collapsed visible rows are observed
+   too, so a chevron appears when a collapsed row gains its first child. `TreeViewNode.PropertyChanged` is observed the
+   same way, so `IsExpanded`/`IsSelectable` set from outside are applied.
+5. **No `VisibleDescendants` cache.** Subtree ranges are found by scanning depths (O(visible subtree)) and row indices
+   by scanning (O(visible rows)). Simpler, and well within budget at 10,000 rows.
+6. **Two small core additions:** `SelectingItemsControl.OnContainerTapped(int)` (the tap handler was private), and
+   `MarkupLoader` reading `ChildrenPath` in its `DataTemplate` special case (which skips attribute resolution).
+7. **`IVirtualizingScrollInfo.ScrollToVerticalOffsetRequested`** is the name of the new scroll request.
+8. **The current-row highlight shows only while the tree is focused.** Setting `SelectedItem` from code also moves the
+   current row.
+9. **"Leaving the tree" means leaving the navigation event unhandled.** Core spatial focus navigation is still a
+   `TODO` in `NavigationEvents.OnDirectionalFocus`. The tree already behaves correctly for when it lands.
