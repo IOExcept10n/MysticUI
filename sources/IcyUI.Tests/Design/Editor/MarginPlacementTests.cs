@@ -125,7 +125,7 @@ namespace Icy.Tests.Design.Editor
             registry.Register<StackPanel>(forStack);
 
             Assert.Same(forStack, registry.Resolve(new StackPanel()));
-            Assert.Same(forPanel, registry.Resolve(new Grid()));
+            Assert.Same(forPanel, registry.Resolve(new CustomPanel()));
         }
 
         [Fact]
@@ -146,5 +146,9 @@ namespace Icy.Tests.Design.Editor
         }
 
         private static string Expand(Thickness t) => $"{t.Left},{t.Top},{t.Right},{t.Bottom}";
+
+        private sealed class CustomPanel : Panel
+        {
+        }
     }
 }

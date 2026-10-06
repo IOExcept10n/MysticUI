@@ -14,6 +14,17 @@ namespace Icy.Design.Editor.Placement
         private readonly MarginPlacement fallback = new();
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="PlacementRegistry"/> class with the built-in strategies:
+        /// <see cref="StackPanelPlacement"/> for <see cref="UI.Controls.StackPanel"/> and <see cref="GridPlacement"/> for
+        /// <see cref="UI.Controls.Grid"/>.
+        /// </summary>
+        public PlacementRegistry()
+        {
+            Register<UI.Controls.StackPanel>(new StackPanelPlacement());
+            Register<UI.Controls.Grid>(new GridPlacement());
+        }
+
+        /// <summary>
         /// Registers the strategy for <typeparamref name="TContainer"/> and the containers derived from it, replacing any
         /// earlier registration for that type.
         /// </summary>
