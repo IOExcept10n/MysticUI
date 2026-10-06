@@ -92,10 +92,14 @@ namespace Icy.Input
         }
 
         /// <inheritdoc/>
-        public void RegisterCommand(ICommand command, KeyGesture gesture, object? argument = null) => listener.AddCommand(command, gesture, argument);
+        public void RegisterCommand(ICommand command, KeyGesture gesture, object? argument = null, bool handlesGesture = false) =>
+            listener.Commands.Add(command, gesture, argument, handlesGesture);
 
         /// <inheritdoc/>
-        public void UnregisterCommand(KeyGesture gesture) => listener.RemoveGesture(gesture);
+        public void UnregisterCommand(KeyGesture gesture) => listener.Commands.RemoveGesture(gesture);
+
+        /// <inheritdoc/>
+        public void UnregisterCommand(ICommand command, KeyGesture gesture) => listener.Commands.Remove(command, gesture);
 
         /// <inheritdoc/>
         public void Update(TimeSpan deltaTime)
@@ -111,7 +115,6 @@ namespace Icy.Input
 
         private class KeyboardListener
         {
-            private readonly Dictionary<KeyGesture, List<(ICommand Command, object? Parameter)>> commands = [];
             private readonly IInputSystem input;
 
             private IKeyboardInput? keyboard;
@@ -121,25 +124,12 @@ namespace Icy.Input
                 input = inputSystem;
             }
 
+            public KeyCommandTable Commands { get; } = new();
+
             public void Initialize()
             {
                 input.Events.Devices.DeviceConnected += OnDeviceConnected;
                 ReconnectKeyboard();
-            }
-
-            public void AddCommand(ICommand command, KeyGesture gesture, object? argument)
-            {
-                if (!commands.TryGetValue(gesture, out var list))
-                {
-                    commands[gesture] = list = [];
-                }
-
-                list.Add((command, argument));
-            }
-
-            public void RemoveGesture(KeyGesture gesture)
-            {
-                commands.Remove(gesture);
             }
 
             private void OnDeviceConnected(object? sender, Data.GenericEventArgs<IInputDeviceListener> e)
@@ -155,17 +145,7 @@ namespace Icy.Input
                 if (keyboard == null)
                     return;
 
-                var gesture = new KeyGesture(e.Data, keyboard.ModifierKeys);
-                if (commands.TryGetValue(gesture, out var list))
-                {
-                    foreach (var (command, parameter) in list)
-                    {
-                        if (command.CanExecute(parameter))
-                        {
-                            command.Execute(parameter);
-                        }
-                    }
-                }
+                Commands.Dispatch(new KeyGesture(e.Data, keyboard.ModifierKeys));
             }
 
             private void ReconnectKeyboard()

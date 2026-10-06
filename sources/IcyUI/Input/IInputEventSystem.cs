@@ -47,17 +47,31 @@ namespace Icy.Input
         IDeviceEvents Devices { get; }
 
         /// <summary>
-        /// Registers command to invoke when specified keyboard keys combination is pressed.
+        /// Registers a command to invoke when the specified key combination is pressed.
         /// </summary>
         /// <param name="command">Command instance to register.</param>
         /// <param name="gesture">Keys combination to trigger the command.</param>
-        /// <param name="argument">Argument to pass to the command when event is raised.</param>
-        void RegisterCommand(ICommand command, KeyGesture gesture, object? argument = null);
+        /// <param name="argument">Argument to pass to the command when the gesture is pressed.</param>
+        /// <param name="handlesGesture">
+        /// <see langword="true"/> to let this command take the gesture over: commands registered this way are tried before
+        /// the others, the most recently registered first, and the first whose <see cref="ICommand.CanExecute(object?)"/>
+        /// returns <see langword="true"/> runs alone. When none of them can execute, every other command for the gesture
+        /// runs as usual. <see langword="false"/> (the default) runs the command together with the gesture's other ordinary
+        /// commands.
+        /// </param>
+        void RegisterCommand(ICommand command, KeyGesture gesture, object? argument = null, bool handlesGesture = false);
 
         /// <summary>
-        /// Unregisters command bent to the specified keyboard combination.
+        /// Unregisters every command bound to the specified key combination.
         /// </summary>
-        /// <param name="gesture">Keyboard combination to remove command for.</param>
+        /// <param name="gesture">Keyboard combination to remove the commands for.</param>
         void UnregisterCommand(KeyGesture gesture);
+
+        /// <summary>
+        /// Unregisters one command from the specified key combination, leaving the gesture's other commands in place.
+        /// </summary>
+        /// <param name="command">The command to remove.</param>
+        /// <param name="gesture">The key combination it was registered for.</param>
+        void UnregisterCommand(ICommand command, KeyGesture gesture);
     }
 }

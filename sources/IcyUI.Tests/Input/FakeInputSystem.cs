@@ -400,6 +400,8 @@ namespace Icy.Tests.Input
     /// </summary>
     public sealed class FakeInputEventSystem : IInputEventSystem
     {
+        private readonly KeyCommandTable commands = new();
+
         public FakeInputEventSystem(IInputSystem inputSystem)
         {
             InputSystem = inputSystem;
@@ -450,12 +452,16 @@ namespace Icy.Tests.Input
         {
         }
 
-        public void RegisterCommand(ICommand command, KeyGesture gesture, object? argument = null)
-        {
-        }
+        public void RegisterCommand(ICommand command, KeyGesture gesture, object? argument = null, bool handlesGesture = false) =>
+            commands.Add(command, gesture, argument, handlesGesture);
 
-        public void UnregisterCommand(KeyGesture gesture)
-        {
-        }
+        public void UnregisterCommand(KeyGesture gesture) => commands.RemoveGesture(gesture);
+
+        public void UnregisterCommand(ICommand command, KeyGesture gesture) => commands.Remove(command, gesture);
+
+        /// <summary>
+        /// Presses <paramref name="gesture"/> as the real keyboard listener would.
+        /// </summary>
+        public bool RaiseGesture(KeyGesture gesture) => commands.Dispatch(gesture);
     }
 }
