@@ -79,17 +79,29 @@ namespace Icy.Design.Editor.Placement
         protected virtual bool AcceptsDrop(PlacementContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
-            bool singleSlot = IsSingleSlot(context.Container);
-            return !singleSlot || context.IsCurrentContainer || context.ContentCount == 0;
+            if (!TryGetSingleSlot(context.Container, out object? content) || context.IsCurrentContainer)
+                return true;
+
+            // Text content (<Button>OK</Button>) fills the slot without being a content element, so check the live value too.
+            return context.ContentCount == 0 && content is null or "";
         }
 
         /// <summary>
-        /// Decides from the markup content property whether a container holds one child rather than a list.
+        /// Decides from the markup content property whether a container holds one child rather than a list, and gets
+        /// what the slot holds now.
         /// </summary>
-        private static bool IsSingleSlot(UIElement container) =>
-            Markup.ContentPropertyAttribute.GetContentPropertyName(container.GetType()) is { } name
-            && container.GetType().GetProperty(name) is { } property
-            && property.GetValue(container) is not System.Collections.IList;
+        private static bool TryGetSingleSlot(UIElement container, out object? content)
+        {
+            content = null;
+            if (Markup.ContentPropertyAttribute.GetContentPropertyName(container.GetType()) is not { } name
+                || container.GetType().GetProperty(name) is not { } property)
+            {
+                return false;
+            }
+
+            content = property.GetValue(container);
+            return content is not System.Collections.IList;
+        }
 
         /// <summary>
         /// The size-or-margin resize every strategy builds on.

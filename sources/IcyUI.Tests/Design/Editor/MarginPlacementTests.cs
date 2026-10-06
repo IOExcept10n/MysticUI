@@ -104,6 +104,18 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void ASlotFilledWithText_RefusesADrop()
+        {
+            // Markup like <Button>OK</Button> has no content elements, but its slot is filled.
+            var button = new Button { Width = 200, Height = 100, Content = new TextBlock { Text = "OK" } };
+            var dragged = new UIElement { Width = 10, Height = 10 };
+            button.Arrange(new Rectangle(0, 0, 200, 100));
+            var context = new PlacementContext(button, dragged, [], 0, new Rectangle(0, 0, 10, 10), isCurrentContainer: false);
+
+            Assert.Null(new MarginPlacement().GetDropTarget(context, new Vector2(5, 5)));
+        }
+
+        [Fact]
         public void TheSizeNeverGoesBelowOne()
         {
             (PlacementContext context, _) = Context(new UIElement { Width = 50, Height = 20, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });

@@ -1,8 +1,10 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Numerics;
 using Icy.Data;
 using Icy.Data.Markup;
+using Icy.Design.Editor.Placement;
 using Icy.Design.Syntax;
 using Icy.Input.Events;
 using Icy.Markup;
@@ -45,6 +47,8 @@ namespace Icy.Design.Editor
         private readonly TextBlock statusLabel = new() { Foreground = Color.Salmon, Margin = new Thickness(8, 0, 0, 0) };
         private EditorToolbarPlacement toolbarPlacement;
         private string? lastFailure;
+        private MoveGesture? move;
+        private ResizeGesture? resize;
         private bool disposed;
 
         private EditorFrame(Canvas canvas, DesignSession design)
@@ -139,25 +143,132 @@ namespace Icy.Design.Editor
 
         internal void BeginDrag(Point screenPoint)
         {
+            if (Session.Mode != EditorMode.Edit)
+                return;
+
+            lastFailure = null;
+            if (Session.Selection is { } selection && !Session.IsBlocked)
+            {
+                RectangleF bounds = AdornerGeometry.SurfaceBounds(selection.Instance);
+                ResizeHandle handle = AdornerGeometry.HandleAt(bounds, HandleSize, AdornerGeometry.ScreenToSurface(screenPoint, canvas.EffectiveScale));
+                if (handle != ResizeHandle.None)
+                {
+                    resize = Session.BeginResize(handle, screenPoint);
+                    return;
+                }
+            }
+
+            if (Session.ResolveSelectable(Session.HitTest(screenPoint)) is not { } target)
+                return;
+            if (!ReferenceEquals(Session.Selection?.Instance, target) && !Session.Select(target))
+                return;
+
+            move = Session.BeginMove(screenPoint);
         }
 
         internal void UpdateDrag(Point screenPoint)
         {
+            resize?.Update(screenPoint);
+            move?.Update(screenPoint);
         }
 
         internal void EndDrag(Point screenPoint)
         {
+            EditResult? result = null;
+            if (resize != null)
+            {
+                result = resize.Complete();
+                resize = null;
+            }
+
+            if (move != null)
+            {
+                move.Update(screenPoint);
+                result = move.Complete();
+                move = null;
+            }
+
+            if (result is { Succeeded: false })
+            {
+                lastFailure = result.Error?.Message;
+                UpdateToolbar();
+            }
         }
 
         internal void CancelDrag()
         {
+            resize?.Cancel();
+            move?.Cancel();
+            resize = null;
+            move = null;
+        }
+
+        internal AdornerScene BuildScene()
+        {
+            bool editing = Session.Mode == EditorMode.Edit;
+            RectangleF? hover = null;
+            if (editing && move == null && resize == null)
+            {
+                Point mouse = design.Configuration.Input.Mouse.MouseInfo.Position;
+                if (Session.ResolveSelectable(Session.HitTest(mouse)) is { } hovered && !ReferenceEquals(hovered, Session.Selection?.Instance))
+                    hover = AdornerGeometry.SurfaceBounds(hovered);
+            }
+
+            RectangleF? selected = null;
+            IReadOnlyList<RectangleF> handles = [];
+            if (Session.Selection is { } selection && selection.Instance.Canvas == canvas)
+            {
+                RectangleF bounds = AdornerGeometry.SurfaceBounds(selection.Instance);
+                selected = bounds;
+                if (editing && !Session.IsBlocked && move == null)
+                    handles = [.. AdornerGeometry.Handles(bounds, HandleSize).Select(x => x.Area)];
+            }
+
+            RectangleF? indicator = null;
+            RectangleF? ghost = null;
+            bool line = false;
+            if (move != null)
+            {
+                ghost = AdornerGeometry.ScreenToSurface(move.GhostBounds, canvas.EffectiveScale);
+                if (move.Target is { } target && move.TargetContainer is { } container)
+                {
+                    indicator = AdornerGeometry.ToSurface(container, target.Indicator);
+                    line = target.IndicatorIsLine;
+                }
+            }
+
+            return new AdornerScene(hover, selected, handles, !editing, indicator, line, ghost);
         }
 
         internal void Render(IRenderContext context)
         {
             if (Session.Mode == EditorMode.Edit && !IsOnTop())
                 Dispatcher.GetCurrentThreadDispatcher().Invoke(BringToTop);
+
+            AdornerScene scene = BuildScene();
+            if (scene.Hover is { } hover)
+                Outline(context, hover, HoverColor, 1);
+            if (scene.Selection is { } selection)
+                Outline(context, selection, scene.Dimmed ? Color.FromArgb(110, SelectionColor) : SelectionColor, 1.5f);
+            foreach (RectangleF handle in scene.Handles)
+            {
+                context.FillRectangle(new Vector2(handle.X, handle.Y), new Vector2(handle.Width, handle.Height), Color.White);
+                Outline(context, handle, SelectionColor, 1);
+            }
+
+            if (scene.Ghost is { } ghost)
+                Outline(context, ghost, GhostColor, 1);
+            if (scene.Indicator is { } indicator)
+            {
+                if (scene.IndicatorIsLine)
+                    context.DrawLine(indicator.Left, indicator.Top, indicator.Right, indicator.Bottom, IndicatorColor, 3);
+                else
+                    Outline(context, indicator, IndicatorColor, 2);
+            }
         }
+
+        private static void Outline(IRenderContext context, RectangleF area, Color color, float thickness) =>
+            context.DrawRectangle(new Vector2(area.X, area.Y), new Vector2(area.Width, area.Height), color, thickness);
 
         private static string Describe(EditorSelection selection)
         {
@@ -207,6 +318,18 @@ namespace Icy.Design.Editor
 
         private void OnTap(object? sender, GenericEventArgs<TouchInfo> e)
         {
+            if (disposed || Session.Mode != EditorMode.Edit)
+                return;
+
+            // Only taps the capture layer receives: a tap on the toolbar belongs to its buttons.
+            Point point = e.Data.LastTouch;
+            if (!ReferenceEquals(canvas.HitTest(point), CaptureLayer))
+                return;
+
+            if (Session.ResolveSelectable(Session.HitTest(point)) is { } target)
+                Session.Select(target);
+            else
+                Session.Clear();
         }
 
         private void UpdateToolbar()
