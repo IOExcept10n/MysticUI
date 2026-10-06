@@ -642,6 +642,14 @@ namespace Icy.Markup
                         context.SourcePath);
                 }
 
+                // The template never runs its own attribute resolution (see above), so a hierarchical template's one
+                // attribute is read here explicitly.
+                if (dataTemplate is Icy.UI.Styles.HierarchicalDataTemplate hierarchical
+                    && element.Attribute(nameof(Icy.UI.Styles.HierarchicalDataTemplate.ChildrenPath)) is { } childrenPath)
+                {
+                    hierarchical.ChildrenPath = childrenPath.Value;
+                }
+
                 dataTemplate.SetContent(dataTemplateChildren[0], configuration, context.SourcePath);
                 NotifyObjectCreated(context, element, instance);
                 return instance;
