@@ -105,18 +105,5 @@ namespace Icy.Tests.Input
 
             public void Execute(object? parameter) => execute(parameter);
         }
-
-        private sealed class FakeCommand(Func<bool> canExecute, Action execute) : System.Windows.Input.ICommand
-        {
-            public event EventHandler? CanExecuteChanged
-            {
-                add { }
-                remove { }
-            }
-
-            public bool CanExecute(object? parameter) => canExecute();
-
-            public void Execute(object? parameter) => execute();
-        }
     }
 }

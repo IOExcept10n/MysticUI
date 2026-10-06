@@ -10,7 +10,7 @@ namespace Icy.Design.Editor
 {
     /// <summary>
     /// The headless part of the design-time editor for one <see cref="UI.Canvas"/>: the selection, the Edit/Interact
-    /// mode, hit resolution, and (through its commands and gesture methods) every edit the editor makes.
+    /// mode, hit resolution, and (through <see cref="Commands"/> and the gesture methods) every edit the editor makes.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -39,6 +39,8 @@ namespace Icy.Design.Editor
         {
             Design = design;
             Canvas = canvas;
+            Commands = new EditorCommands(this);
+            Bindings = new EditorBindings(Commands);
         }
 
         /// <summary>
@@ -96,6 +98,7 @@ namespace Icy.Design.Editor
                 else
                     LeaveEdit();
                 ModeChanged?.Invoke(this, EventArgs.Empty);
+                Commands.RaiseCanExecuteChanged();
             }
         }
 
@@ -124,6 +127,21 @@ namespace Icy.Design.Editor
         public PlacementRegistry Placement { get; } = new();
 
         /// <summary>
+        /// Gets the editor's actions as commands.
+        /// </summary>
+        public EditorCommands Commands { get; }
+
+        /// <summary>
+        /// Gets the key gestures bound to <see cref="Commands"/>. Rebind them before or after attaching.
+        /// </summary>
+        public EditorBindings Bindings { get; }
+
+        /// <summary>
+        /// Gets or sets how far the large nudges move, in layout units. Defaults to 10.
+        /// </summary>
+        public int LargeNudge { get; set; } = 10;
+
+        /// <summary>
         /// Gets the document the last gesture or command edited, or <see langword="null"/>. Undo and redo use it when
         /// nothing is selected.
         /// </summary>
@@ -148,6 +166,7 @@ namespace Icy.Design.Editor
 
             var session = new EditorSession(design, canvas);
             session.EnterEdit();
+            session.Bindings.Register(design.Configuration.Input.Events);
             return session;
         }
 
@@ -320,6 +339,7 @@ namespace Icy.Design.Editor
             foreach (DesignDocument document in watched)
                 Unwatch(document);
             watched.Clear();
+            Bindings.Unregister();
             disposed = true;
         }
 
@@ -370,6 +390,7 @@ namespace Icy.Design.Editor
                 Watch(value.Document);
             SelectionChanged?.Invoke(this, EventArgs.Empty);
             UpdateBlocked();
+            Commands.RaiseCanExecuteChanged();
         }
 
         private void EnterEdit()
@@ -426,6 +447,7 @@ namespace Icy.Design.Editor
 
             blocked = value;
             BlockedChanged?.Invoke(this, EventArgs.Empty);
+            Commands.RaiseCanExecuteChanged();
         }
     }
 }
