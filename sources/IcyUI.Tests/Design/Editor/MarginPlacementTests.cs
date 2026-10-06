@@ -79,6 +79,30 @@ namespace Icy.Tests.Design.Editor
             Assert.Contains(new AttributeEdit("Margin", "4,4,14,4"), edits);
         }
 
+        [Theory]
+        [InlineData(HorizontalAlignment.Right, "0,0,-20,0")]
+        [InlineData(HorizontalAlignment.Center, "10,0,0,0")]
+        public void ResizingTheEndEdge_KeepsTheStartEdgeInPlace(HorizontalAlignment alignment, string margin)
+        {
+            (PlacementContext context, _) = Context(new UIElement { Width = 50, Height = 20, HorizontalAlignment = alignment, VerticalAlignment = VerticalAlignment.Top });
+
+            IReadOnlyList<AttributeEdit> edits = new MarginPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(20, 0));
+
+            Assert.Contains(new AttributeEdit("Width", "70"), edits);
+            Assert.Contains(new AttributeEdit("Margin", margin), edits);
+        }
+
+        [Fact]
+        public void AFilledExpander_RefusesADrop()
+        {
+            var expander = new Expander { Width = 200, Height = 100, Content = new UIElement() };
+            var dragged = new UIElement { Width = 10, Height = 10 };
+            expander.Arrange(new Rectangle(0, 0, 200, 100));
+            var context = new PlacementContext(expander, dragged, [new PlacementChild(0, expander.Content!)], 1, new Rectangle(0, 0, 10, 10), isCurrentContainer: false);
+
+            Assert.Null(new MarginPlacement().GetDropTarget(context, new Vector2(5, 5)));
+        }
+
         [Fact]
         public void TheSizeNeverGoesBelowOne()
         {

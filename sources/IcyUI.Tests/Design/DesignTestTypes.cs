@@ -66,6 +66,14 @@ namespace Icy.Tests.Design
     /// <summary>
     /// A panel that refuses text blocks, so adding one fails after the child was already built.
     /// </summary>
+    /// <summary>
+    /// A panel with a plain CLR property: clearing it rebuilds the panel together with its children, which keep their ids.
+    /// </summary>
+    internal sealed class ClrPanel : Icy.UI.Controls.StackPanel
+    {
+        public string? Caption { get; set; }
+    }
+
     internal sealed class PickyPanel : Icy.UI.Controls.StackPanel
     {
         protected override void OnChildAdding(object? sender, Icy.Data.CancellableEventArgs<UIElement> e)

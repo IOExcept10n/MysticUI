@@ -42,7 +42,7 @@ namespace Icy.Design.Editor.Placement
             int row = Math.Min(TrackAt(rows, point.Y), rows.Length - 1 - rowSpan);
 
             var area = RectangleF.FromLTRB(columns[column], rows[row], columns[column + columnSpan], rows[row + rowSpan]);
-            AttributeEdit[] edits = [Index("Grid.Column", column), Index("Grid.Row", row)];
+            AttributeEdit[] edits = [Index("Grid.Column", column), Index("Grid.Row", row), Span("Grid.ColumnSpan", columnSpan), Span("Grid.RowSpan", rowSpan)];
             int index = context.IsCurrentContainer ? CurrentIndex(context) : context.ContentCount;
             return new PlacementTarget(index, edits, area, IndicatorIsLine: false);
         }

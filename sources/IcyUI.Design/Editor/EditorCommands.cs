@@ -34,8 +34,8 @@ namespace Icy.Design.Editor
             SelectPrevious = Create(Selecting, () => Move(x => Sibling(x, -1)));
             SelectNext = Create(Selecting, () => Move(x => Sibling(x, 1)));
             Delete = Create(Editing, () => session.DeleteSelection());
-            Undo = Create(() => Editable && Target()?.Editor.UndoStack.CanUndo == true, () => Target()!.Editor.UndoStack.Undo());
-            Redo = Create(() => Editable && Target()?.Editor.UndoStack.CanRedo == true, () => Target()!.Editor.UndoStack.Redo());
+            Undo = Create(() => Editable && session.ActiveResize == null && Target()?.Editor.UndoStack.CanUndo == true, () => Target()!.Editor.UndoStack.Undo());
+            Redo = Create(() => Editable && session.ActiveResize == null && Target()?.Editor.UndoStack.CanRedo == true, () => Target()!.Editor.UndoStack.Redo());
             NudgeLeft = Nudge(-1, 0, large: false);
             NudgeRight = Nudge(1, 0, large: false);
             NudgeUp = Nudge(0, -1, large: false);
@@ -117,7 +117,7 @@ namespace Icy.Design.Editor
 
         private bool Selecting() => Editable && session.Selection != null;
 
-        private bool Editing() => Selecting() && !session.IsBlocked;
+        private bool Editing() => Selecting() && !session.IsBlocked && session.ActiveResize == null;
 
         private DesignDocument? Target() => session.Selection?.Document ?? session.LastEdited;
 

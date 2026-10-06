@@ -144,10 +144,15 @@ namespace Icy.Design.Editor
 
             var children = new List<PlacementChild>();
             int index = 0;
+            int draggedIndex = -1;
             foreach (ElementSyntax child in candidateSyntax.ContentElements)
             {
                 if (ReferenceEquals(child, dragged))
+                {
+                    draggedIndex = index;
                     continue;
+                }
+
                 if (document.GetNodeId(child) is NodeId childId && EditorSession.FindInstance(document, childId, scope) is { } live)
                     children.Add(new PlacementChild(index, live));
                 index++;
@@ -157,7 +162,7 @@ namespace Icy.Design.Editor
             Rectangle bounds = current
                 ? PlacementContext.ToLocal(candidate, selection.Instance.ActualBounds)
                 : new Rectangle(0, 0, selection.Instance.ActualBounds.Width, selection.Instance.ActualBounds.Height);
-            var context = new PlacementContext(candidate, selection.Instance, children, index, bounds, current);
+            var context = new PlacementContext(candidate, selection.Instance, children, index, bounds, current, draggedIndex);
             IPlacementStrategy candidateStrategy = session.Placement.Resolve(candidate);
             Vector2 local = candidate.PointToLocal(ghostTopLeft);
             if (candidateStrategy.GetDropTarget(context, local) is not { } found)

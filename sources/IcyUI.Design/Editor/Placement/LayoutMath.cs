@@ -60,8 +60,19 @@ namespace Icy.Design.Editor.Placement
 
             int size = Math.Max(1, isStartEdge ? startSize - delta : startSize + delta);
             int applied = isStartEdge ? startSize - size : size - startSize;
-            if (!isStartEdge || anchored)
+            if (anchored)
                 return new AxisResize(size, startMarginStart, startMarginEnd);
+
+            if (!isStartEdge)
+            {
+                // Keep the start edge where it was.
+                return kind switch
+                {
+                    AxisKind.End => new AxisResize(size, startMarginStart, startMarginEnd - applied),
+                    AxisKind.Centered => new AxisResize(size, startMarginStart + (applied / 2), startMarginEnd),
+                    _ => new AxisResize(size, startMarginStart, startMarginEnd),
+                };
+            }
 
             // Keep the end edge where it was.
             return kind switch

@@ -54,6 +54,9 @@ namespace Icy.Design.Editor.Placement
         protected static int CurrentIndex(PlacementContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
+            if (context.ElementIndex >= 0)
+                return Math.Min(context.ElementIndex, context.ContentCount);
+
             int index = 0;
             foreach (PlacementChild child in context.Children)
             {
@@ -76,9 +79,17 @@ namespace Icy.Design.Editor.Placement
         protected virtual bool AcceptsDrop(PlacementContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
-            bool singleSlot = context.Container is Border || context.Container is UI.Controls.ContentControl;
+            bool singleSlot = IsSingleSlot(context.Container);
             return !singleSlot || context.IsCurrentContainer || context.ContentCount == 0;
         }
+
+        /// <summary>
+        /// Decides from the markup content property whether a container holds one child rather than a list.
+        /// </summary>
+        private static bool IsSingleSlot(UIElement container) =>
+            Markup.ContentPropertyAttribute.GetContentPropertyName(container.GetType()) is { } name
+            && container.GetType().GetProperty(name) is { } property
+            && property.GetValue(container) is not System.Collections.IList;
 
         /// <summary>
         /// The size-or-margin resize every strategy builds on.

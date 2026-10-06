@@ -22,6 +22,7 @@ namespace Icy.Tests.Design.Editor
             Input = new FakeInputSystem();
             Configuration = new IcyConfiguration(Input, new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
             Configuration.Types.Markup.RegisterShortName<PickyPanel>();
+            Configuration.Types.Markup.RegisterShortName<ClrPanel>();
             Design = DesignSession.Attach(Configuration);
             Root = new MarkupLoader(Configuration).Load(markup.ReplaceLineEndings("\n"), "page.xml");
             Document = Design.FindDocument(Root, out _)!;

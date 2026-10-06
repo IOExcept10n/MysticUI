@@ -92,6 +92,7 @@ namespace Icy.Design.Editor
                 if (mode == value)
                     return;
 
+                ActiveResize?.Cancel();
                 mode = value;
                 if (value == EditorMode.Edit)
                     EnterEdit();
@@ -151,6 +152,11 @@ namespace Icy.Design.Editor
         /// Gets the overlays that belong to the editor itself. They never take part in <see cref="HitTest"/>.
         /// </summary>
         internal ISet<UIElement> OwnLayers { get; } = new HashSet<UIElement>();
+
+        /// <summary>
+        /// Gets the resize in progress. It holds an undo transaction open, so undo, redo and other edits wait for it.
+        /// </summary>
+        internal ResizeGesture? ActiveResize { get; private set; }
 
         /// <summary>
         /// Attaches an editor to <paramref name="canvas"/>, in <see cref="EditorMode.Edit"/>.
@@ -253,6 +259,7 @@ namespace Icy.Design.Editor
         public MoveGesture? BeginMove(Point screenPoint)
         {
             ThrowIfDisposed();
+            ActiveResize?.Cancel();
             if (selection is not { } current || blocked || Syntax(current)?.Parent == null || ScopeOf(current.Document, current.Instance) is not { } scope)
                 return null;
 
@@ -269,6 +276,7 @@ namespace Icy.Design.Editor
         public ResizeGesture? BeginResize(ResizeHandle handle, Point screenPoint)
         {
             ThrowIfDisposed();
+            ActiveResize?.Cancel();
             if (selection is not { } current || blocked || handle == ResizeHandle.None)
                 return null;
 
@@ -278,7 +286,9 @@ namespace Icy.Design.Editor
             IResizeOperation operation = ReferenceEquals(container, current.Instance)
                 ? new MarginPlacement().BeginResize(context, handle)
                 : Placement.Resolve(container).BeginResize(context, handle);
-            return new ResizeGesture(this, current, container, operation, screenPoint);
+            ActiveResize = new ResizeGesture(this, current, container, operation, screenPoint);
+            Commands.RaiseCanExecuteChanged();
+            return ActiveResize;
         }
 
         /// <summary>
@@ -295,6 +305,8 @@ namespace Icy.Design.Editor
                 return EditResult.Failure(default, "Nothing is selected.");
             if (blocked)
                 return EditResult.Failure(default, BlockedReason!);
+            if (ActiveResize != null)
+                return EditResult.Failure(default, "A resize is in progress.");
 
             Thickness margin = LayoutMath.Move(current.Instance, current.Instance.Margin, dx, dy);
             using var gesture = new GestureEdits(current.Document, "Nudge");
@@ -318,6 +330,8 @@ namespace Icy.Design.Editor
                 return EditResult.Failure(default, "Nothing is selected.");
             if (blocked)
                 return EditResult.Failure(default, BlockedReason!);
+            if (ActiveResize != null)
+                return EditResult.Failure(default, "A resize is in progress.");
 
             EditResult result = current.Document.Editor.RemoveElement(current.Node);
             if (result.Succeeded)
@@ -333,6 +347,7 @@ namespace Icy.Design.Editor
             if (disposed)
                 return;
 
+            ActiveResize?.Cancel();
             if (mode == EditorMode.Edit)
                 LeaveEdit();
             SetSelection(null);
@@ -378,7 +393,30 @@ namespace Icy.Design.Editor
 
         internal void NoteEdited(DesignDocument document) => LastEdited = document;
 
+        /// <summary>
+        /// Forgets <paramref name="gesture"/> as the active resize once it completed or was cancelled.
+        /// </summary>
+        internal void EndResize(ResizeGesture gesture)
+        {
+            if (!ReferenceEquals(ActiveResize, gesture))
+                return;
+
+            ActiveResize = null;
+            Commands.RaiseCanExecuteChanged();
+        }
+
         internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
+
+        private static bool IsInside(UIElement element, UIElement ancestor)
+        {
+            for (UIElement? current = element.Parent; current != null; current = current.Parent)
+            {
+                if (ReferenceEquals(current, ancestor))
+                    return true;
+            }
+
+            return false;
+        }
 
         private void SetSelection(EditorSelection? value)
         {
@@ -425,8 +463,21 @@ namespace Icy.Design.Editor
 
         private void OnSubtreeReplaced(object? sender, SubtreeReplacedEventArgs e)
         {
-            if (selection is { } current && current.Node == e.Node && ReferenceEquals(current.Instance, e.OldElement))
+            if (selection is not { } current || !ReferenceEquals(sender, current.Document))
+                return;
+
+            if (current.Node == e.Node && ReferenceEquals(current.Instance, e.OldElement))
+            {
                 SetSelection(current with { Instance = e.NewElement });
+                return;
+            }
+
+            // An ancestor was rebuilt: the selected copy went with it, so pick the node's copy in the new subtree.
+            if (!IsInside(current.Instance, e.OldElement))
+                return;
+
+            UIElement? rebuilt = ScopeOf(current.Document, e.NewElement) is { } scope ? FindInstance(current.Document, current.Node, scope) : null;
+            SetSelection(rebuilt != null ? current with { Instance = rebuilt } : null);
         }
 
         private void OnDocumentChanged(object? sender, DocumentChangedEventArgs e)

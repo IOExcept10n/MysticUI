@@ -20,8 +20,12 @@ namespace Icy.Design.Editor.Placement
         /// <param name="contentCount">How many content children the container has in markup, without <paramref name="element"/>.</param>
         /// <param name="elementBounds">The element's bounds when the gesture started, in the container's local space.</param>
         /// <param name="isCurrentContainer">Whether <paramref name="element"/> is already a child of <paramref name="container"/>.</param>
+        /// <param name="elementIndex">
+        /// The element's content index in markup when <paramref name="isCurrentContainer"/> is <see langword="true"/>, or
+        /// <c>-1</c> when it isn't known; strategies then guess it from the children's positions.
+        /// </param>
         /// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
-        public PlacementContext(UIElement container, UIElement element, IReadOnlyList<PlacementChild> children, int contentCount, Rectangle elementBounds, bool isCurrentContainer)
+        public PlacementContext(UIElement container, UIElement element, IReadOnlyList<PlacementChild> children, int contentCount, Rectangle elementBounds, bool isCurrentContainer, int elementIndex = -1)
         {
             ArgumentNullException.ThrowIfNull(container);
             ArgumentNullException.ThrowIfNull(element);
@@ -32,6 +36,7 @@ namespace Icy.Design.Editor.Placement
             ContentCount = contentCount;
             ElementBounds = elementBounds;
             IsCurrentContainer = isCurrentContainer;
+            ElementIndex = isCurrentContainer ? elementIndex : -1;
             ContainerContent = ToLocal(container, container is IContainerLayout layout ? layout.ContentBounds : container.ActualBounds);
         }
 
@@ -55,6 +60,12 @@ namespace Icy.Design.Editor.Placement
 
         /// <summary>Gets a value indicating whether the element already is one of the container's children.</summary>
         public bool IsCurrentContainer { get; }
+
+        /// <summary>
+        /// Gets the element's content index in the container's markup, or <c>-1</c> when it isn't a child of the container
+        /// or the index isn't known. A move that keeps this index keeps the markup order.
+        /// </summary>
+        public int ElementIndex { get; }
 
         /// <summary>
         /// Converts a rectangle in layout space (an element's <see cref="UIElement.ActualBounds"/>) into

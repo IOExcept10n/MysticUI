@@ -18,7 +18,7 @@ namespace Icy.Design.Editor
         private readonly UIElement container;
         private readonly IResizeOperation operation;
         private readonly GestureEdits edits;
-        private readonly Vector2 start;
+        private readonly Point start;
         private EditResult? failure;
         private bool finished;
 
@@ -28,7 +28,7 @@ namespace Icy.Design.Editor
             this.selection = selection;
             this.container = container;
             this.operation = operation;
-            this.start = container.PointToLocal(start);
+            this.start = start;
             edits = new GestureEdits(selection.Document, $"Resize {EditorSession.Syntax(selection)?.Name}");
         }
 
@@ -41,8 +41,10 @@ namespace Icy.Design.Editor
             if (finished || failure != null)
                 return;
 
-            Vector2 delta = container.PointToLocal(screenPoint) - start;
-            EditResult result = edits.Apply(selection.Node, operation.Update(delta));
+            // Both points are mapped in the same frame, so a container that moves as the element resizes doesn't feed
+            // its own movement back into the delta.
+            Vector2 delta = container.PointToLocal(screenPoint) - container.PointToLocal(start);
+            EditResult result = edits.ApplyExactly(selection.Node, operation.Update(delta));
             if (!result.Succeeded)
                 failure = result;
         }
@@ -56,6 +58,7 @@ namespace Icy.Design.Editor
             if (finished)
                 return failure ?? EditResult.Success();
             finished = true;
+            session.EndResize(this);
 
             if (failure != null)
             {
@@ -77,6 +80,7 @@ namespace Icy.Design.Editor
                 return;
 
             finished = true;
+            session.EndResize(this);
             edits.Rollback();
         }
     }
