@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
@@ -101,6 +101,10 @@ namespace Icy.UI.Controls
             int index = Math.Clamp(row * ColumnsPerRow, 0, ItemCount - 1);
             return (index, row * ItemHeight);
         }
+
+        /// <inheritdoc/>
+        /// <remarks>Rows are uniform: the item's row times <see cref="ItemHeight"/>.</remarks>
+        protected override (float Top, float Height) GetItemExtent(int index) => (index / ColumnsPerRow * ItemHeight, ItemHeight);
 
         /// <inheritdoc/>
         /// <remarks>

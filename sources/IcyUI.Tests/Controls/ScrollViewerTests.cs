@@ -1,4 +1,4 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Linq;
 using Icy.Assets;
 using Icy.Configuration;
@@ -287,6 +287,12 @@ namespace Icy.Tests.Controls
             public float LastViewportHeight { get; private set; }
 
             public event EventHandler<float>? VerticalOffsetCorrectionRequested;
+
+            public event EventHandler<float>? ScrollToVerticalOffsetRequested
+            {
+                add { }
+                remove { }
+            }
 
             public void OnViewportChanged(float horizontalOffset, float verticalOffset, float viewportWidth, float viewportHeight)
             {

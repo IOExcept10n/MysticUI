@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using CommunityToolkit.Diagnostics;
@@ -155,15 +155,25 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Handles a realized <see cref="SelectorItem"/>'s <see cref="SelectorItem.Tapped"/> event by setting
-        /// <see cref="SelectedIndex"/> to the item's current index, looked up via <see cref="containerIndices"/>.
+        /// Called when a realized container is tapped. Selects <paramref name="index"/> by default.
+        /// </summary>
+        /// <param name="index">The tapped container's item index.</param>
+        /// <remarks>
+        /// A subclass whose items aren't all selectable (e.g. a tree whose category rows only expand) overrides this to
+        /// decide what a tap does.
+        /// </remarks>
+        protected virtual void OnContainerTapped(int index) => SelectedIndex = index;
+
+        /// <summary>
+        /// Handles a realized <see cref="SelectorItem"/>'s <see cref="SelectorItem.Tapped"/> event by passing the item's
+        /// current index, looked up via <see cref="containerIndices"/>, to <see cref="OnContainerTapped(int)"/>.
         /// </summary>
         /// <param name="sender">The tapped <see cref="SelectorItem"/>.</param>
         /// <param name="e">Unused.</param>
         private void Container_Tapped(object? sender, EventArgs e)
         {
             if (sender is SelectorItem item && containerIndices.TryGetValue(item, out int index))
-                SelectedIndex = index;
+                OnContainerTapped(index);
         }
     }
 }

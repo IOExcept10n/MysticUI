@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 namespace Icy.UI
 {
@@ -24,6 +24,16 @@ namespace Icy.UI
         /// (<c>VerticalOffset += delta</c>), not an absolute new value.
         /// </remarks>
         event EventHandler<float>? VerticalOffsetCorrectionRequested;
+
+        /// <summary>
+        /// Occurs when this content asks its host <see cref="Controls.ScrollViewer"/> to scroll to an absolute vertical
+        /// offset - for example to bring one of its items into view (see <see cref="Controls.ItemsControl.ScrollIntoView(int)"/>).
+        /// </summary>
+        /// <remarks>
+        /// The event's <see langword="float"/> payload is the new <see cref="Controls.ScrollViewer.VerticalOffset"/>, not
+        /// a delta. The host clamps it to its scrollable range.
+        /// </remarks>
+        event EventHandler<float>? ScrollToVerticalOffsetRequested;
 
         /// <summary>
         /// Gets this content's full natural width, estimated or exact depending on how much of it has actually

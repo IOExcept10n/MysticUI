@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Drawing;
@@ -384,7 +384,8 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Keeps this control subscribed to whatever <see cref="ContentControl.Content"/> currently implements
-        /// <see cref="IVirtualizingScrollInfo"/>, so a <see cref="IVirtualizingScrollInfo.VerticalOffsetCorrectionRequested"/>
+        /// <see cref="IVirtualizingScrollInfo"/>, so a <see cref="IVirtualizingScrollInfo.VerticalOffsetCorrectionRequested"/> or
+        /// <see cref="IVirtualizingScrollInfo.ScrollToVerticalOffsetRequested"/>
         /// it raises actually reaches <see cref="VerticalOffset"/> - the value the scrollbar/user read.
         /// </summary>
         private void EnsureVirtualizingSubscription()
@@ -393,14 +394,22 @@ namespace Icy.UI.Controls
                 return;
 
             if (subscribedVirtualizingContent != null)
+            {
                 subscribedVirtualizingContent.VerticalOffsetCorrectionRequested -= OnVerticalOffsetCorrectionRequested;
+                subscribedVirtualizingContent.ScrollToVerticalOffsetRequested -= OnScrollToVerticalOffsetRequested;
+            }
 
             subscribedVirtualizingContent = Content as IVirtualizingScrollInfo;
 
             if (subscribedVirtualizingContent != null)
+            {
                 subscribedVirtualizingContent.VerticalOffsetCorrectionRequested += OnVerticalOffsetCorrectionRequested;
+                subscribedVirtualizingContent.ScrollToVerticalOffsetRequested += OnScrollToVerticalOffsetRequested;
+            }
         }
 
         private void OnVerticalOffsetCorrectionRequested(object? sender, float delta) => VerticalOffset += delta;
+
+        private void OnScrollToVerticalOffsetRequested(object? sender, float offset) => VerticalOffset = offset;
     }
 }

@@ -614,6 +614,13 @@ namespace Icy.UI.Controls
             }
 
             /// <inheritdoc/>
+            public event EventHandler<float>? ScrollToVerticalOffsetRequested
+            {
+                add => ((IVirtualizingScrollInfo)owner).ScrollToVerticalOffsetRequested += value;
+                remove => ((IVirtualizingScrollInfo)owner).ScrollToVerticalOffsetRequested -= value;
+            }
+
+            /// <inheritdoc/>
             public float ExtentWidth => ((IVirtualizingScrollInfo)owner).ExtentWidth;
 
             /// <inheritdoc/>

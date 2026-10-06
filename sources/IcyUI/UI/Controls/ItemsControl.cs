@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Collections;
 using System.Collections.Specialized;
@@ -96,6 +96,9 @@ namespace Icy.UI.Controls
 
         /// <inheritdoc/>
         public event EventHandler<float>? VerticalOffsetCorrectionRequested;
+
+        /// <inheritdoc/>
+        public event EventHandler<float>? ScrollToVerticalOffsetRequested;
 
         /// <summary>
         /// Gets or sets the estimated height given to an item that hasn't been realized/measured yet - used only
@@ -283,6 +286,41 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Scrolls the hosting <see cref="ScrollViewer"/> just enough to show the item at <paramref name="index"/> entirely.
+        /// </summary>
+        /// <param name="index">The index of the item to show, within <c>[0, item count)</c>.</param>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>An item above the viewport is aligned with its top edge, and one below with its bottom edge.</description></item>
+        /// <item><description>An item that is already fully visible doesn't scroll anything.</description></item>
+        /// <item><description>
+        /// Positions come from measured heights where they're known and from the running estimate elsewhere. Once the
+        /// item is realized, the usual height correction (<see cref="IVirtualizingScrollInfo.VerticalOffsetCorrectionRequested"/>)
+        /// settles any difference.
+        /// </description></item>
+        /// <item><description>Without a host that has laid this control out, nothing happens.</description></item>
+        /// </list>
+        /// </remarks>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is outside the item range.</exception>
+        public void ScrollIntoView(int index)
+        {
+            Guard.IsInRange(index, 0, items.Count);
+            if (viewportHeight <= 0)
+                return;
+
+            (float top, float height) = GetItemExtent(index);
+            float target;
+            if (top < verticalOffset)
+                target = top;
+            else if (top + height > verticalOffset + viewportHeight)
+                target = Math.Min(top, top + height - viewportHeight);
+            else
+                return;
+
+            ScrollToVerticalOffsetRequested?.Invoke(this, target);
+        }
+
         /// <inheritdoc/>
         /// <remarks>
         /// Force-invalidates <see cref="Control.Chrome"/> before arranging it - see
@@ -355,6 +393,31 @@ namespace Icy.UI.Controls
             Chrome.Draw(context);
             foreach (int index in realizedContainers.Keys.OrderBy(i => i))
                 realizedContainers[index].Draw(context);
+        }
+
+        /// <summary>
+        /// Gets where the item at <paramref name="index"/> sits in this control's scrollable content - walked from the
+        /// current viewport anchor through measured heights and the running estimate, the same geometry
+        /// <see cref="RealizeRange(int, float)"/> positions containers with. A subclass with different geometry (e.g. a
+        /// uniform grid) overrides this.
+        /// </summary>
+        /// <param name="index">The item's index.</param>
+        /// <returns>The item's top offset and its height.</returns>
+        protected virtual (float Top, float Height) GetItemExtent(int index)
+        {
+            float top = anchorOffset;
+            if (index >= anchorIndex)
+            {
+                for (int i = anchorIndex; i < index; i++)
+                    top += Math.Max(HeightOrEstimate(i), 1f);
+            }
+            else
+            {
+                for (int i = index; i < anchorIndex; i++)
+                    top -= Math.Max(HeightOrEstimate(i), 1f);
+            }
+
+            return (top, Math.Max(HeightOrEstimate(index), 1f));
         }
 
         private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
