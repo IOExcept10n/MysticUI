@@ -4,9 +4,11 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Numerics;
 using CommunityToolkit.Diagnostics;
 using Icy.Data;
 using Icy.Data.Markup.Attributes;
+using Icy.Input.Events;
 using Icy.Markup;
 using Icy.UI.Styles;
 
@@ -48,6 +50,7 @@ namespace Icy.UI.Controls
         private Func<object, DataTemplate>? itemTemplateSelector;
         private float indent = 16;
         private bool settingNodeState;
+        private INavigationEvents? subscribedNavigation;
         private readonly Dictionary<object, Subscription> subscriptions = new(ReferenceEqualityComparer.Instance);
         private INotifyCollectionChanged? observedRoots;
         private object? selectedItem;
@@ -65,6 +68,7 @@ namespace Icy.UI.Controls
             scrollViewer = new ScrollViewer { Content = list };
             ((Border)Chrome).Child = scrollViewer;
             Items.CollectionChanged += Items_CollectionChanged;
+            FocusChanged += OnFocusChanged;
 
             // Starts following the (empty) inline Items right away, so markup-only trees populate without an attach.
             Rebuild();
@@ -368,6 +372,7 @@ namespace Icy.UI.Controls
         {
             base.OnDetached();
             UnsubscribeAll();
+            UnsubscribeNavigation();
         }
 
         private void AddRef(object item)
@@ -591,6 +596,106 @@ namespace Icy.UI.Controls
             return built;
         }
 
+        private void OnFocusChanged(object? sender, EventArgs e)
+        {
+            if (IsFocused)
+            {
+                currentRow ??= (selectedItem == null ? null : rows.FirstOrDefault(r => ReferenceEquals(r.Item, selectedItem)))
+                    ?? (rows.Count > 0 ? rows[0] : null);
+                SubscribeNavigation();
+            }
+            else
+            {
+                UnsubscribeNavigation();
+            }
+
+            SyncList();
+        }
+
+        private void SubscribeNavigation()
+        {
+            if (Configuration == null || subscribedNavigation != null)
+                return;
+
+            subscribedNavigation = Configuration.Input.Events.Navigation;
+            subscribedNavigation.FocusChanging += OnNavigationFocusChanging;
+            subscribedNavigation.SelectElement += OnNavigationSelectElement;
+        }
+
+        private void UnsubscribeNavigation()
+        {
+            if (subscribedNavigation == null)
+                return;
+
+            subscribedNavigation.FocusChanging -= OnNavigationFocusChanging;
+            subscribedNavigation.SelectElement -= OnNavigationSelectElement;
+            subscribedNavigation = null;
+        }
+
+        /// <summary>
+        /// Moves through the rows. A press that would leave the tree (past the first or last row, or Left on a root with
+        /// nothing to collapse) is left unhandled, so focus navigation can move on to the next control.
+        /// </summary>
+        private void OnNavigationFocusChanging(object? sender, AcceptableEventArgs<Vector2> e)
+        {
+            if (rows.Count == 0)
+                return;
+
+            int index = currentRow == null ? -1 : rows.IndexOf(currentRow);
+            Vector2 direction = e.Data;
+            if (index < 0)
+            {
+                MoveTo(0);
+                e.Handled = true;
+                return;
+            }
+
+            FlatRow row = rows[index];
+            if (MathF.Abs(direction.Y) >= MathF.Abs(direction.X))
+            {
+                int next = direction.Y < 0 ? index - 1 : index + 1;
+                if (next < 0 || next >= rows.Count)
+                    return;
+                MoveTo(next);
+            }
+            else if (direction.X > 0)
+            {
+                if (HasChildren(row.Item) && !IsExpanded(row.Item))
+                    Expand(row.Item);
+                else if (index + 1 < rows.Count)
+                    MoveTo(index + 1);
+                else
+                    return;
+            }
+            else
+            {
+                if (HasChildren(row.Item) && IsExpanded(row.Item))
+                    Collapse(row.Item);
+                else if (row.Parent != null)
+                    MoveTo(rows.IndexOf(row.Parent));
+                else
+                    return;
+            }
+
+            e.Handled = true;
+        }
+
+        private void OnNavigationSelectElement(object? sender, EventArgs e)
+        {
+            if (currentRow != null && HasChildren(currentRow.Item))
+                Toggle(currentRow.Item);
+        }
+
+        /// <summary>Makes row <paramref name="index"/> current, selects it when selectable, and scrolls it into view.</summary>
+        private void MoveTo(int index)
+        {
+            currentRow = rows[index];
+            if (IsSelectable(currentRow.Item))
+                Select(currentRow.Item, reveal: false);
+            SyncList();
+            list.ScrollIntoView(rows.IndexOf(currentRow));
+        }
+
         /// <summary>Counts the rows below <paramref name="index"/> that are deeper than it: its visible subtree.</summary>
         private int DescendantCount(int index)
         {
@@ -627,6 +732,8 @@ namespace Icy.UI.Controls
 
             if (SetProperty(ref selectedItem, item, nameof(SelectedItem)))
             {
+                if (item != null)
+                    currentRow = rows.FirstOrDefault(r => ReferenceEquals(r.Item, item)) ?? currentRow;
                 SyncList();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
             }

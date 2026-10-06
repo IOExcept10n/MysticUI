@@ -306,7 +306,12 @@ namespace Icy.Tests.Input
 
         public void RaiseSelectElement() => SelectElement?.Invoke(this, EventArgs.Empty);
 
-        public void RaiseFocusChanging(Vector2 direction) => FocusChanging?.Invoke(this, new AcceptableEventArgs<Vector2> { Data = direction });
+        public AcceptableEventArgs<Vector2> RaiseFocusChanging(Vector2 direction)
+        {
+            var args = new AcceptableEventArgs<Vector2> { Data = direction };
+            FocusChanging?.Invoke(this, args);
+            return args;
+        }
     }
 
     /// <summary>
