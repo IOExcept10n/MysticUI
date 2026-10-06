@@ -13,8 +13,11 @@ namespace Icy.Design.Editor
     internal sealed class EditorCaptureLayer(EditorFrame frame) : UIElement
     {
         // The drag hooks are protected internal in core; from another assembly they're overridden as protected.
+        // Only primary pointers edit: core reserves middle-button drags for panning, and the right button for menus.
         protected override DragAxes GetDragAxes(in DragClaimContext context) =>
-            frame.Session.Mode == EditorMode.Edit ? DragAxes.Both : DragAxes.None;
+            frame.Session.Mode == EditorMode.Edit && context.Kind is Input.Gestures.PointerKind.MouseLeft or Input.Gestures.PointerKind.Touch
+                ? DragAxes.Both
+                : DragAxes.None;
 
         protected override void OnDragStarted(Point screenPoint) => frame.BeginDrag(screenPoint);
 

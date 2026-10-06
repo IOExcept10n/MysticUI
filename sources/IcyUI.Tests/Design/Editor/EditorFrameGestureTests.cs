@@ -69,6 +69,25 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void AMiddleButtonDrag_EditsNothing()
+        {
+            using var host = new EditorTestHost(Page);
+            using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
+            var a = host.Named<Border>("a");
+            string before = host.Document.Text;
+            Point from = host.At(a, 50, 10);
+            Point to = host.At(host.Named<Button>("ok"), 50, 25);
+            var start = new DragInfo(PointerKind.MouseMiddle, from, from, Vector2.Zero, Vector2.Zero);
+            var end = new DragInfo(PointerKind.MouseMiddle, from, to, new Vector2(to.X - from.X, to.Y - from.Y), Vector2.Zero);
+
+            host.Input.Events.Gestures.RaiseDragStarted(start);
+            host.Input.Events.Gestures.RaiseDragMoved(end);
+            host.Input.Events.Gestures.RaiseDragCompleted(end);
+
+            Assert.Equal(before, host.Document.Text);
+        }
+
+        [Fact]
         public void AHandleDrag_ResizesTheElement()
         {
             using var host = new EditorTestHost(Page);
