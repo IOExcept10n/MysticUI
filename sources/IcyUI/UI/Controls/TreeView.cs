@@ -48,6 +48,8 @@ namespace Icy.UI.Controls
         private Func<object, DataTemplate>? itemTemplateSelector;
         private float indent = 16;
         private bool settingNodeState;
+        private readonly Dictionary<object, Subscription> subscriptions = new(ReferenceEqualityComparer.Instance);
+        private INotifyCollectionChanged? observedRoots;
         private object? selectedItem;
         private FlatRow? currentRow;
 
@@ -361,18 +363,81 @@ namespace Icy.UI.Controls
             Rebuild();
         }
 
+        /// <inheritdoc/>
+        protected override void OnDetached()
+        {
+            base.OnDetached();
+            UnsubscribeAll();
+        }
+
+        private void AddRef(object item)
+        {
+            if (subscriptions.TryGetValue(item, out Subscription? existing))
+            {
+                existing.RefCount++;
+                return;
+            }
+
+            INotifyCollectionChanged? children = GetChildren(item) as INotifyCollectionChanged;
+            NotifyCollectionChangedEventHandler? childrenHandler = children == null ? null : (_, e) => OnChildrenChanged(item, e);
+            TreeViewNode? node = item as TreeViewNode;
+            PropertyChangedEventHandler? nodeHandler = node == null ? null : (_, e) => OnNodePropertyChanged(node, e);
+            if (children != null)
+                children.CollectionChanged += childrenHandler;
+            if (node != null)
+                node.PropertyChanged += nodeHandler;
+            subscriptions[item] = new Subscription { RefCount = 1, Children = children, ChildrenHandler = childrenHandler, Node = node, NodeHandler = nodeHandler };
+        }
+
+        private void Release(object item)
+        {
+            if (!subscriptions.TryGetValue(item, out Subscription? subscription) || --subscription.RefCount > 0)
+                return;
+
+            Unsubscribe(subscription);
+            subscriptions.Remove(item);
+        }
+
+        private static void Unsubscribe(Subscription subscription)
+        {
+            if (subscription.Children != null)
+                subscription.Children.CollectionChanged -= subscription.ChildrenHandler;
+            if (subscription.Node != null)
+                subscription.Node.PropertyChanged -= subscription.NodeHandler;
+        }
+
+        private void UnsubscribeAll()
+        {
+            foreach (Subscription subscription in subscriptions.Values)
+                Unsubscribe(subscription);
+            subscriptions.Clear();
+            if (observedRoots != null)
+            {
+                observedRoots.CollectionChanged -= Roots_CollectionChanged;
+                observedRoots = null;
+            }
+        }
+
         private void Items_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            // Inline items are the roots only without ItemsSource; their changes then arrive through Roots_CollectionChanged.
             if (itemsSource != null)
                 throw new InvalidOperationException($"A {nameof(TreeView)} takes its roots from either '{nameof(ItemsSource)}' or inline '{nameof(Items)}', not both.");
-            Rebuild();
         }
 
         private void Rebuild()
         {
+            UnsubscribeAll();
+            IEnumerable roots = Roots;
+            observedRoots = roots as INotifyCollectionChanged;
+            if (observedRoots != null)
+                observedRoots.CollectionChanged += Roots_CollectionChanged;
+
             var built = new List<FlatRow>();
-            foreach (object item in Roots)
+            foreach (object item in roots)
                 AppendVisible(item, 0, null, built);
+            foreach (FlatRow row in built)
+                AddRef(row.Item);
             rows.ResetTo(built);
             ClearSelectionIfGone();
         }
@@ -402,9 +467,129 @@ namespace Icy.UI.Controls
             return false;
         }
 
-        private void InsertRows(int index, List<FlatRow> range) => rows.InsertRange(index, range);
+        private void InsertRows(int index, List<FlatRow> range)
+        {
+            foreach (FlatRow row in range)
+                AddRef(row.Item);
+            rows.InsertRange(index, range);
+        }
 
-        private void RemoveRows(int index, int count, bool fromData) => rows.RemoveRange(index, count);
+        private void RemoveRows(int index, int count, bool fromData)
+        {
+            if (count == 0)
+                return;
+
+            foreach (FlatRow row in rows.RemoveRange(index, count))
+                Release(row.Item);
+            if (fromData)
+                ClearSelectionIfGone();
+        }
+
+        private void Roots_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => ApplyChildrenChange(null, -1, e);
+
+        private void OnChildrenChanged(object parentItem, NotifyCollectionChangedEventArgs e)
+        {
+            foreach (FlatRow parent in rows.Where(r => ReferenceEquals(r.Item, parentItem)).ToList())
+            {
+                int index = rows.IndexOf(parent);
+                if (index < 0)
+                    continue;
+                if (IsExpanded(parentItem))
+                    ApplyChildrenChange(parent, index, e);
+                list.Restamp(parent);
+            }
+        }
+
+        private void OnNodePropertyChanged(TreeViewNode node, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(TreeViewNode.IsExpanded) when !settingNodeState:
+                    ApplyExpansion(node, node.IsExpanded);
+                    break;
+                case nameof(TreeViewNode.IsSelectable):
+                    list.RestampAll();
+                    if (ReferenceEquals(selectedItem, node) && !node.IsSelectable)
+                        Select(null, reveal: false);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Applies a change of <paramref name="parent"/>'s children (or of the roots, when <paramref name="parent"/> is
+        /// <see langword="null"/>) to the rows of its visible subtree.
+        /// </summary>
+        private void ApplyChildrenChange(FlatRow? parent, int parentIndex, NotifyCollectionChangedEventArgs e)
+        {
+            int depth = parent == null ? 0 : parent.Depth + 1;
+            int start = parentIndex + 1;
+            int end = parent == null ? rows.Count : start + DescendantCount(parentIndex);
+            switch (e.Action)
+            {
+                case NotifyCollectionChangedAction.Add when e.NewStartingIndex >= 0:
+                    InsertRows(ChildStart(start, end, depth, e.NewStartingIndex), BuildRows(e.NewItems!, depth, parent));
+                    return;
+
+                case NotifyCollectionChangedAction.Remove when e.OldStartingIndex >= 0:
+                    RemoveChildren(start, end, depth, e.OldStartingIndex, e.OldItems!.Count);
+                    return;
+
+                case NotifyCollectionChangedAction.Replace when e.OldStartingIndex >= 0:
+                    foreach (object old in e.OldItems!)
+                        expanded.Remove(old);
+                    int at = RemoveChildren(start, end, depth, e.OldStartingIndex, e.OldItems.Count);
+                    InsertRows(at, BuildRows(e.NewItems!, depth, parent));
+                    return;
+
+                case NotifyCollectionChangedAction.Move when e.OldStartingIndex >= 0 && e.NewStartingIndex >= 0:
+                    // The moved rows keep their subscriptions and expansion; they're only re-positioned.
+                    int from = ChildStart(start, end, depth, e.OldStartingIndex);
+                    int to = ChildStart(start, end, depth, e.OldStartingIndex + e.OldItems!.Count);
+                    List<FlatRow> moved = rows.RemoveRange(from, to - from);
+                    rows.InsertRange(ChildStart(start, end - moved.Count, depth, e.NewStartingIndex), moved);
+                    return;
+
+                default:
+                    // Reset, or a change without indices: re-flatten this parent's subtree.
+                    RemoveRows(start, end - start, fromData: true);
+                    IEnumerable children = parent == null ? Roots : GetChildren(parent.Item) ?? Array.Empty<object>();
+                    InsertRows(start, BuildRows(children, depth, parent));
+                    return;
+            }
+        }
+
+        /// <summary>Finds the row index where child number <paramref name="k"/> of a subtree starts.</summary>
+        /// <returns>The index; <paramref name="end"/> when <paramref name="k"/> is the child count.</returns>
+        private int ChildStart(int start, int end, int depth, int k)
+        {
+            int seen = 0;
+            for (int i = start; i < end; i++)
+            {
+                if (rows[i].Depth != depth)
+                    continue;
+                if (seen == k)
+                    return i;
+                seen++;
+            }
+
+            return end;
+        }
+
+        private int RemoveChildren(int start, int end, int depth, int k, int count)
+        {
+            int from = ChildStart(start, end, depth, k);
+            int to = ChildStart(start, end, depth, k + count);
+            RemoveRows(from, to - from, fromData: true);
+            return from;
+        }
+
+        private List<FlatRow> BuildRows(IEnumerable items, int depth, FlatRow? parent)
+        {
+            var built = new List<FlatRow>();
+            foreach (object item in items)
+                AppendVisible(item, depth, parent, built);
+            return built;
+        }
 
         /// <summary>Counts the rows below <paramref name="index"/> that are deeper than it: its visible subtree.</summary>
         private int DescendantCount(int index)
@@ -556,6 +741,20 @@ namespace Icy.UI.Controls
             }
 
             (value ? ItemExpanded : ItemCollapsed)?.Invoke(this, new TreeViewItemEventArgs(item));
+        }
+
+        /// <summary>What the tree listens to for one visible item, shared by every row that shows the item.</summary>
+        private sealed class Subscription
+        {
+            public int RefCount { get; set; }
+
+            public INotifyCollectionChanged? Children { get; init; }
+
+            public NotifyCollectionChangedEventHandler? ChildrenHandler { get; init; }
+
+            public TreeViewNode? Node { get; init; }
+
+            public PropertyChangedEventHandler? NodeHandler { get; init; }
         }
     }
 }
