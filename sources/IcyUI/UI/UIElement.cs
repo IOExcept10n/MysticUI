@@ -1802,14 +1802,17 @@ namespace Icy.UI
                 return Point.Empty;
 
             Vector2 point = localPoint;
+            UIElement root = this;
             for (UIElement? element = this; element != null; element = element.Parent)
             {
                 if (element.IsTransformInvalid)
                     element.UpdateTransformMatrix();
                 point = element.layoutTransform.Apply(point);
+                root = element;
             }
 
-            Vector2 surfacePoint = Canvas.CanvasToSurfaceSpace(point);
+            // Overlays (popups) are laid out in surface space already; only page content goes through the canvas's own pan/rotate/zoom.
+            Vector2 surfacePoint = Canvas.IsOverlay(root) ? point : Canvas.CanvasToSurfaceSpace(point);
             return new Point((int)surfacePoint.X, (int)surfacePoint.Y);
         }
 

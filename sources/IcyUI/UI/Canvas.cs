@@ -229,9 +229,27 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Gets a value indicating whether the mouse is currently over the GUI.
+        /// Gets a value indicating whether the mouse is over anything this canvas draws: a root element or an overlay
+        /// that hit-tests at the mouse position.
         /// </summary>
-        public bool IsMouseOverGUI { get; }
+        /// <remarks>
+        /// Updated once per <see cref="Render"/> while <see cref="IsInputEnabled"/> is <see langword="true"/>. A game checks
+        /// it to decide whether its own scene should ignore the mouse this frame. A full-surface overlay, such as the
+        /// design-time editor's capture layer, makes it <see langword="true"/> everywhere.
+        /// </remarks>
+        public bool IsMouseOverGUI { get; private set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this canvas acts on keyboard and gamepad navigation: moving focus with
+        /// <see cref="Input.Events.INavigationEvents.FocusNext"/>/<see cref="Input.Events.INavigationEvents.FocusPrevious"/>
+        /// and closing focus scopes with <see cref="Input.Events.INavigationEvents.CloseModal"/>.
+        /// </summary>
+        /// <remarks>
+        /// <see langword="true"/> by default. Tools that take over the keyboard (the design-time editor in Edit mode) and
+        /// game states such as cutscenes set it to <see langword="false"/>. Controls that handle navigation themselves
+        /// while focused (a <c>ComboBox</c>, say) aren't affected; clear <see cref="FocusedElement"/> to silence them.
+        /// </remarks>
+        public bool IsKeyboardNavigationEnabled { get; set; } = true;
 
         /// <summary>
         /// Gets or sets a value indicating whether the canvas is visible.
@@ -435,7 +453,19 @@ namespace Icy.UI
         /// </summary>
         /// <param name="screenPoint">A point in screen/window space (the same space pointer/touch positions arrive in).</param>
         /// <returns>The topmost hit-testable element under the point, or <see langword="null"/> if none is.</returns>
-        public UIElement? HitTest(Point screenPoint)
+        public UIElement? HitTest(Point screenPoint) => HitTest(screenPoint, includeOverlay: null);
+
+        /// <summary>
+        /// Determines which element is under the specified point, testing only the overlays <paramref name="includeOverlay"/>
+        /// accepts, then the root elements.
+        /// </summary>
+        /// <param name="screenPoint">A point in screen/window space (the same space pointer/touch positions arrive in).</param>
+        /// <param name="includeOverlay">
+        /// Decides, per entry of <see cref="Overlays"/>, whether it takes part; <see langword="null"/> tests every overlay.
+        /// Tools use it to look past their own overlays while still seeing the page's popups.
+        /// </param>
+        /// <returns>The topmost hit-testable element under the point, or <see langword="null"/> if none is.</returns>
+        public UIElement? HitTest(Point screenPoint, Func<UIElement, bool>? includeOverlay)
         {
             // Overlays are tested in surface space - the physical point divided by EffectiveScale (last-added =
             // topmost = checked first, matching Overlays' own draw order). Unlike rootElements, they're arranged
@@ -444,6 +474,9 @@ namespace Icy.UI
             Vector2 surfacePoint = ScreenToSurface(screenPoint);
             for (int i = overlayElements.Count - 1; i >= 0; i--)
             {
+                if (includeOverlay != null && !includeOverlay(overlayElements[i]))
+                    continue;
+
                 UIElement? hit = overlayElements[i].HitTest(surfacePoint);
                 if (hit != null)
                     return hit;
@@ -702,8 +735,16 @@ namespace Icy.UI
             events.Gestures.DragCompleted += OnGestureDragCompleted;
             events.Gestures.DragCanceled += OnGestureDragCanceled;
             events.Scroll.Scroll += OnScroll;
-            events.Navigation.FocusNext += (_, _) => MoveFocus(forward: true);
-            events.Navigation.FocusPrevious += (_, _) => MoveFocus(forward: false);
+            events.Navigation.FocusNext += (_, _) =>
+            {
+                if (IsKeyboardNavigationEnabled)
+                    MoveFocus(forward: true);
+            };
+            events.Navigation.FocusPrevious += (_, _) =>
+            {
+                if (IsKeyboardNavigationEnabled)
+                    MoveFocus(forward: false);
+            };
             events.Navigation.CloseModal += OnCloseModal;
         }
 
@@ -890,6 +931,9 @@ namespace Icy.UI
 
         private void OnCloseModal(object? sender, EventArgs e)
         {
+            if (!IsKeyboardNavigationEnabled)
+                return;
+
             UIElement? scope = FindEnclosingFocusScope(FocusedElement);
             if (scope != null)
                 CloseFocusScope(scope);
@@ -946,6 +990,7 @@ namespace Icy.UI
         private void UpdateHover()
         {
             UIElement? hit = HitTest(Configuration.Input.Mouse.MouseInfo.Position);
+            IsMouseOverGUI = hit != null;
             if (hit == hoveredElement)
                 return;
 
