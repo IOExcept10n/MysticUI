@@ -14,11 +14,13 @@ namespace Icy.UI.Controls
     /// </summary>
     /// <remarks>
     /// A child with no explicit <c>Row</c>/<c>Column</c> defaults to cell (0, 0). A child whose assigned row/column
-    /// index is out of range is clamped into the nearest valid track. Row/column spanning isn't supported in v1 -
-    /// each child occupies exactly one cell.
+    /// index is out of range is clamped into the nearest valid track. A child spans <c>RowSpan</c>×<c>ColumnSpan</c>
+    /// cells (<see cref="GetRowSpan"/>, <see cref="GetColumnSpan"/>), clamped to the tracks that exist.
     /// </remarks>
     [AttachedProperty(nameof(GetRow), nameof(SetRow), PropertyName = "Row")]
     [AttachedProperty(nameof(GetColumn), nameof(SetColumn), PropertyName = "Column")]
+    [AttachedProperty(nameof(GetRowSpan), nameof(SetRowSpan), PropertyName = "RowSpan")]
+    [AttachedProperty(nameof(GetColumnSpan), nameof(SetColumnSpan), PropertyName = "ColumnSpan")]
     public class Grid : Panel
     {
         /// <summary>
@@ -57,6 +59,20 @@ namespace Icy.UI.Controls
         public static int GetRow(UIElement element) => AttachedProperties.GetValue<int>(element, "Row");
 
         /// <summary>
+        /// Gets how many columns <paramref name="element"/> spans within its parent <see cref="Grid"/>.
+        /// </summary>
+        /// <param name="element">The element to get the attached value for.</param>
+        /// <returns>The column span, at least <c>1</c>. Defaults to <c>1</c>.</returns>
+        public static int GetColumnSpan(UIElement element) => Math.Max(AttachedProperties.GetValue(element, "ColumnSpan", 1), 1);
+
+        /// <summary>
+        /// Gets how many rows <paramref name="element"/> spans within its parent <see cref="Grid"/>.
+        /// </summary>
+        /// <param name="element">The element to get the attached value for.</param>
+        /// <returns>The row span, at least <c>1</c>. Defaults to <c>1</c>.</returns>
+        public static int GetRowSpan(UIElement element) => Math.Max(AttachedProperties.GetValue(element, "RowSpan", 1), 1);
+
+        /// <summary>
         /// Sets the zero-based column <paramref name="element"/> should be placed in within its parent <see cref="Grid"/>.
         /// </summary>
         /// <param name="element">The element to set the attached value for.</param>
@@ -75,6 +91,28 @@ namespace Icy.UI.Controls
         public static void SetRow(UIElement element, int value)
         {
             AttachedProperties.SetValue(element, "Row", value);
+            (element.Parent as Grid)?.InvalidateMeasure();
+        }
+
+        /// <summary>
+        /// Sets how many columns <paramref name="element"/> spans within its parent <see cref="Grid"/>.
+        /// </summary>
+        /// <param name="element">The element to set the attached value for.</param>
+        /// <param name="value">The column span. Values below <c>1</c> are treated as <c>1</c>; a span past the last column is clamped.</param>
+        public static void SetColumnSpan(UIElement element, int value)
+        {
+            AttachedProperties.SetValue(element, "ColumnSpan", value);
+            (element.Parent as Grid)?.InvalidateMeasure();
+        }
+
+        /// <summary>
+        /// Sets how many rows <paramref name="element"/> spans within its parent <see cref="Grid"/>.
+        /// </summary>
+        /// <param name="element">The element to set the attached value for.</param>
+        /// <param name="value">The row span. Values below <c>1</c> are treated as <c>1</c>; a span past the last row is clamped.</param>
+        public static void SetRowSpan(UIElement element, int value)
+        {
+            AttachedProperties.SetValue(element, "RowSpan", value);
             (element.Parent as Grid)?.InvalidateMeasure();
         }
 
@@ -98,13 +136,15 @@ namespace Icy.UI.Controls
                 if (!child.IsVisible)
                     continue;
 
-                int column = ClampedTrack(GetColumn(child), ColumnDefinitions.Count);
-                int row = ClampedTrack(GetRow(child), RowDefinitions.Count);
+                int column = ClampedTrack(GetColumn(child), colSizes.Length);
+                int row = ClampedTrack(GetRow(child), rowSizes.Length);
+                int columnSpan = ClampedSpan(column, GetColumnSpan(child), colSizes.Length);
+                int rowSpan = ClampedSpan(row, GetRowSpan(child), rowSizes.Length);
                 Rectangle cell = new(
                     content.X + (int)colOffsets[column],
                     content.Y + (int)rowOffsets[row],
-                    (int)colSizes[column],
-                    (int)rowSizes[row]);
+                    (int)SpanSize(colSizes, column, columnSpan),
+                    (int)SpanSize(rowSizes, row, rowSpan));
 
                 // The child's assigned cell may have moved/resized even if nothing about the child itself changed
                 // (e.g. a Star column elsewhere grew) - force it to re-arrange into the new cell regardless.
@@ -140,6 +180,16 @@ namespace Icy.UI.Controls
         private static int ClampedTrack(int index, int definitionCount) =>
             Math.Clamp(index, 0, Math.Max(definitionCount - 1, 0));
 
+        private static int ClampedSpan(int start, int span, int trackCount) => Math.Clamp(span, 1, Math.Max(trackCount - start, 1));
+
+        private static float SpanSize(float[] sizes, int start, int span)
+        {
+            float total = 0;
+            for (int i = start; i < start + span; i++)
+                total += sizes[i];
+            return total;
+        }
+
         private float MaxChildTrackSize(int trackIndex, bool isColumn)
         {
             float max = 0;
@@ -154,12 +204,58 @@ namespace Icy.UI.Controls
                 if (index != trackIndex)
                     continue;
 
+                int span = isColumn ? GetColumnSpan(child) : GetRowSpan(child);
+                int trackCount = Math.Max(isColumn ? ColumnDefinitions.Count : RowDefinitions.Count, 1);
+                if (ClampedSpan(index, span, trackCount) > 1)
+                    continue;
+
                 Size desired = child.Measure();
                 float size = isColumn ? desired.Width + child.Margin.Width : desired.Height + child.Margin.Height;
                 max = Math.Max(max, size);
             }
 
             return max;
+        }
+
+        /// <summary>
+        /// Grows the Auto tracks under each spanning child whose desired size exceeds its spanned tracks, splitting the
+        /// deficit evenly between them. Pixel and Star tracks never grow for a spanning child.
+        /// </summary>
+        private void DistributeSpanningDeficits(float[] sizes, Func<int, GridLength> lengths, bool isColumn)
+        {
+            foreach (UIElement child in Children)
+            {
+                if (!child.IsVisible)
+                    continue;
+
+                int start = ClampedTrack(isColumn ? GetColumn(child) : GetRow(child), sizes.Length);
+                int span = ClampedSpan(start, isColumn ? GetColumnSpan(child) : GetRowSpan(child), sizes.Length);
+                if (span < 2)
+                    continue;
+
+                int autoCount = 0;
+                for (int i = start; i < start + span; i++)
+                {
+                    if (lengths(i).UnitType == GridUnitType.Auto)
+                        autoCount++;
+                }
+
+                if (autoCount == 0)
+                    continue;
+
+                Size desired = child.Measure();
+                float wanted = isColumn ? desired.Width + child.Margin.Width : desired.Height + child.Margin.Height;
+                float deficit = wanted - SpanSize(sizes, start, span);
+                if (deficit <= 0)
+                    continue;
+
+                float share = deficit / autoCount;
+                for (int i = start; i < start + span; i++)
+                {
+                    if (lengths(i).UnitType == GridUnitType.Auto)
+                        sizes[i] += share;
+                }
+            }
         }
 
         private float[] ResolveTracks(int definitionCount, Func<int, GridLength> lengths, bool isColumn, float? availableSpace)
@@ -178,6 +274,8 @@ namespace Icy.UI.Controls
                     _ => 0, // Star, resolved below once availableSpace is known.
                 };
             }
+
+            DistributeSpanningDeficits(sizes, TrackLength, isColumn);
 
             if (availableSpace is float available)
             {
