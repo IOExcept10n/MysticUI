@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
@@ -6,6 +6,7 @@ using Icy.Data;
 using Icy.Data.Markup;
 using Icy.Design.Editor.Placement;
 using Icy.Design.Syntax;
+using Icy.Input.Devices;
 using Icy.Input.Events;
 using Icy.Markup;
 using Icy.Rendering;
@@ -168,7 +169,9 @@ namespace Icy.Design.Editor
 
         internal void UpdateDrag(Point screenPoint)
         {
-            resize?.Update(screenPoint);
+            // Alt is the usual "don't snap" modifier in design tools; touch has none, so snapping is the default.
+            bool snap = design.Configuration.Input.Keyboard is not { } keyboard || (keyboard.ModifierKeys & ModifierKeys.Alt) == 0;
+            resize?.Update(screenPoint, snap);
             move?.Update(screenPoint);
         }
 
@@ -236,6 +239,9 @@ namespace Icy.Design.Editor
                     line = target.IndicatorIsLine;
                 }
             }
+
+            if (resize is { Indicator: { } area })
+                indicator = AdornerGeometry.ToSurface(resize.Container, area);
 
             return new AdornerScene(hover, selected, handles, !editing, indicator, line, ghost);
         }

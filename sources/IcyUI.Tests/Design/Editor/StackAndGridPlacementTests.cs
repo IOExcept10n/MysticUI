@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
 using System.Numerics;
@@ -98,10 +98,10 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Theory]
-        [InlineData(20, 1)]
-        [InlineData(26, 2)]
-        [InlineData(126, 3)]
-        public void ResizingPastTheThreshold_GrowsTheColumnSpan(int dx, int expectedSpan)
+        [InlineData(-30, 1, "0,0,30,0")]
+        [InlineData(20, 2, "0,0,80,0")]
+        [InlineData(126, 3, "0,0,74,0")]
+        public void AStretchedEdge_FollowsThePointer_SpanningTheTrackItIsIn(int dx, int expectedSpan, string expectedMargin)
         {
             (Grid grid, UIElement element) = Grid3x3(new UIElement());
             PlacementContext context = Context(grid, element, [], isCurrent: true);
@@ -109,35 +109,121 @@ namespace Icy.Tests.Design.Editor
             IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(dx, 0));
 
             Assert.Contains(new AttributeEdit("Grid.ColumnSpan", expectedSpan == 1 ? null : expectedSpan.ToString(System.Globalization.CultureInfo.InvariantCulture)), edits);
+            Assert.Contains(new AttributeEdit("Margin", expectedMargin), edits);
+        }
+
+        [Theory]
+        [InlineData(-6, 1)]
+        [InlineData(6, 1)]
+        [InlineData(105, 2)]
+        public void AStretchedEdge_NearATrackLine_SnapsToIt(int dx, int expectedSpan)
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement());
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(dx, 0));
+
+            Assert.Contains(new AttributeEdit("Grid.ColumnSpan", expectedSpan == 1 ? null : expectedSpan.ToString(System.Globalization.CultureInfo.InvariantCulture)), edits);
+            Assert.DoesNotContain(edits, x => x.Name == "Margin");
         }
 
         [Fact]
-        public void PullingBackBelowTheThreshold_ShrinksTheSpan()
+        public void WithoutSnapping_TheEdgeStopsShortOfTheLine()
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement());
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(-6, 0), snap: false);
+
+            Assert.Contains(new AttributeEdit("Margin", "0,0,6,0"), edits);
+        }
+
+        [Fact]
+        public void TheSnapDistance_IsConfigurable()
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement());
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement { SnapDistance = 20 }.BeginResize(context, ResizeHandle.Right).Update(new Vector2(-15, 0));
+
+            Assert.DoesNotContain(edits, x => x.Name == "Margin");
+        }
+
+        [Fact]
+        public void PullingAStretchedEdgeBack_ShrinksTheSpanToTheTrackItIsIn()
         {
             (Grid grid, UIElement element) = Grid3x3(new UIElement());
             Grid.SetColumnSpan(element, 2);
             grid.Arrange(new Rectangle(0, 0, 300, 150));
             PlacementContext context = Context(grid, element, [], isCurrent: true);
 
-            // The right edge at 200 moves to 120: less than a quarter into column 1.
-            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(-80, 0));
+            // The right edge at 200 moves to 80: inside column 0.
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(-120, 0));
 
             Assert.Contains(new AttributeEdit("Grid.ColumnSpan", null), edits);
+            Assert.Contains(new AttributeEdit("Margin", "0,0,20,0"), edits);
         }
 
         [Fact]
-        public void ResizingTheStartEdge_MovesTheColumnBack()
+        public void AStretchedStartEdge_MovesTheColumnBack_AndKeepsTheInset()
         {
             (Grid grid, UIElement element) = Grid3x3(new UIElement());
             Grid.SetColumn(element, 2);
             grid.Arrange(new Rectangle(0, 0, 300, 150));
             PlacementContext context = Context(grid, element, [], isCurrent: true);
 
-            // The left edge at 200 moves to 160: more than a quarter into column 1 (which ends at 200).
+            // The left edge at 200 moves to 160: 60 into column 1.
             IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Left).Update(new Vector2(-40, 0));
 
             Assert.Contains(new AttributeEdit("Grid.Column", "1"), edits);
             Assert.Contains(new AttributeEdit("Grid.ColumnSpan", "2"), edits);
+            Assert.Contains(new AttributeEdit("Margin", "60,0,0,0"), edits);
+        }
+
+        [Fact]
+        public void AnExistingInset_IsKeptOnTheEdgeThatIsNotDragged()
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement { Margin = new Thickness(10, 5, 0, 0) });
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Bottom).Update(new Vector2(0, -20));
+
+            Assert.Contains(new AttributeEdit("Margin", "10,5,0,20"), edits);
+        }
+
+        [Fact]
+        public void AStretchedEdge_NeverCrossesTheOtherEdge()
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement());
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(-500, 0));
+
+            Assert.Contains(new AttributeEdit("Margin", "0,0,99,0"), edits);
+        }
+
+        [Fact]
+        public void AStretchedEdge_StopsAtTheGridEdge()
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement());
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+
+            IReadOnlyList<AttributeEdit> edits = new GridPlacement().BeginResize(context, ResizeHandle.Right).Update(new Vector2(1000, 0));
+
+            Assert.Contains(new AttributeEdit("Grid.ColumnSpan", "3"), edits);
+            Assert.DoesNotContain(edits, x => x.Name == "Margin");
+        }
+
+        [Fact]
+        public void AGridResize_OutlinesTheTargetSpan()
+        {
+            (Grid grid, UIElement element) = Grid3x3(new UIElement());
+            PlacementContext context = Context(grid, element, [], isCurrent: true);
+            IResizeOperation resize = new GridPlacement().BeginResize(context, ResizeHandle.BottomRight);
+
+            resize.Update(new Vector2(130, 20));
+
+            Assert.Equal(new RectangleF(0, 0, 300, 100), resize.Indicator);
         }
 
         [Fact]

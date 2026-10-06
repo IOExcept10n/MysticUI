@@ -252,6 +252,26 @@ namespace Icy.Tests.Design.Editor
             Assert.Contains("<Button x:Name=\"one\" Padding=\"12,6\" Margin=\"0,0,8,0\"", host.Document.Text, StringComparison.Ordinal);
         }
 
+        [Fact]
+        public void AStretchedGridChild_FollowsTheDraggedEdge_WithAnInset()
+        {
+            using var host = new EditorTestHost(Page);
+            host.Render();
+            var cell = host.Named<TextBlock>("cell");
+            host.Session.Select(cell);
+            Point start = host.At(cell, 99, 10);
+
+            ResizeGesture resize = host.Session.BeginResize(ResizeHandle.Left, start)!;
+            resize.Update(start with { X = start.X - 60 });
+            Assert.Equal(new RectangleF(0, 0, 200, 100), resize.Indicator);
+            Assert.True(resize.Complete().Succeeded);
+            host.Render();
+
+            string line = host.Document.Text.Split('\n').Single(x => x.Contains("x:Name=\"cell\"", StringComparison.Ordinal)).Trim();
+            Assert.Equal("<TextBlock x:Name=\"cell\" Grid.ColumnSpan=\"2\" Margin=\"40,0,0,0\"/>", line);
+            Assert.Equal(160, cell.ActualBounds.Width);
+        }
+
         private const string SizelessStack =
             """
             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top">
