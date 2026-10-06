@@ -202,6 +202,9 @@
     </Style.StateGroups>
   </Style>
 
+  <!-- TreeView: untemplated, like TabControl/ColorPicker - it composes its ScrollViewer and row list in code. -->
+  <Style TargetType="TreeView" Background="#FF26262C" BorderBrush="#FF56566A" BorderThickness="1"/>
+
   <!-- Dropdown -->
   <ControlTemplate x:Key="IcyDefaultDropdownTemplate" TargetType="Dropdown">
     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
