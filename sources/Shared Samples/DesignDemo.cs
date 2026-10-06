@@ -41,6 +41,14 @@ namespace Icy.SharedSamples
         private static readonly ConditionalWeakTable<IcyConfiguration, DesignSession> Sessions = new();
 
         /// <summary>
+        /// Gets the design session the demos share for <paramref name="configuration"/>; a configuration has a single
+        /// load-observer slot, so every demo uses the same one.
+        /// </summary>
+        /// <param name="configuration">The host's configuration.</param>
+        /// <returns>The session, attached on first use.</returns>
+        internal static DesignSession SessionFor(IcyConfiguration configuration) => Sessions.GetValue(configuration, DesignSession.Attach);
+
+        /// <summary>
         /// Builds the demo: the tracked page, a toolbar of edits, a status line, and the live markup text.
         /// </summary>
         /// <param name="configuration">The host's configuration.</param>
@@ -53,7 +61,7 @@ namespace Icy.SharedSamples
 
             // Real games attach a session only in development builds. The demo keeps one attached for the app's
             // whole life, so every page loaded after this one is tracked too; the hosts build this demo last.
-            DesignSession session = Sessions.GetValue(configuration, DesignSession.Attach);
+            DesignSession session = SessionFor(configuration);
             UIElement page = new MarkupLoader(configuration).Load(Markup, nameof(DesignDemo));
             DesignDocument document = session.FindDocument(page, out _)!;
             MarkupEditor editor = document.Editor;
