@@ -174,6 +174,45 @@ namespace Icy.Tests.Samples
             Assert.Equal("Three", shell.Tree.SelectedItem!.ToString());
         }
 
+        [Fact]
+        public void RightFromASidebarLeaf_EntersTheDemo_AndLeftComesBack()
+        {
+            Button? second = null;
+            var demo = new SampleEntry("A", "Buttons", (_, _) =>
+            {
+                var panel = new StackPanel { Orientation = Orientation.Vertical, HorizontalAlignment = HorizontalAlignment.Left };
+                panel.Children.Add(new Button { Content = new TextBlock { Text = "First" } });
+                second = new Button { Content = new TextBlock { Text = "Second" } };
+                panel.Children.Add(second);
+                return panel;
+            });
+            // "Buttons" is not the last row, so the old Right (walk to the next row) would have stayed in the tree.
+            var shell = Host([demo, Fake("A", "Other")]);
+            Assert.Same(shell.Tree, shell.Canvas.FocusedElement);
+
+            // The "Buttons" row is the sidebar's second row (under category "A"), level with the second button.
+            Assert.True(shell.Input.Events.Navigation.RaiseFocusChanging(System.Numerics.Vector2.UnitX).Handled);
+            Assert.Same(second, shell.Canvas.FocusedElement);
+
+            Assert.True(shell.Input.Events.Navigation.RaiseFocusChanging(-System.Numerics.Vector2.UnitX).Handled);
+            Assert.Same(shell.Tree, shell.Canvas.FocusedElement);
+        }
+
+        [Fact]
+        public void SidebarRows_ShowTheirOwnLabels_AfterCollapseAndExpand()
+        {
+            var shell = Host([Fake("A", "One"), Fake("A", "Two"), Fake("B", "Three"), Fake("B", "Four")]);
+            var a = (TreeViewNode)shell.Tree.Items[0];
+
+            shell.Tree.Collapse(a);
+            shell.Canvas.Render();
+            AssertRowsShowTheirItems(shell.Tree);
+
+            shell.Tree.Expand(a);
+            shell.Canvas.Render();
+            AssertRowsShowTheirItems(shell.Tree);
+        }
+
         internal SampleEntry Fake(string category, string name, float height = 100, bool scrollsItself = false) =>
             new(category, name, (_, _) =>
             {
@@ -197,6 +236,16 @@ namespace Icy.Tests.Samples
             canvas.Add(root);
             canvas.Render();
             return new ShellHost(configuration, canvas, input, root);
+        }
+
+        private static void AssertRowsShowTheirItems(TreeView tree)
+        {
+            Assert.NotEmpty(tree.List.Realized);
+            foreach (int index in tree.List.Realized.Keys)
+            {
+                string text = tree.List.Realized[index].EnumerateVisualSubtree().OfType<TextBlock>().Single().Text;
+                Assert.Equal(tree.Rows[index].Item.ToString(), text);
+            }
         }
 
         private static void Press(ShellHost shell, Keys key)
