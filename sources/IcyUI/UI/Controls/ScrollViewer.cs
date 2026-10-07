@@ -182,6 +182,42 @@ namespace Icy.UI.Controls
         public void StopInertia() => inertia.Stop();
 
         /// <inheritdoc/>
+        internal override Point RevealScreenRectangle(Rectangle target)
+        {
+            Rectangle viewport = GetViewportScreenBounds();
+            if (viewport.Width <= 0 || viewport.Height <= 0 || ContentBounds.Width <= 0 || ContentBounds.Height <= 0)
+                return Point.Empty;
+
+            // Screen units per layout unit: the canvas scale and any LayoutScale above this viewer.
+            float scaleX = viewport.Width / (float)ContentBounds.Width;
+            float scaleY = viewport.Height / (float)ContentBounds.Height;
+            float beforeX = HorizontalOffset;
+            float beforeY = VerticalOffset;
+
+            int dx = RevealDelta(target.Left, target.Right, viewport.Left, viewport.Right);
+            int dy = RevealDelta(target.Top, target.Bottom, viewport.Top, viewport.Bottom);
+            if (dx != 0)
+                HorizontalOffset += dx / scaleX;
+            if (dy != 0)
+                VerticalOffset += dy / scaleY;
+
+            return new Point((int)MathF.Round((HorizontalOffset - beforeX) * scaleX), (int)MathF.Round((VerticalOffset - beforeY) * scaleY));
+        }
+
+        /// <summary>Gets the visible content area (the viewport) in screen space.</summary>
+        /// <returns>The viewport's screen rectangle, or an empty one while detached.</returns>
+        internal Rectangle GetViewportScreenBounds()
+        {
+            if (Canvas == null)
+                return Rectangle.Empty;
+
+            var origin = new Vector2(ContentBounds.X - ActualBounds.X, ContentBounds.Y - ActualBounds.Y);
+            Point topLeft = PointToScreen(origin);
+            Point bottomRight = PointToScreen(origin + new Vector2(ContentBounds.Width, ContentBounds.Height));
+            return Rectangle.FromLTRB(topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y);
+        }
+
+        /// <inheritdoc/>
         protected internal override bool OnScroll(ScrollInfo info)
         {
             base.OnScroll(info);
@@ -357,6 +393,13 @@ namespace Icy.UI.Controls
             if (offsetDirection < 0)
                 return offset > 0;
             return true;
+        }
+
+        private static int RevealDelta(int start, int end, int viewStart, int viewEnd)
+        {
+            if (end - start > viewEnd - viewStart || start < viewStart)
+                return start - viewStart;
+            return end > viewEnd ? end - viewEnd : 0;
         }
 
         private bool ApplyInertiaStep(Vector2 step)

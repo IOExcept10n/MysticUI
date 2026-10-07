@@ -1817,6 +1817,65 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Scrolls every enclosing scrollable ancestor (such as a <see cref="Controls.ScrollViewer"/>) just enough to
+        /// show this element, innermost first.
+        /// </summary>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>An element above or left of a viewport is aligned with its leading edge; one below or right, with its trailing edge.</description></item>
+        /// <item><description>An element larger than a viewport is aligned with its leading edge.</description></item>
+        /// <item><description>An element already fully visible doesn't scroll anything.</description></item>
+        /// <item><description>Does nothing while this element isn't attached to a <see cref="UI.Canvas"/>.</description></item>
+        /// </list>
+        /// <para>
+        /// <see cref="UI.Canvas"/> calls this after moving focus with the keyboard or a gamepad (Tab and spatial moves),
+        /// but not after a tap or a programmatic <see cref="UI.Canvas.Focus(UIElement?)"/>.
+        /// </para>
+        /// </remarks>
+        public void BringIntoView()
+        {
+            if (Canvas == null)
+                return;
+
+            // The tracked rectangle follows each applied scroll, so outer viewers see where the element will be
+            // without a layout pass in between.
+            Rectangle target = GetScreenBounds();
+            for (UIElement? ancestor = Parent; ancestor != null; ancestor = ancestor.Parent)
+            {
+                Point shift = ancestor.RevealScreenRectangle(target);
+                target.Offset(-shift.X, -shift.Y);
+            }
+        }
+
+        /// <summary>
+        /// Gets this element's axis-aligned bounds in screen space (the same space as pointer positions).
+        /// </summary>
+        /// <returns>The bounds, or an empty rectangle while this element isn't attached to a <see cref="UI.Canvas"/>.</returns>
+        internal Rectangle GetScreenBounds()
+        {
+            if (Canvas == null)
+                return Rectangle.Empty;
+
+            Size size = ActualBounds.Size;
+            Point a = PointToScreen(Vector2.Zero);
+            Point b = PointToScreen(new Vector2(size.Width, 0));
+            Point c = PointToScreen(new Vector2(0, size.Height));
+            Point d = PointToScreen(new Vector2(size.Width, size.Height));
+            int left = Math.Min(Math.Min(a.X, b.X), Math.Min(c.X, d.X));
+            int top = Math.Min(Math.Min(a.Y, b.Y), Math.Min(c.Y, d.Y));
+            int right = Math.Max(Math.Max(a.X, b.X), Math.Max(c.X, d.X));
+            int bottom = Math.Max(Math.Max(a.Y, b.Y), Math.Max(c.Y, d.Y));
+            return Rectangle.FromLTRB(left, top, right, bottom);
+        }
+
+        /// <summary>
+        /// Scrolls this element's content so that <paramref name="target"/> becomes visible, if this element scrolls.
+        /// </summary>
+        /// <param name="target">The screen rectangle to reveal.</param>
+        /// <returns>How far, in screen units, the content moved (positive when it moved up/left). Zero by default.</returns>
+        internal virtual Point RevealScreenRectangle(Rectangle target) => Point.Empty;
+
+        /// <summary>
         /// Sets whether this element currently has focus, raising <see cref="FocusChanged"/> and updating
         /// <see cref="ControlState"/> if the value actually changes.
         /// </summary>
