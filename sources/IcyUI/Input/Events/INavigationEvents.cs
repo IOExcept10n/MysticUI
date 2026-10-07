@@ -40,7 +40,12 @@ namespace Icy.Input.Events
         /// Occurs when user tries to navigate between UI elements using keyboard for navigation.
         /// </summary>
         /// <remarks>
-        /// Direction of the navigation change is passed to event arguments.
+        /// <para>Direction of the navigation change is passed to event arguments, in UI space (+Y down).</para>
+        /// <para>
+        /// Raised once per press of an arrow key (without Ctrl or Shift), a D-pad button, or the left stick crossing
+        /// <see cref="MinimalFocusChangeDistance"/>, then repeated while held (see <see cref="IStartRepeatEvents"/>).
+        /// <see cref="UI.Canvas"/> routes it to the focused element and moves focus spatially when nothing claims it.
+        /// </para>
         /// </remarks>
         event EventHandler<AcceptableEventArgs<Vector2>>? FocusChanging;
 
@@ -55,7 +60,8 @@ namespace Icy.Input.Events
         event EventHandler? FocusPrevious;
 
         /// <summary>
-        /// Gets or sets the minimal distance for the gamepad stick to raise the <see cref="FocusChanging"/> event.
+        /// Gets or sets the stick deflection, from <c>0</c> to <c>1</c>, past which the left stick raises
+        /// <see cref="FocusChanging"/>. The stick releases below 70% of it. Defaults to <c>0.5</c>.
         /// </summary>
         float MinimalFocusChangeDistance { get; set; }
     }

@@ -1,4 +1,4 @@
-// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Numerics;
 using Icy.Data;
@@ -11,7 +11,16 @@ namespace Icy.Input.Events
     /// </summary>
     internal class NavigationEvents : INavigationEvents
     {
-        // TODO: implement repeat system.
+        // The stick releases below this fraction of MinimalFocusChangeDistance, so a stick resting at the edge doesn't flicker.
+        private const float StickReleaseFraction = 0.7f;
+
+        private HeldSource heldSource;
+        private Keys heldKey;
+        private GamePadButtons heldButton;
+        private Vector2 heldDirection;
+        private TimeSpan heldTime;
+        private bool repeating;
+        private Vector2 stickDirection;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NavigationEvents"/> class.
@@ -46,24 +55,46 @@ namespace Icy.Input.Events
         /// <inheritdoc/>
         public event EventHandler? SelectElement;
 
+        private enum HeldSource
+        {
+            None,
+            Key,
+            PadButton,
+            Stick,
+        }
+
         /// <inheritdoc/>
         public IInputSystem InputSystem { get; }
 
         /// <inheritdoc/>
-        public float MinimalFocusChangeDistance { get; set; }
+        public float MinimalFocusChangeDistance { get; set; } = 0.5f;
 
         /// <inheritdoc/>
-        public TimeSpan RepeatDelay { get; set; } = TimeSpan.FromSeconds(1);
+        public TimeSpan RepeatDelay { get; set; } = TimeSpan.FromSeconds(0.1);
 
         /// <inheritdoc/>
-        public TimeSpan RepeatStartDelay { get; set; } = TimeSpan.FromSeconds(2);
+        public TimeSpan RepeatStartDelay { get; set; } = TimeSpan.FromSeconds(0.4);
 
         /// <inheritdoc/>
         public bool IsInitialized { get; private set; }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Repeats a held direction (arrow key, D-pad button or stick): first after <see cref="RepeatStartDelay"/>, then
+        /// every <see cref="RepeatDelay"/>.
+        /// </remarks>
         public void Update(TimeSpan deltaTime)
         {
+            if (heldSource == HeldSource.None)
+                return;
+
+            heldTime += deltaTime;
+            if (heldTime >= (repeating ? RepeatDelay : RepeatStartDelay))
+            {
+                repeating = true;
+                heldTime = TimeSpan.Zero;
+                OnDirectionalFocus(heldDirection);
+            }
         }
 
         /// <inheritdoc/>
@@ -75,11 +106,13 @@ namespace Icy.Input.Events
             if (InputSystem.Keyboard != null)
             {
                 InputSystem.Keyboard.KeyDown += Keyboard_KeyDown;
+                InputSystem.Keyboard.KeyUp += Keyboard_KeyUp;
             }
 
             if (InputSystem.Gamepad != null)
             {
                 InputSystem.Gamepad.ButtonPressed += Gamepad_ButtonPressed;
+                InputSystem.Gamepad.ButtonReleased += Gamepad_ButtonReleased;
                 InputSystem.Gamepad.LeftStickMove += Gamepad_LeftStickMove;
             }
 
@@ -89,14 +122,20 @@ namespace Icy.Input.Events
             InputSystem.Events.Devices.DeviceDisconnected += Devices_DeviceDisconnected;
         }
 
+        private static Vector2 Snap(Vector2 value) =>
+            MathF.Abs(value.X) >= MathF.Abs(value.Y) ? new Vector2(MathF.Sign(value.X), 0) : new Vector2(0, MathF.Sign(value.Y));
+
         private void Devices_DeviceConnected(object? sender, GenericEventArgs<IInputDeviceListener> e)
         {
             switch (e.Data)
             {
                 case IKeyboardInput keyboard:
-                    keyboard.KeyDown += Keyboard_KeyDown; break;
+                    keyboard.KeyDown += Keyboard_KeyDown;
+                    keyboard.KeyUp += Keyboard_KeyUp;
+                    break;
                 case IGamepadInput gamepad:
                     gamepad.ButtonPressed += Gamepad_ButtonPressed;
+                    gamepad.ButtonReleased += Gamepad_ButtonReleased;
                     gamepad.LeftStickMove += Gamepad_LeftStickMove;
                     break;
 
@@ -111,9 +150,12 @@ namespace Icy.Input.Events
             switch (e.Data)
             {
                 case IKeyboardInput keyboard:
-                    keyboard.KeyDown -= Keyboard_KeyDown; break;
+                    keyboard.KeyDown -= Keyboard_KeyDown;
+                    keyboard.KeyUp -= Keyboard_KeyUp;
+                    break;
                 case IGamepadInput gamepad:
                     gamepad.ButtonPressed -= Gamepad_ButtonPressed;
+                    gamepad.ButtonReleased -= Gamepad_ButtonReleased;
                     gamepad.LeftStickMove -= Gamepad_LeftStickMove;
                     break;
 
@@ -128,19 +170,19 @@ namespace Icy.Input.Events
             switch (e.Data)
             {
                 case GamePadButtons.PadUp:
-                    OnDirectionalFocus(-Vector2.UnitY);
+                    Press(-Vector2.UnitY, HeldSource.PadButton, button: e.Data);
                     break;
 
                 case GamePadButtons.PadDown:
-                    OnDirectionalFocus(Vector2.UnitY);
+                    Press(Vector2.UnitY, HeldSource.PadButton, button: e.Data);
                     break;
 
                 case GamePadButtons.PadLeft:
-                    OnDirectionalFocus(-Vector2.UnitX);
+                    Press(-Vector2.UnitX, HeldSource.PadButton, button: e.Data);
                     break;
 
                 case GamePadButtons.PadRight:
-                    OnDirectionalFocus(Vector2.UnitX);
+                    Press(Vector2.UnitX, HeldSource.PadButton, button: e.Data);
                     break;
 
                 case GamePadButtons.A:
@@ -171,10 +213,39 @@ namespace Icy.Input.Events
 
         private void Gamepad_LeftStickMove(object? sender, GenericEventArgs<Vector2> e)
         {
-            if (e.Data.LengthSquared() > MinimalFocusChangeDistance * MinimalFocusChangeDistance)
+            // Devices report +Y as up; UI space is +Y down.
+            var value = new Vector2(e.Data.X, -e.Data.Y);
+            float magnitude = value.Length();
+            if (stickDirection == Vector2.Zero)
             {
-                OnDirectionalFocus(e.Data);
+                if (magnitude > MinimalFocusChangeDistance)
+                {
+                    stickDirection = Snap(value);
+                    Press(stickDirection, HeldSource.Stick);
+                }
+
+                return;
             }
+
+            if (magnitude <= MinimalFocusChangeDistance * StickReleaseFraction)
+            {
+                stickDirection = Vector2.Zero;
+                Release(HeldSource.Stick);
+                return;
+            }
+
+            Vector2 snapped = Snap(value);
+            if (snapped != stickDirection)
+            {
+                stickDirection = snapped;
+                Press(snapped, HeldSource.Stick);
+            }
+        }
+
+        private void Gamepad_ButtonReleased(object? sender, GenericEventArgs<GamePadButtons> e)
+        {
+            if (heldSource == HeldSource.PadButton && heldButton == e.Data)
+                Release(HeldSource.PadButton);
         }
 
         private void Keyboard_KeyDown(object? sender, GenericEventArgs<Keys> e)
@@ -190,6 +261,8 @@ namespace Icy.Input.Events
                 return;
             }
 
+            // Ctrl/Shift+arrow belong to editing (word jumps, selection), not to focus navigation.
+            bool editingModifiers = (keyboard.ModifierKeys & (ModifierKeys.Ctrl | ModifierKeys.Shift)) != 0;
             switch (e.Data)
             {
                 case Keys.Escape:
@@ -201,19 +274,23 @@ namespace Icy.Input.Events
                     break;
 
                 case Keys.Up:
-                    OnDirectionalFocus(-Vector2.UnitY);
+                    if (!editingModifiers)
+                        Press(-Vector2.UnitY, HeldSource.Key, key: e.Data);
                     break;
 
                 case Keys.Down:
-                    OnDirectionalFocus(Vector2.UnitY);
+                    if (!editingModifiers)
+                        Press(Vector2.UnitY, HeldSource.Key, key: e.Data);
                     break;
 
                 case Keys.Left:
-                    OnDirectionalFocus(-Vector2.UnitX);
+                    if (!editingModifiers)
+                        Press(-Vector2.UnitX, HeldSource.Key, key: e.Data);
                     break;
 
                 case Keys.Right:
-                    OnDirectionalFocus(Vector2.UnitX);
+                    if (!editingModifiers)
+                        Press(Vector2.UnitX, HeldSource.Key, key: e.Data);
                     break;
 
                 case Keys.Tab:
@@ -230,6 +307,12 @@ namespace Icy.Input.Events
             }
         }
 
+        private void Keyboard_KeyUp(object? sender, GenericEventArgs<Keys> e)
+        {
+            if (heldSource == HeldSource.Key && heldKey == e.Data)
+                Release(HeldSource.Key);
+        }
+
         private void Mouse_MouseButtonPressed(object? sender, GenericEventArgs<MouseButtons> e)
         {
             switch (e.Data)
@@ -244,14 +327,24 @@ namespace Icy.Input.Events
             }
         }
 
-        private void OnDirectionalFocus(Vector2 direction)
+        private void OnDirectionalFocus(Vector2 direction) => FocusChanging?.Invoke(this, new AcceptableEventArgs<Vector2>() { Data = direction });
+
+        /// <summary>Raises a direction now and makes it the held one; the latest press wins over any older one.</summary>
+        private void Press(Vector2 direction, HeldSource source, Keys key = Keys.None, GamePadButtons button = default)
         {
-            var args = new AcceptableEventArgs<Vector2>() { Data = direction };
-            FocusChanging?.Invoke(this, args);
-            if (!args.Cancel && args.Handled)
-            {
-                // TODO: make repeat assignment.
-            }
+            heldSource = source;
+            heldKey = key;
+            heldButton = button;
+            heldDirection = direction;
+            heldTime = TimeSpan.Zero;
+            repeating = false;
+            OnDirectionalFocus(direction);
+        }
+
+        private void Release(HeldSource source)
+        {
+            if (heldSource == source)
+                heldSource = HeldSource.None;
         }
     }
 }

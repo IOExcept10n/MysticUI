@@ -42,7 +42,7 @@ namespace Icy.Tests.Input
 
         IMouseInput IInputSystem.Mouse => Mouse;
 
-        public IGamepadInput? Gamepad => null;
+        public IGamepadInput? Gamepad { get; set; }
 
         public FakeTouchInput? Touch { get; set; }
 
@@ -382,7 +382,7 @@ namespace Icy.Tests.Input
 
         public IEnumerable<Keys> KeysDown => [];
 
-        public ModifierKeys ModifierKeys => ModifierKeys.None;
+        public ModifierKeys ModifierKeys { get; set; }
 
         public event EventHandler<GenericEventArgs<Keys>>? KeyDown;
 
@@ -397,6 +397,43 @@ namespace Icy.Tests.Input
         public void RaiseKeyDown(Keys key) => KeyDown?.Invoke(this, new GenericEventArgs<Keys>(key));
 
         public void RaiseKeyUp(Keys key) => KeyUp?.Invoke(this, new GenericEventArgs<Keys>(key));
+    }
+
+    /// <summary>
+    /// A fake <see cref="IGamepadInput"/> that lets tests raise button and stick events directly.
+    /// </summary>
+    public sealed class FakeGamepadInput : IGamepadInput
+    {
+        public event EventHandler<GenericEventArgs<GamePadButtons>>? ButtonPressed;
+
+        public event EventHandler<GenericEventArgs<GamePadButtons>>? ButtonReleased;
+
+        public event EventHandler<GenericEventArgs<Vector2>>? LeftStickMove;
+
+        public event EventHandler<GenericEventArgs<Vector2>>? RightStickMove;
+
+        public event EventHandler<GenericEventArgs<float>>? LeftShoulderUpdate;
+
+        public event EventHandler<GenericEventArgs<float>>? RightShoulderUpdate;
+
+        public GamePadState GamePadInfo => default;
+
+        public bool IsListening => true;
+
+        public bool IsInitialized { get; private set; }
+
+        public void Initialize() => IsInitialized = true;
+
+        public bool DisableListening() => true;
+
+        public bool EnableListening() => true;
+
+        public void RaiseButtonPressed(GamePadButtons button) => ButtonPressed?.Invoke(this, new GenericEventArgs<GamePadButtons>(button));
+
+        public void RaiseButtonReleased(GamePadButtons button) => ButtonReleased?.Invoke(this, new GenericEventArgs<GamePadButtons>(button));
+
+        /// <summary>Raises <see cref="LeftStickMove"/> with a raw device value (+Y up, like real pads).</summary>
+        public void RaiseLeftStick(Vector2 value) => LeftStickMove?.Invoke(this, new GenericEventArgs<Vector2>(value));
     }
 
     /// <summary>
