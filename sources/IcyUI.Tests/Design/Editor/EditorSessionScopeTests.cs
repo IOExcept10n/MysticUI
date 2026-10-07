@@ -92,6 +92,20 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void TheRegion_IsEmpty_WhileAnAncestorIsFullyTransparent()
+        {
+            // Core treats Opacity <= 0 as hidden for both drawing and hit-testing; a faded-out scope shows nothing to edit.
+            using var host = new EditorTestHost(Page, attachSession: false);
+            using EditorSession session = AttachScoped(host);
+
+            host.Named<ScrollViewer>("viewer").Opacity = 0;
+            host.Render();
+
+            Assert.True(session.Region().IsEmpty);
+            Assert.Null(session.HitTest(host.At(host.Named<Border>("a"), 5, 5)));
+        }
+
+        [Fact]
         public void Select_RefusesElementsOutsideTheScope_AndAcceptsOverlays()
         {
             using var host = new EditorTestHost(Page, attachSession: false);

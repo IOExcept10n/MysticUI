@@ -482,7 +482,8 @@ namespace Icy.Design.Editor
 
         /// <summary>
         /// Gets the <see cref="Scope"/>'s visible area in surface units: its bounds clipped by every clipping ancestor and
-        /// by the canvas surface. Without a scope, the whole surface; empty while the scope is off the canvas or hidden.
+        /// by the canvas surface. Without a scope, the whole surface; empty while the scope is off the canvas, or it or an
+        /// ancestor is hidden or fully transparent.
         /// </summary>
         internal Rectangle Region()
         {
@@ -492,9 +493,10 @@ namespace Icy.Design.Editor
             if (!ReferenceEquals(scope.Canvas, Canvas))
                 return Rectangle.Empty;
 
+            // Hidden the way core draws and hit-tests: not visible, or fully transparent.
             for (UIElement? current = scope; current != null; current = current.Parent)
             {
-                if (!current.IsVisible)
+                if (!current.IsVisible || current.Opacity <= 0)
                     return Rectangle.Empty;
             }
 

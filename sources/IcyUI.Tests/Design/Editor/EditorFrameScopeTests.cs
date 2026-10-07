@@ -105,6 +105,33 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void ARightPlacedToolbar_KeepsItsCornerAndWidth_WhenItGrows()
+        {
+            // The region reaches the surface's right edge, as the shell's content area does: a toolbar placed from its
+            // previous, overflow-clamped width would be cut off and creep left frame after frame.
+            using var host = new EditorTestHost(Page, attachSession: false);
+            host.RenderContext.ViewportSize = new Size(550, 400);
+            using EditorFrame frame = AttachScoped(host);
+            frame.ToolbarPlacement = EditorToolbarPlacement.TopRight;
+            Settle(host);
+            Rectangle region = frame.Session.Region();
+            Assert.Equal(550, region.Right);
+
+            ((StackPanel)frame.Toolbar.Child!).Children.Add(new Border { Width = 200, Height = 10 });
+            Settle(host);
+            Rectangle grown = Surface(frame.Toolbar);
+            Assert.Equal(region.Right - 8, grown.Right);
+
+            for (int i = 0; i < 5; i++)
+                host.Render();
+            Assert.Equal(grown, Surface(frame.Toolbar));
+
+            frame.ToolbarPlacement = EditorToolbarPlacement.TopLeft;
+            Settle(host);
+            Assert.Equal(Surface(frame.Toolbar).Width, grown.Width);
+        }
+
+        [Fact]
         public void InEditMode_AClickOutsideTheRegion_ReachesThePage()
         {
             using var host = new EditorTestHost(Page, attachSession: false);
