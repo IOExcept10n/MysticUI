@@ -1,10 +1,8 @@
 ﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
-using System.Drawing;
 using CommunityToolkit.Mvvm.Input;
 using Icy.Configuration;
 using Icy.Input.Devices;
-using Icy.Rendering.Brushes;
 using Icy.SharedSamples;
 using Icy.Stride.Configuration;
 using Icy.UI;
@@ -15,48 +13,12 @@ using Color4 = Stride.Core.Mathematics.Color4;
 namespace Icy.StrideSample
 {
     /// <summary>
-    /// A minimal Stride game demonstrating IcyUI wired up purely in code (no Game Studio project/asset pipeline) -
-    /// the Stride counterpart to <c>MonoGame Sample</c>'s <c>SampleGame</c>. Hosts <see cref="ControlsDemo"/>,
-    /// <see cref="StylesDemo"/>, <see cref="MarkupDemo"/>, <see cref="NavigationDemo"/>,
-    /// <see cref="MarkupStylesDemo"/>, <see cref="ControlTemplateDemo"/>, <see cref="ItemsControlDemo"/>,
-    /// <see cref="SplitPaneDemo"/>, <see cref="ExpanderDemo"/>, <see cref="SelectorDemo"/>, <see cref="WrapGridDemo"/>,
-    /// <see cref="ListBoxDemo"/>, <see cref="DialogDemo"/>, <see cref="TabControlDemo"/>,
-    /// <see cref="ColorPickerDemo"/>, <see cref="PropertyGridDemo"/>, <see cref="ScalingDemo"/>, <see cref="DesignDemo"/>, <see cref="EditorDemo"/>, and <see cref="TreeViewDemo"/> - the same demos <c>MonoGame Sample</c>'s
-    /// per-demo samples run - PageUp/PageDown/Shift+Tab
-    /// cycles between them (Stride has no multi-sample runner like MonoGame's <c>SamplesRunner</c>, so this just
-    /// toggles which demo root is visible).
+    /// A minimal Stride game hosting IcyUI, wired up in code (no Game Studio project or asset pipeline). It shows
+    /// <see cref="SampleShell"/>, the same shared demos and sidebar as <c>MonoGame Sample</c>.
     /// </summary>
-    /// <remarks>
-    /// This is the newest, least-verified part of the IcyUI.Stride port: it was written and compiled against the
-    /// real Stride 4.2.0.2122 packages, but never run against a live GPU/editor (no Stride tooling is available in
-    /// the environment this was written in). The <see cref="GraphicsCompositor"/> wiring in particular - built
-    /// entirely by hand here rather than via a Game Studio-generated asset - is the piece most likely to need
-    /// adjustment; please treat this file as a starting point to validate and iterate on, not a finished sample.
-    /// </remarks>
     internal sealed class SampleGame : Game
     {
         private Canvas? canvas;
-        private UIElement? controlsRoot;
-        private UIElement? stylesRoot;
-        private UIElement? markupRoot;
-        private UIElement? navigationRoot;
-        private UIElement? markupStylesRoot;
-        private UIElement? controlTemplateRoot;
-        private UIElement? itemsControlRoot;
-        private UIElement? splitPaneRoot;
-        private UIElement? expanderRoot;
-        private UIElement? selectorRoot;
-        private UIElement? wrapGridRoot;
-        private UIElement? listBoxRoot;
-        private UIElement? dialogRoot;
-        private UIElement? tabControlRoot;
-        private UIElement? colorPickerRoot;
-        private UIElement? propertyGridRoot;
-        private UIElement? scalingRoot;
-        private UIElement? designRoot;
-        private UIElement? editorRoot;
-        private UIElement? treeViewRoot;
-        private int selectedDemo;
 
         protected override void BeginRun()
         {
@@ -78,67 +40,13 @@ namespace Icy.StrideSample
             IcyUISceneRenderer overlay = this.UseIcyUI();
             var configuration = this.GetIcyConfiguration();
             configuration.UseDefaultTheme();
-            canvas = new Canvas(configuration)
-            {
-                Background = new SolidColorBrush(Color.FromArgb(255, 25, 25, 30)),
-                IsInputEnabled = true,
-            };
+            canvas = new Canvas(configuration) { IsInputEnabled = true };
             overlay.Canvases.Add(canvas);
 
             configuration.Fonts.ImportFont(configuration.Assets.DefaultAssetContext, @"Resources\Fonts\Airfool.otf");
 
-            controlsRoot = ControlsDemo.Build(configuration, "Airfool");
-            stylesRoot = StylesDemo.Build(configuration, "Airfool");
-            markupRoot = MarkupDemo.Build(configuration, "Airfool");
-            navigationRoot = NavigationDemo.Build(configuration, "Airfool");
-            markupStylesRoot = MarkupStylesDemo.Build(configuration, "Airfool");
-            controlTemplateRoot = ControlTemplateDemo.Build(configuration, "Airfool");
-            itemsControlRoot = ItemsControlDemo.Build(configuration, "Airfool");
-            splitPaneRoot = SplitPaneDemo.Build(configuration, "Airfool");
-            expanderRoot = ExpanderDemo.Build(configuration, "Airfool");
-            selectorRoot = SelectorDemo.Build(configuration, "Airfool");
-            wrapGridRoot = WrapGridDemo.Build(configuration, "Airfool");
-            listBoxRoot = ListBoxDemo.Build(configuration, "Airfool");
-            dialogRoot = DialogDemo.Build(configuration, "Airfool");
-            tabControlRoot = TabControlDemo.Build(configuration, "Airfool");
-            colorPickerRoot = ColorPickerDemo.Build(configuration, "Airfool");
-            propertyGridRoot = PropertyGridDemo.Build(configuration, "Airfool");
-            scalingRoot = ScalingDemo.Build(configuration, "Airfool");
-            treeViewRoot = TreeViewDemo.Build(configuration, "Airfool");
-
-            // Last on purpose: it attaches a design session, which tracks every page loaded after it.
-            designRoot = DesignDemo.Build(configuration, "Airfool");
-            editorRoot = EditorDemo.Build(configuration, "Airfool");
-            canvas.Add(controlsRoot);
-            canvas.Add(stylesRoot);
-            canvas.Add(markupRoot);
-            canvas.Add(navigationRoot);
-            canvas.Add(markupStylesRoot);
-            canvas.Add(controlTemplateRoot);
-            canvas.Add(itemsControlRoot);
-            canvas.Add(splitPaneRoot);
-            canvas.Add(expanderRoot);
-            canvas.Add(selectorRoot);
-            canvas.Add(wrapGridRoot);
-            canvas.Add(listBoxRoot);
-            canvas.Add(dialogRoot);
-            canvas.Add(tabControlRoot);
-            canvas.Add(colorPickerRoot);
-            canvas.Add(propertyGridRoot);
-            canvas.Add(scalingRoot);
-            canvas.Add(designRoot);
-            canvas.Add(editorRoot);
-            canvas.Add(treeViewRoot);
-            UpdateSelectedDemo();
-
-            var switchDemo = new RelayCommand(() =>
-            {
-                selectedDemo = (selectedDemo + 1) % 20;
-                UpdateSelectedDemo();
-            });
-            configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageDown));
-            configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.PageUp));
-            configuration.Input.Events.RegisterCommand(switchDemo, new KeyGesture(Keys.Tab, ModifierKeys.Shift));
+            // The shell lists every shared demo and registers PageUp/PageDown to switch between them.
+            canvas.Add(SampleShell.Build(configuration, "Airfool"));
 
             // Icy.Diagnostics (Phase 9 M3.5) - F1 toggles the box-model overlay, F2 the diagnostics HUD (frame
             // time/memory/focused element), both engine-agnostic.
@@ -156,30 +64,6 @@ namespace Icy.StrideSample
         {
             if (!canvas!.ActiveDebugTools.Remove(name))
                 canvas.ActiveDebugTools.Add(name);
-        }
-
-        private void UpdateSelectedDemo()
-        {
-            controlsRoot!.IsVisible = selectedDemo == 0;
-            stylesRoot!.IsVisible = selectedDemo == 1;
-            markupRoot!.IsVisible = selectedDemo == 2;
-            navigationRoot!.IsVisible = selectedDemo == 3;
-            markupStylesRoot!.IsVisible = selectedDemo == 4;
-            controlTemplateRoot!.IsVisible = selectedDemo == 5;
-            itemsControlRoot!.IsVisible = selectedDemo == 6;
-            splitPaneRoot!.IsVisible = selectedDemo == 7;
-            expanderRoot!.IsVisible = selectedDemo == 8;
-            selectorRoot!.IsVisible = selectedDemo == 9;
-            wrapGridRoot!.IsVisible = selectedDemo == 10;
-            listBoxRoot!.IsVisible = selectedDemo == 11;
-            dialogRoot!.IsVisible = selectedDemo == 12;
-            tabControlRoot!.IsVisible = selectedDemo == 13;
-            colorPickerRoot!.IsVisible = selectedDemo == 14;
-            propertyGridRoot!.IsVisible = selectedDemo == 15;
-            scalingRoot!.IsVisible = selectedDemo == 16;
-            designRoot!.IsVisible = selectedDemo == 17;
-            editorRoot!.IsVisible = selectedDemo == 18;
-            treeViewRoot!.IsVisible = selectedDemo == 19;
         }
     }
 }

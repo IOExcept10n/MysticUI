@@ -6,12 +6,13 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Windows.Input;
 using Icy.Configuration;
 using Icy.Input.Devices;
 using Icy.Rendering.Brushes;
 using Icy.UI;
 using Icy.UI.Controls;
+// An alias, not the namespace: Stride Sample references WPF, which has its own KeyGesture there.
+using ICommand = System.Windows.Input.ICommand;
 
 namespace Icy.SharedSamples
 {
