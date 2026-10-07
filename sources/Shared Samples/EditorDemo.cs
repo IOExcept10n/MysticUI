@@ -119,12 +119,8 @@ namespace Icy.SharedSamples
                 status.Text = $"Saved to {path}";
             });
 
-            // The hosts switch demos on one canvas: an editor left in Edit mode would keep the other demos' input.
-            root.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(UIElement.IsVisible) && !root.IsVisible)
-                    Detach();
-            };
+            // The samples shell detaches a demo when you switch away: an editor left in Edit mode would keep the input.
+            root.Detached += (_, _) => Detach();
 
             return root;
         }

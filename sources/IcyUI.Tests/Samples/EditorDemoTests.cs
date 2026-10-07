@@ -28,12 +28,12 @@ namespace Icy.Tests.Samples
         }
 
         [Fact]
-        public void HidingTheDemo_DetachesTheEditor()
+        public void RemovingTheDemo_DetachesTheEditor()
         {
             (Canvas canvas, UIElement root) = Build();
             FindButton(root, "Edit this page").Command!.Execute(null);
 
-            root.IsVisible = false;
+            canvas.Remove(root);
 
             Assert.Empty(canvas.Overlays);
             Assert.True(canvas.IsKeyboardNavigationEnabled);
