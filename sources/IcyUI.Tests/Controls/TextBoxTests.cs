@@ -248,7 +248,7 @@ namespace Icy.Tests.Controls
 
             input.Events.Text.RaiseTextInput("Hello World Testing");
             for (int i = 0; i < 10; i++)
-                input.Keyboard.RaiseKeyDown(Keys.Left);
+                input.Events.Navigation.RaiseFocusChanging(-Vector2.UnitX);
             renderContext.DrawCalls.Clear();
             canvas.Render();
             var caret = renderContext.DrawCalls.Last(d => d.Texture == renderContext.WhiteTexture && d.Options.Destination.Width == 1);
@@ -389,12 +389,12 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void LeftArrow_MovesCaretForSubsequentInsert()
+        public void LeftNavigation_MovesCaretForSubsequentInsert()
         {
             var (_, input, textBox) = CreateFocusedTextBox();
             input.Events.Text.RaiseTextInput("ac");
 
-            input.Keyboard.RaiseKeyDown(Keys.Left);
+            input.Events.Navigation.RaiseFocusChanging(-Vector2.UnitX);
             input.Events.Text.RaiseTextInput("b");
 
             Assert.Equal("abc", textBox.Text);
@@ -473,9 +473,9 @@ namespace Icy.Tests.Controls
         {
             var (_, input, textBox) = CreateFocusedTextBox();
             input.Events.Text.RaiseTextInput("abc");
-            input.Keyboard.RaiseKeyDown(Keys.Left);
-            input.Keyboard.RaiseKeyDown(Keys.Left);
-            input.Keyboard.RaiseKeyDown(Keys.Left);
+            input.Events.Navigation.RaiseFocusChanging(-Vector2.UnitX);
+            input.Events.Navigation.RaiseFocusChanging(-Vector2.UnitX);
+            input.Events.Navigation.RaiseFocusChanging(-Vector2.UnitX);
 
             input.Keyboard.RaiseKeyDown(Keys.Delete);
 

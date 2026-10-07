@@ -109,6 +109,27 @@ namespace Icy.UI.Controls
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>Left/Right move the caret by one character and claim the press.</description></item>
+        /// <item><description>At the start (Left) or end (Right) of the text the press isn't claimed, so focus moves on.</description></item>
+        /// <item><description>Up/Down are never claimed: the box is single-line.</description></item>
+        /// </list>
+        /// </remarks>
+        protected internal override bool OnNavigate(Vector2 direction)
+        {
+            if (direction.X < 0 && caretIndex > 0)
+                caretIndex--;
+            else if (direction.X > 0 && caretIndex < Text.Length)
+                caretIndex++;
+            else
+                return false;
+
+            InvalidateVisual();
+            return true;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// Both axes SUM chrome (border + padding, from <see cref="Control.MeasureContent"/> measuring
         /// <see cref="Control.Chrome"/>) with the text's own size - never <see cref="Math.Max(int, int)"/>. The text
         /// is drawn at a fixed <see cref="UIElement.Padding"/>-derived offset from the top, so the box must reserve
@@ -266,12 +287,6 @@ namespace Icy.UI.Controls
                 case Keys.Delete:
                     if (caretIndex < Text.Length)
                         Text = Text[..caretIndex] + Text[(caretIndex + 1)..];
-                    break;
-                case Keys.Left:
-                    caretIndex = Math.Max(0, caretIndex - 1);
-                    break;
-                case Keys.Right:
-                    caretIndex = Math.Min(Text.Length, caretIndex + 1);
                     break;
                 case Keys.Home:
                     caretIndex = 0;
