@@ -240,3 +240,12 @@ on the real `NavigationEvents` with fake devices.
 - Routing `CloseModal` (Escape/B) through the focused element, replacing Dialog's and Selector's subscriptions.
 - Per-element navigation overrides (explicit up/down/left/right neighbours).
 - Configurable button mapping.
+
+## Plan-time revisions
+
+- `Selector.HookFocusGate` **stays**: it still gates the `CloseModal` subscription, which is out of scope. Only the
+  `FocusChanging`/`SelectElement` subscriptions go.
+- The spec's "sample shell sidebar" behavioural test: the shell doesn't exist yet. Task 5 covers the same behaviour with
+  a ScrollViewer of buttons (`DPadDown_WalksAScrolledListAndScrollsAlong`).
+- ScrollViewer reveal is an internal virtual hook on `UIElement` (`RevealScreenRectangle`) overridden by `ScrollViewer`,
+  so `UIElement` doesn't reference a control type.

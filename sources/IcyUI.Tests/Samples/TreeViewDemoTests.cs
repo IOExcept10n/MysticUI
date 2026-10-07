@@ -77,6 +77,42 @@ namespace Icy.Tests.Samples
             AssertRowsShowTheirItems(live);
         }
 
+        [Fact]
+        public void ArrowsLeaveTheLiveTree_AndComeBackFromTheButtons()
+        {
+            var input = new FakeInputSystem();
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext { ViewportSize = new System.Drawing.Size(1200, 900) })
+                   .ConfigureInput(input)
+                   .ConfigureTypes()
+                   .ConfigureAssets();
+            IcyConfiguration configuration = builder.Build().UseDefaultTheme();
+            UIElement root = TreeViewDemo.Build(configuration, "Airfool");
+            var canvas = new Canvas(configuration) { IsVisible = true, IsInputEnabled = true };
+            canvas.Add(root);
+            canvas.Render();
+            TreeView live = root.FindRequiredControl<TreeView>("LiveTree");
+            Button add = root.FindRequiredControl<Button>("AddButton");
+            canvas.Focus(live);
+
+            // Two Downs move inside the tree (rows 0 -> 2); the next one leaves it for the button row below. Which button
+            // wins depends on the theme's widths (they're all in the tree's beam), so only "a button" is pinned.
+            for (int i = 0; i < live.Rows.Count - 1; i++)
+                Assert.True(input.Events.Navigation.RaiseFocusChanging(System.Numerics.Vector2.UnitY).Handled);
+            Assert.True(input.Events.Navigation.RaiseFocusChanging(System.Numerics.Vector2.UnitY).Handled);
+            Assert.IsType<Button>(canvas.FocusedElement);
+
+            input.Events.Navigation.RaiseFocusChanging(-System.Numerics.Vector2.UnitY);
+            Assert.Same(live, canvas.FocusedElement);
+
+            // Activation presses the focused button: Add puts a child under the selected root and expands it.
+            live.SelectedItem = live.Rows[0].Item;
+            canvas.Focus(add);
+            int before = live.Rows.Count;
+            input.Events.Navigation.RaiseSelectElement();
+            Assert.True(live.Rows.Count > before);
+        }
+
         private static string RowText(TreeView live, int index) =>
             live.List.Realized[index].EnumerateVisualSubtree().OfType<TextBlock>().Single().Text;
 
