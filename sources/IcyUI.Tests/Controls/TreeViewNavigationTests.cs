@@ -67,7 +67,7 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void Right_ExpandsACollapsedBranch_ThenWalksTheRows()
+        public void Right_ExpandsACollapsedBranch_ThenEntersIt()
         {
             Press(Down);
 
@@ -75,13 +75,33 @@ namespace Icy.Tests.Controls
             Assert.True(b.IsExpanded);
             Assert.Equal("B", Current);
 
-            Press(Right);
+            Assert.True(Press(Right));
             Assert.Equal("C", Current);
-            Press(Right);
-            Assert.Equal("D", Current);
-            Press(Right);
-            Assert.Equal("E", Current);
+        }
+
+        [Fact]
+        public void Right_OnAnExpandedBranch_MovesToItsFirstChild()
+        {
+            Assert.True(Press(Right));
+            Assert.Equal("B", Current);
+        }
+
+        [Fact]
+        public void Right_OnALeaf_IsNotHandled()
+        {
+            tree.Expand(b);
+            tree.SelectedItem = c;
+            ResetFocus();
+
+            // Mid-tree: C has a next row (D), but Right still leaves the tree.
             Assert.False(Press(Right));
+            Assert.Equal("C", Current);
+
+            // Last row.
+            tree.SelectedItem = e;
+            ResetFocus();
+            Assert.False(Press(Right));
+            Assert.Equal("E", Current);
         }
 
         [Fact]

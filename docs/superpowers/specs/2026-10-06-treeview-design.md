@@ -162,7 +162,7 @@ handles `INavigationEvents.FocusChanging` (the direction vector) and `SelectElem
 |---|---|
 | Up | Previous row. **On the first row: not handled**, so focus leaves the tree. |
 | Down | Next row. **On the last row: not handled.** |
-| Right | Collapsed branch: expand it. Otherwise: the **next row in flattened order**: an expanded branch's first child, or a leaf's next item across levels (in `A→(B→(C, D), E)`: C → D → E). **On the last row: not handled.** |
+| Right | Collapsed branch: expand it. Expanded branch: move to its first child. **Leaf: not handled**, so spatial navigation leaves the tree. *(Amended 2026-10-07 by the samples shell spec: Right used to walk to the next row in flattened order, which kept focus from leaving a sidebar tree.)* |
 | Left | Expanded branch: collapse it. Otherwise: the parent. **On a root with nothing to collapse: not handled.** |
 | Enter / A (`SelectElement`) | Toggle expansion of the current row. |
 

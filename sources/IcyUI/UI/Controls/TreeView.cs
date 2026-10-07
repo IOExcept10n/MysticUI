@@ -364,9 +364,19 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Moves through the rows. A press that would leave the tree (past the first or last row, or Left on a root with
-        /// nothing to collapse) isn't claimed, so focus moves on to the next control.
+        /// Moves through the rows, following the usual tree conventions.
         /// </summary>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>Up and Down move to the previous and next row.</description></item>
+        /// <item><description>Right expands a collapsed branch, or moves from an expanded branch to its first child.</description></item>
+        /// <item><description>Left collapses an expanded branch, or moves from a child to its parent.</description></item>
+        /// </list>
+        /// <para>
+        /// A press the tree can't use isn't claimed, so focus moves on to the next control: Up on the first row, Down on
+        /// the last row, Right on a leaf, and Left on a collapsed root.
+        /// </para>
+        /// </remarks>
         /// <param name="direction">The pressed direction.</param>
         /// <returns><see langword="true"/> when the tree used the press.</returns>
         protected internal override bool OnNavigate(Vector2 direction)
@@ -393,15 +403,13 @@ namespace Icy.UI.Controls
 
             if (direction.X > 0)
             {
-                if (HasChildren(row.Item) && !IsExpanded(row.Item))
-                {
-                    Expand(row.Item);
-                    return true;
-                }
-
-                if (index + 1 >= rows.Count)
+                if (!HasChildren(row.Item))
                     return false;
-                MoveTo(index + 1);
+
+                if (!IsExpanded(row.Item))
+                    Expand(row.Item);
+                else
+                    MoveTo(index + 1);
                 return true;
             }
 
