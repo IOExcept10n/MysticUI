@@ -7,8 +7,8 @@ using Icy.UI;
 namespace Icy.Design.Editor
 {
     /// <summary>
-    /// The editor's full-surface overlay: in Edit mode it takes every pointer gesture over the canvas and hands it to its
-    /// <see cref="EditorFrame"/>, and it draws the adorners.
+    /// The editor's overlay over its scope: in Edit mode it takes the left-button and touch gestures there and hands them
+    /// to its <see cref="EditorFrame"/>, lets the wheel and middle-button pans through to the page, and draws the adorners.
     /// </summary>
     internal sealed class EditorCaptureLayer(EditorFrame frame) : UIElement
     {

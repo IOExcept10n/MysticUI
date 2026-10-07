@@ -22,9 +22,9 @@ namespace Icy.Design.Editor
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The frame adds two overlays to the canvas: a full-surface capture layer that takes the pointer in
-    /// <see cref="EditorMode.Edit"/> and draws the adorners, and a small toolbar with the mode toggle, the selection, and
-    /// why editing is blocked when it is. In <see cref="EditorMode.Interact"/> the capture layer lets the pointer through,
+    /// The frame adds two overlays to the canvas: a capture layer over the editor's scope (the whole surface when there
+    /// is none) that takes the pointer in <see cref="EditorMode.Edit"/> and draws the adorners, and a small toolbar with
+    /// the mode toggle, the selection, and why editing is blocked when it is. In <see cref="EditorMode.Interact"/> the capture layer lets the pointer through,
     /// so the page and the game work normally while the selection stays visible.
     /// </para>
     /// <para>
@@ -39,9 +39,19 @@ namespace Icy.Design.Editor
     ///     document.Save();
     /// editor.Dispose();
     /// </code>
+    /// <para>Scoped to one part of the UI, for example a tool's content area next to its own sidebar:</para>
+    /// <code>
+    /// EditorFrame editor = EditorFrame.Attach(canvas, designSession, contentArea);
+    /// </code>
+    /// <para>
+    /// The sidebar keeps working with the pointer, the wheel and the middle button scroll the content area, and the keyboard
+    /// stays with the editor in <see cref="EditorMode.Edit"/>. A canvas takes one editor at a time
+    /// (see <see cref="EditorSession.FindAttached"/>).
+    /// </para>
     /// </remarks>
     public sealed class EditorFrame : IDisposable
     {
+        private const int ToolbarInset = 8;
         private readonly Canvas canvas;
         private readonly DesignSession design;
         private readonly TextBlock modeLabel = new() { Margin = new Thickness(8, 0, 0, 0) };
@@ -50,14 +60,18 @@ namespace Icy.Design.Editor
         private string? lastFailure;
         private MoveGesture? move;
         private ResizeGesture? resize;
+        private (Rectangle Region, Size Toolbar, EditorToolbarPlacement Placement)? applied;
+        private bool regionEmpty;
         private bool disposed;
 
-        private EditorFrame(Canvas canvas, DesignSession design)
+        private EditorFrame(Canvas canvas, DesignSession design, UIElement? scope)
         {
             this.canvas = canvas;
             this.design = design;
-            Session = EditorSession.Attach(design, canvas);
-            CaptureLayer = new EditorCaptureLayer(this);
+            Session = EditorSession.Attach(design, canvas, scope);
+
+            // The layer takes left and touch drags in Edit mode; the wheel and middle-button pans reach the page beneath.
+            CaptureLayer = new EditorCaptureLayer(this) { PassesUnclaimedInput = true };
             Toolbar = CreateToolbar();
             ToolbarPlacement = EditorToolbarPlacement.TopLeft;
         }
@@ -107,18 +121,35 @@ namespace Icy.Design.Editor
         internal string? ToolbarStatus => string.IsNullOrEmpty(statusLabel.Text) ? null : statusLabel.Text;
 
         /// <summary>
-        /// Attaches an editor to <paramref name="canvas"/>, in <see cref="EditorMode.Edit"/>.
+        /// Attaches an editor to the whole of <paramref name="canvas"/>, in <see cref="EditorMode.Edit"/>.
         /// </summary>
         /// <param name="canvas">The canvas whose pages to edit.</param>
         /// <param name="design">The design session tracking those pages.</param>
         /// <returns>The frame; dispose it to detach.</returns>
         /// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
-        public static EditorFrame Attach(Canvas canvas, DesignSession design)
+        /// <exception cref="InvalidOperationException">Another editor session is attached to <paramref name="canvas"/>.</exception>
+        public static EditorFrame Attach(Canvas canvas, DesignSession design) => Attach(canvas, design, null);
+
+        /// <summary>
+        /// Attaches an editor to <paramref name="canvas"/>, limited to <paramref name="scope"/>, in <see cref="EditorMode.Edit"/>.
+        /// </summary>
+        /// <param name="canvas">The canvas whose pages to edit.</param>
+        /// <param name="design">The design session tracking those pages.</param>
+        /// <param name="scope">
+        /// The subtree to edit (see <see cref="EditorSession.Scope"/>), or <see langword="null"/> for the whole canvas.
+        /// The capture layer, the toolbar and the adorners keep to the scope's visible area, so the rest of the canvas
+        /// stays usable with the pointer.
+        /// </param>
+        /// <returns>The frame; dispose it to detach.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="canvas"/> or <paramref name="design"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="scope"/> is not on <paramref name="canvas"/>.</exception>
+        /// <exception cref="InvalidOperationException">Another editor session is attached to <paramref name="canvas"/>.</exception>
+        public static EditorFrame Attach(Canvas canvas, DesignSession design, UIElement? scope)
         {
             ArgumentNullException.ThrowIfNull(canvas);
             ArgumentNullException.ThrowIfNull(design);
 
-            var frame = new EditorFrame(canvas, design);
+            var frame = new EditorFrame(canvas, design, scope);
             frame.Start();
             return frame;
         }
@@ -251,27 +282,38 @@ namespace Icy.Design.Editor
             if (Session.Mode == EditorMode.Edit && !IsOnTop())
                 Dispatcher.GetCurrentThreadDispatcher().Invoke(BringToTop);
 
+            SyncRegion();
+            if (regionEmpty)
+                return;
+
+            // The scene is in surface units; the layer sits at the region's origin and clips to it.
+            Point origin = CaptureLayer.PointToSurface(Vector2.Zero);
             AdornerScene scene = BuildScene();
             if (scene.Hover is { } hover)
-                Outline(context, hover, HoverColor, 1);
+                Outline(context, Shift(hover, origin), HoverColor, 1);
             if (scene.Selection is { } selection)
-                Outline(context, selection, scene.Dimmed ? Color.FromArgb(110, SelectionColor) : SelectionColor, 1.5f);
+                Outline(context, Shift(selection, origin), scene.Dimmed ? Color.FromArgb(110, SelectionColor) : SelectionColor, 1.5f);
             foreach (RectangleF handle in scene.Handles)
             {
-                context.FillRectangle(new Vector2(handle.X, handle.Y), new Vector2(handle.Width, handle.Height), Color.White);
-                Outline(context, handle, SelectionColor, 1);
+                RectangleF area = Shift(handle, origin);
+                context.FillRectangle(new Vector2(area.X, area.Y), new Vector2(area.Width, area.Height), Color.White);
+                Outline(context, area, SelectionColor, 1);
             }
 
             if (scene.Ghost is { } ghost)
-                Outline(context, ghost, GhostColor, 1);
+                Outline(context, Shift(ghost, origin), GhostColor, 1);
             if (scene.Indicator is { } indicator)
             {
+                RectangleF area = Shift(indicator, origin);
                 if (scene.IndicatorIsLine)
-                    context.DrawLine(indicator.Left, indicator.Top, indicator.Right, indicator.Bottom, IndicatorColor, 3);
+                    context.DrawLine(area.Left, area.Top, area.Right, area.Bottom, IndicatorColor, 3);
                 else
-                    Outline(context, indicator, IndicatorColor, 2);
+                    Outline(context, area, IndicatorColor, 2);
             }
         }
+
+        private static RectangleF Shift(RectangleF area, Point origin) =>
+            new(area.X - origin.X, area.Y - origin.Y, area.Width, area.Height);
 
         private static void Outline(IRenderContext context, RectangleF area, Color color, float thickness) =>
             context.DrawRectangle(new Vector2(area.X, area.Y), new Vector2(area.Width, area.Height), color, thickness);
@@ -338,9 +380,57 @@ namespace Icy.Design.Editor
                 Session.Clear();
         }
 
+        /// <summary>
+        /// Fits the capture layer and the toolbar to the session's region. Runs every frame from the capture layer's render
+        /// and changes layout only when the region, the toolbar's size or its placement changed.
+        /// </summary>
+        private void SyncRegion()
+        {
+            Rectangle region = Session.Region();
+            bool empty = region.IsEmpty;
+            if (empty != regionEmpty)
+            {
+                regionEmpty = empty;
+                UpdateToolbar();
+            }
+
+            // Without a scope the layer stretches over the canvas and the toolbar uses alignments, as before scoping.
+            if (Session.Scope == null || empty)
+                return;
+
+            Size toolbar = Toolbar.ActualBounds.Size;
+            if (applied == (region, toolbar, toolbarPlacement))
+                return;
+
+            applied = (region, toolbar, toolbarPlacement);
+            CaptureLayer.HorizontalAlignment = HorizontalAlignment.Left;
+            CaptureLayer.VerticalAlignment = VerticalAlignment.Top;
+            CaptureLayer.Margin = new Thickness(region.X, region.Y, 0, 0);
+            CaptureLayer.Width = region.Width;
+            CaptureLayer.Height = region.Height;
+            PlaceToolbar(region, toolbar);
+        }
+
+        private void PlaceToolbar(Rectangle region, Size size)
+        {
+            Size surface = canvas.SurfaceSize;
+            bool left = toolbarPlacement is EditorToolbarPlacement.TopLeft or EditorToolbarPlacement.BottomLeft;
+            bool top = toolbarPlacement is EditorToolbarPlacement.TopLeft or EditorToolbarPlacement.TopRight;
+            int x = left ? region.Left + ToolbarInset : region.Right - ToolbarInset - size.Width;
+            int y = top ? region.Top + ToolbarInset : region.Bottom - ToolbarInset - size.Height;
+            Toolbar.HorizontalAlignment = HorizontalAlignment.Left;
+            Toolbar.VerticalAlignment = VerticalAlignment.Top;
+            Toolbar.Margin = new Thickness(
+                Math.Clamp(x, 0, Math.Max(0, surface.Width - size.Width)),
+                Math.Clamp(y, 0, Math.Max(0, surface.Height - size.Height)),
+                0,
+                0);
+        }
+
         private void UpdateToolbar()
         {
-            CaptureLayer.IsHitTestVisible = Session.Mode == EditorMode.Edit;
+            CaptureLayer.IsHitTestVisible = Session.Mode == EditorMode.Edit && !regionEmpty;
+            Toolbar.IsVisible = !regionEmpty;
             string mode = Session.Mode == EditorMode.Edit ? "Edit" : "Interact";
             string what = Session.Selection is { } selection
                 ? Describe(selection)

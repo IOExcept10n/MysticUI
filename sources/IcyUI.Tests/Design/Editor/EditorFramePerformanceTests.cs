@@ -36,6 +36,29 @@ namespace Icy.Tests.Design.Editor
             output.WriteLine($"Canvas.Render on 500 elements: {baseline:0.000} ms detached ({before:0.000}/{after:0.000}), {editing:0.000} ms in Edit mode, overhead {editing - baseline:0.000} ms (budget 0.2 ms).");
         }
 
+        [Fact]
+        public void ScopedEditModeOverhead_OnA500ElementPage_IsMeasured()
+        {
+            var markup = new StringBuilder("<StackPanel x:Name=\"root\" HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\">");
+            for (int i = 0; i < 500; i++)
+                markup.Append("<Border Width=\"4\" Height=\"1\"/>");
+            markup.Append("</StackPanel>");
+            using var host = new EditorTestHost(markup.ToString(), attachSession: false);
+            host.Input.Mouse.MouseInfo = new MouseInfo(host.At(host.Root, 2, 2));
+
+            for (int i = 0; i < 500; i++)
+                host.Render();
+            double before = Measure(host);
+            EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design, host.Root);
+            frame.Session.Select(host.Root);
+            double editing = Measure(host);
+            frame.Dispose();
+            double after = Measure(host);
+            double baseline = (before + after) / 2;
+
+            output.WriteLine($"Scoped: Canvas.Render on 500 elements: {baseline:0.000} ms detached ({before:0.000}/{after:0.000}), {editing:0.000} ms in Edit mode, overhead {editing - baseline:0.000} ms (budget 0.2 ms).");
+        }
+
         private static double Measure(EditorTestHost host)
         {
             for (int i = 0; i < 60; i++)
