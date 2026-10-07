@@ -9,7 +9,6 @@ using System.Runtime.CompilerServices;
 using CommunityToolkit.Diagnostics;
 using Icy.Data;
 using Icy.Data.Markup.Attributes;
-using Icy.Input.Events;
 using Icy.Markup;
 using Icy.UI.Styles;
 
@@ -54,7 +53,6 @@ namespace Icy.UI.Controls
         private float indent = 16;
         private bool settingNodeState;
         private bool detached;
-        private INavigationEvents? subscribedNavigation;
         private readonly Dictionary<object, Subscription> subscriptions = new(ReferenceEqualityComparer.Instance);
         private INotifyCollectionChanged? observedRoots;
         private object? selectedItem;
@@ -365,16 +363,77 @@ namespace Icy.UI.Controls
             SyncList();
         }
 
+        /// <summary>
+        /// Moves through the rows. A press that would leave the tree (past the first or last row, or Left on a root with
+        /// nothing to collapse) isn't claimed, so focus moves on to the next control.
+        /// </summary>
+        /// <param name="direction">The pressed direction.</param>
+        /// <returns><see langword="true"/> when the tree used the press.</returns>
+        protected internal override bool OnNavigate(Vector2 direction)
+        {
+            if (rows.Count == 0)
+                return false;
+
+            int index = currentRow == null ? -1 : rows.IndexOf(currentRow);
+            if (index < 0)
+            {
+                MoveTo(0);
+                return true;
+            }
+
+            FlatRow row = rows[index];
+            if (MathF.Abs(direction.Y) >= MathF.Abs(direction.X))
+            {
+                int next = direction.Y < 0 ? index - 1 : index + 1;
+                if (next < 0 || next >= rows.Count)
+                    return false;
+                MoveTo(next);
+                return true;
+            }
+
+            if (direction.X > 0)
+            {
+                if (HasChildren(row.Item) && !IsExpanded(row.Item))
+                {
+                    Expand(row.Item);
+                    return true;
+                }
+
+                if (index + 1 >= rows.Count)
+                    return false;
+                MoveTo(index + 1);
+                return true;
+            }
+
+            if (HasChildren(row.Item) && IsExpanded(row.Item))
+            {
+                Collapse(row.Item);
+                return true;
+            }
+
+            if (row.Parent == null)
+                return false;
+            MoveTo(rows.IndexOf(row.Parent));
+            return true;
+        }
+
+        /// <summary>Expands or collapses the current row (Enter, gamepad A).</summary>
+        /// <returns><see langword="true"/> when the current row has children and was toggled.</returns>
+        protected internal override bool OnActivate()
+        {
+            if (currentRow == null || !HasChildren(currentRow.Item))
+                return false;
+
+            Toggle(currentRow.Item);
+            return true;
+        }
+
         /// <inheritdoc/>
         protected override void OnAttached()
         {
             base.OnAttached();
             detached = false;
             Rebuild();
-
-            // Focus survives Canvas.Remove, so a tree that was focused when it left never gets FocusChanged again.
-            if (IsFocused)
-                SubscribeNavigation();
         }
 
         /// <inheritdoc/>
@@ -383,7 +442,6 @@ namespace Icy.UI.Controls
             base.OnDetached();
             detached = true;
             UnsubscribeAll();
-            UnsubscribeNavigation();
         }
 
         private void AddRef(object item)
@@ -621,88 +679,9 @@ namespace Icy.UI.Controls
             {
                 currentRow ??= (selectedItem == null ? null : rows.FirstOrDefault(r => ReferenceEquals(r.Item, selectedItem)))
                     ?? (rows.Count > 0 ? rows[0] : null);
-                SubscribeNavigation();
-            }
-            else
-            {
-                UnsubscribeNavigation();
             }
 
             SyncList();
-        }
-
-        private void SubscribeNavigation()
-        {
-            if (Configuration == null || subscribedNavigation != null)
-                return;
-
-            subscribedNavigation = Configuration.Input.Events.Navigation;
-            subscribedNavigation.FocusChanging += OnNavigationFocusChanging;
-            subscribedNavigation.SelectElement += OnNavigationSelectElement;
-        }
-
-        private void UnsubscribeNavigation()
-        {
-            if (subscribedNavigation == null)
-                return;
-
-            subscribedNavigation.FocusChanging -= OnNavigationFocusChanging;
-            subscribedNavigation.SelectElement -= OnNavigationSelectElement;
-            subscribedNavigation = null;
-        }
-
-        /// <summary>
-        /// Moves through the rows. A press that would leave the tree (past the first or last row, or Left on a root with
-        /// nothing to collapse) is left unhandled, so focus navigation can move on to the next control.
-        /// </summary>
-        private void OnNavigationFocusChanging(object? sender, AcceptableEventArgs<Vector2> e)
-        {
-            if (rows.Count == 0)
-                return;
-
-            int index = currentRow == null ? -1 : rows.IndexOf(currentRow);
-            Vector2 direction = e.Data;
-            if (index < 0)
-            {
-                MoveTo(0);
-                e.Handled = true;
-                return;
-            }
-
-            FlatRow row = rows[index];
-            if (MathF.Abs(direction.Y) >= MathF.Abs(direction.X))
-            {
-                int next = direction.Y < 0 ? index - 1 : index + 1;
-                if (next < 0 || next >= rows.Count)
-                    return;
-                MoveTo(next);
-            }
-            else if (direction.X > 0)
-            {
-                if (HasChildren(row.Item) && !IsExpanded(row.Item))
-                    Expand(row.Item);
-                else if (index + 1 < rows.Count)
-                    MoveTo(index + 1);
-                else
-                    return;
-            }
-            else
-            {
-                if (HasChildren(row.Item) && IsExpanded(row.Item))
-                    Collapse(row.Item);
-                else if (row.Parent != null)
-                    MoveTo(rows.IndexOf(row.Parent));
-                else
-                    return;
-            }
-
-            e.Handled = true;
-        }
-
-        private void OnNavigationSelectElement(object? sender, EventArgs e)
-        {
-            if (currentRow != null && HasChildren(currentRow.Item))
-                Toggle(currentRow.Item);
         }
 
         /// <summary>Makes row <paramref name="index"/> current, selects it when selectable, and scrolls it into view.</summary>

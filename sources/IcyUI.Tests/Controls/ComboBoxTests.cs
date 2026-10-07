@@ -475,16 +475,16 @@ namespace Icy.Tests.Controls
             return results;
         }
 
-        private static void InvokeOnNavigationSelectElement(ComboBox comboBox) =>
-            typeof(Selector).GetMethod("OnNavigationSelectElement", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(comboBox, [null, System.EventArgs.Empty]);
+        private static void InvokeOnNavigationSelectElement(ComboBox comboBox) => comboBox.OnActivate();
 
         private static void InvokeOnNavigationCloseModal(ComboBox comboBox) =>
             typeof(Selector).GetMethod("OnNavigationCloseModal", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(comboBox, [null, System.EventArgs.Empty]);
 
         private static void InvokeOnNavigationFocusChanging(ComboBox comboBox, System.Numerics.Vector2 direction)
         {
-            var args = new Icy.Data.AcceptableEventArgs<System.Numerics.Vector2> { Data = direction };
-            typeof(Selector).GetMethod("OnNavigationFocusChanging", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(comboBox, [null, args]);
+            // Arrows only move the highlight while the popup is open; a closed ComboBox lets them go.
+            comboBox.IsOpen = true;
+            comboBox.OnNavigate(direction);
         }
 
         private static Canvas SimulateFocused(ComboBox comboBox, FakeInputSystem input)

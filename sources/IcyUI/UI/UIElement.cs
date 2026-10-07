@@ -1994,6 +1994,33 @@ namespace Icy.UI
         protected internal virtual bool OnScroll(Icy.Input.Events.ScrollInfo info) => false;
 
         /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> for a directional navigation press (arrow keys, D-pad, left stick) while
+        /// this element or one of its descendants has focus.
+        /// </summary>
+        /// <param name="direction">The pressed direction: one of the four unit vectors, in UI space (+Y down).</param>
+        /// <returns>
+        /// <see langword="true"/> to claim the press. <see cref="UI.Canvas"/> calls the focused element first, then
+        /// each ancestor, and stops at the first claim. When nothing claims it, focus moves to the nearest control in
+        /// <paramref name="direction"/> (see <see cref="UI.Canvas.MoveFocus(bool)"/>). The base implementation
+        /// returns <see langword="false"/>.
+        /// </returns>
+        /// <remarks>
+        /// Claim only what you use, and let presses go at your edges (a list at its last row, a caret at the end of its
+        /// text), so focus can move on to the next control.
+        /// </remarks>
+        protected internal virtual bool OnNavigate(Vector2 direction) => false;
+
+        /// <summary>
+        /// Invoked by <see cref="UI.Canvas"/> for an activation press (Enter, gamepad A) while this element or one of
+        /// its descendants has focus.
+        /// </summary>
+        /// <returns>
+        /// <see langword="true"/> to claim the press; <see cref="UI.Canvas"/> then stops calling further ancestors.
+        /// The base implementation returns <see langword="false"/>.
+        /// </returns>
+        protected internal virtual bool OnActivate() => false;
+
+        /// <summary>
         /// Invoked by <see cref="UI.Canvas"/> when this element (or a descendant) is the target of a completed tap
         /// (see <see cref="Icy.Input.Events.ITouchEvents.Tap"/>). The base implementation does nothing.
         /// </summary>

@@ -84,12 +84,12 @@ namespace Icy.UI.Controls
             textBox.FocusChanged += TextBox_FocusChanged;
 
             // Regression: a mouse/touch commit (Selector.OnPopupItemTap sets SelectedIndex directly, then closes
-            // the popup) never routed through this ComboBox's own OnNavigationSelectElement (the Enter-key path,
+            // the popup) never routed through this ComboBox's own OnActivate (the Enter-key path,
             // the only place that used to call SetTextFromSelection) - so clicking a popup item updated
             // SelectedItem/lastCommittedItem's bookkeeping but left textBox.Text showing whatever the user had
             // typed to filter, never the item they actually picked. SelectionChanged is the one hook every commit
             // path already funnels through (Enter's own SelectedIndex assignment fires it too), so syncing the
-            // text here - once, guarded exactly like OnNavigationSelectElement's own explicit call already is -
+            // text here - once, guarded exactly like OnActivate's own explicit call already is -
             // covers every current and future way a selection can be committed.
             SelectionChanged += (_, _) =>
             {
@@ -160,6 +160,20 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>Closed: opens. Open: commits the highlighted match, or reverts the text when there's none.</remarks>
+        protected internal override bool OnActivate()
+        {
+            if (!IsOpen)
+            {
+                IsOpen = true;
+                return true;
+            }
+
+            CommitHighlightOrRevert();
+            return true;
+        }
+
+        /// <inheritdoc/>
         /// <remarks>
         /// Unsubscribes from the real (unfiltered) <see cref="ItemsSource"/>'s
         /// <see cref="INotifyCollectionChanged.CollectionChanged"/>, mirroring what
@@ -175,18 +189,6 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
-        protected override void OnNavigationSelectElement(object? sender, EventArgs e)
-        {
-            if (!IsOpen)
-            {
-                IsOpen = true;
-                return;
-            }
-
-            CommitHighlightOrRevert();
-        }
-
-        /// <inheritdoc/>
         protected override void OnNavigationCloseModal(object? sender, EventArgs e)
         {
             RevertText();
@@ -198,14 +200,14 @@ namespace Icy.UI.Controls
         /// reverts <see cref="TextBox.Text"/> back to the last real selection - and closes the popup either way.
         /// </summary>
         /// <remarks>
-        /// Shared by both the Enter-key commit path (<see cref="OnNavigationSelectElement"/>, after its own
+        /// Shared by both the Enter-key commit path (<see cref="OnActivate"/>, after its own
         /// "open if closed" check) and losing focus (<see cref="TextBox_FocusChanged"/>) - standard combobox UX
         /// commits pending navigation on blur exactly like Enter would, it just must never also reopen a closed
         /// popup the way Enter's own leading check does.
         /// </remarks>
         private void CommitHighlightOrRevert()
         {
-            // Upper bound guarded too - see Selector.OnNavigationSelectElement's own remarks: filtering can shrink
+            // Upper bound guarded too - see Selector.OnActivate's own remarks: filtering can shrink
             // the list underneath a stale highlight between the arrow press that set it and this commit.
             if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
             {
@@ -255,7 +257,7 @@ namespace Icy.UI.Controls
             // remarks on ItemsSource), not a genuine user commit. Without suppressing both, the SelectionChanged
             // subscription above would overwrite lastCommittedItem with whatever this filtering pass happens to
             // leave selected (including null, on every keystroke that filters the committed item out), corrupting
-            // the value RevertText/OnNavigationSelectElement rely on to restore full selection later.
+            // the value RevertText/OnActivate rely on to restore full selection later.
             suppressSelectionChanged = true;
             base.ItemsSource = matches;
             SelectedItem = lastCommittedItem != null && matches.Contains(lastCommittedItem) ? lastCommittedItem : null;

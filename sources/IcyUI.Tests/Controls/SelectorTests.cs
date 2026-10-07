@@ -405,7 +405,7 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void FocusChanging_WhileClosed_OpensAndHighlightsTheFirstItem()
+        public void FocusChanging_WhileClosed_LetsThePressGo()
         {
             var (canvas, input) = CreateCanvas();
             var selector = new TestSelector
@@ -420,9 +420,8 @@ namespace Icy.Tests.Controls
             canvas.Render();
             canvas.Focus(selector);
 
-            input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
-
-            Assert.True(selector.IsOpen);
+            Assert.False(input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1)).Handled);
+            Assert.False(selector.IsOpen);
         }
 
         [Fact]
@@ -462,6 +461,7 @@ namespace Icy.Tests.Controls
             canvas.Add(selector);
             canvas.Render();
             canvas.Focus(selector);
+            selector.IsOpen = true;
             input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
 
             input.Events.Navigation.RaiseSelectElement();
@@ -486,6 +486,7 @@ namespace Icy.Tests.Controls
             canvas.Render();
             canvas.Focus(selector);
             selector.SelectedIndex = 1;
+            selector.IsOpen = true;
             input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
 
             input.Events.Navigation.RaiseCloseModal();
@@ -512,6 +513,7 @@ namespace Icy.Tests.Controls
             canvas.Add(selector);
             canvas.Render();
             canvas.Focus(selector);
+            selector.IsOpen = true;
             input.Events.Navigation.RaiseFocusChanging(new Vector2(0, 1));
             Assert.Equal(0, GetHighlightedIndex(selector));
 

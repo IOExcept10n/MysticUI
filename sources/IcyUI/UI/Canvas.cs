@@ -25,7 +25,7 @@ namespace Icy.UI
     /// handling input events, and coordinating rendering operations. It maintains a collection of root-level
     /// controls and provides services for focus management, input routing, and visual updates.
     /// </remarks>
-    public class Canvas : ObservableDispatcherObject, IContainerLayout
+    public partial class Canvas : ObservableDispatcherObject, IContainerLayout
     {
         private const float ScaleEpsilon = 0.0001f;
         private readonly Diagnostics.DebugHudHost debugHudHost;
@@ -746,6 +746,8 @@ namespace Icy.UI
                     MoveFocus(forward: false);
             };
             events.Navigation.CloseModal += OnCloseModal;
+            events.Navigation.FocusChanging += Navigation_FocusChanging;
+            events.Navigation.SelectElement += Navigation_SelectElement;
         }
 
         private UIElement? ResolveDragOwner(UIElement? hit, in DragInfo drag)

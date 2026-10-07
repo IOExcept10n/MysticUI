@@ -55,6 +55,17 @@ namespace Icy.UI.Controls
             OnClick();
         }
 
+        /// <inheritdoc/>
+        /// <remarks>Clicks the button, like a tap, unless it's disabled.</remarks>
+        protected internal override bool OnActivate()
+        {
+            if (!IsEnabled)
+                return false;
+
+            OnClick();
+            return true;
+        }
+
         /// <summary>
         /// Raises <see cref="Click"/> and executes <see cref="Command"/> if it can execute.
         /// </summary>

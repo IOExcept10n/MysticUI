@@ -250,6 +250,49 @@ namespace Icy.UI.Controls
         protected override Rectangle RealizationBounds => popupHost.ContentBounds;
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// While the popup is open, moves <see cref="HighlightedIndex"/> by one in the pressed direction and claims the
+        /// press. While it's closed, lets the press go, so focus moves on to the next control; Enter or gamepad A opens it
+        /// (see <see cref="OnActivate"/>).
+        /// </remarks>
+        protected internal override bool OnNavigate(Vector2 direction)
+        {
+            if (!IsOpen || ItemCount == 0)
+                return false;
+
+            int delta = Math.Abs(direction.X) > Math.Abs(direction.Y)
+                ? (direction.X < 0 ? -1 : 1)
+                : (direction.Y < 0 ? -1 : 1);
+            int next = HighlightedIndex == -1 ? 0 : HighlightedIndex + delta;
+            HighlightedIndex = Math.Clamp(next, 0, ItemCount - 1);
+            return true;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Closed: opens the popup. Open with a valid <see cref="HighlightedIndex"/>: commits it to
+        /// <see cref="SelectingItemsControl.SelectedIndex"/> and closes. Always claims the press.
+        /// </remarks>
+        protected internal override bool OnActivate()
+        {
+            if (!IsOpen)
+            {
+                IsOpen = true;
+                return true;
+            }
+
+            // Upper bound guarded too: the item count can shrink underneath a stale highlight (a live collection
+            // change, or ComboBox's filtering) - committing it unguarded would throw from SelectedIndex's own range check.
+            if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
+            {
+                SelectedIndex = HighlightedIndex;
+                IsOpen = false;
+            }
+
+            return true;
+        }
+
+        /// <inheritdoc/>
         protected override void AttachContainer(ItemContainer container, int index)
         {
             var item = (SelectorItem)container;
@@ -364,12 +407,16 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Re-points which element's <see cref="UIElement.FocusChanged"/> gates keyboard/gamepad navigation
-        /// subscription (see <see cref="SubscribeNavigation"/>) - <see langword="this"/> by default (wired once, at
-        /// construction). <see cref="ComboBox"/> calls this again with its own text box, since that's the element that
-        /// actually holds <see cref="UI.Canvas"/> focus for it.
+        /// Re-points which element's <see cref="UIElement.FocusChanged"/> gates the Escape/gamepad-B subscription
+        /// (see <see cref="SubscribeNavigation"/>) - <see langword="this"/> by default (wired once, at construction).
+        /// <see cref="ComboBox"/> calls this again with its own text box, since that's the element that actually holds
+        /// <see cref="UI.Canvas"/> focus for it.
         /// </summary>
-        /// <param name="gate">The element whose focus state should drive navigation subscription from now on.</param>
+        /// <remarks>
+        /// Arrows and Enter don't depend on the gate: they arrive through <see cref="OnNavigate(Vector2)"/> and
+        /// <see cref="OnActivate"/>, routed by <see cref="UI.Canvas"/> from the focused element up through its ancestors.
+        /// </remarks>
+        /// <param name="gate">The element whose focus state should drive the subscription from now on.</param>
         protected void HookFocusGate(UIElement gate)
         {
             if (focusGate != null)
@@ -379,74 +426,29 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Subscribes to <see cref="Icy.Input.Events.INavigationEvents"/> - idempotent, and a no-op while unattached.
+        /// Subscribes to <see cref="Icy.Input.Events.INavigationEvents.CloseModal"/> (Escape/gamepad B) - idempotent,
+        /// and a no-op while unattached. Arrows and Enter arrive through <see cref="OnNavigate(Vector2)"/> and
+        /// <see cref="OnActivate"/> instead.
         /// </summary>
         protected void SubscribeNavigation()
         {
             if (Configuration == null || subscribedNavigation != null)
                 return;
             subscribedNavigation = Configuration.Input.Events.Navigation;
-            subscribedNavigation.FocusChanging += OnNavigationFocusChanging;
-            subscribedNavigation.SelectElement += OnNavigationSelectElement;
             subscribedNavigation.CloseModal += OnNavigationCloseModal;
         }
 
         /// <summary>
-        /// Unsubscribes from <see cref="Icy.Input.Events.INavigationEvents"/> - idempotent.
+        /// Unsubscribes from <see cref="Icy.Input.Events.INavigationEvents.CloseModal"/> (Escape/gamepad B) -
+        /// idempotent. Arrows and Enter arrive through <see cref="OnNavigate(Vector2)"/> and <see cref="OnActivate"/>
+        /// instead.
         /// </summary>
         protected void UnsubscribeNavigation()
         {
             if (subscribedNavigation == null)
                 return;
-            subscribedNavigation.FocusChanging -= OnNavigationFocusChanging;
-            subscribedNavigation.SelectElement -= OnNavigationSelectElement;
             subscribedNavigation.CloseModal -= OnNavigationCloseModal;
             subscribedNavigation = null;
-        }
-
-        /// <summary>
-        /// Handles a directional focus-navigation press (arrow keys/gamepad stick) while the focus gate is focused -
-        /// opens the popup if closed, then moves <see cref="HighlightedIndex"/> by one in the pressed direction.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="AcceptableEventArgs{Vector2}"/> instance containing the pressed direction.</param>
-        protected virtual void OnNavigationFocusChanging(object? sender, AcceptableEventArgs<Vector2> e)
-        {
-            if (ItemCount == 0)
-                return;
-
-            if (!IsOpen)
-                IsOpen = true;
-
-            int delta = Math.Abs(e.Data.X) > Math.Abs(e.Data.Y)
-                ? (e.Data.X < 0 ? -1 : 1)
-                : (e.Data.Y < 0 ? -1 : 1);
-            int next = HighlightedIndex == -1 ? 0 : HighlightedIndex + delta;
-            HighlightedIndex = Math.Clamp(next, 0, ItemCount - 1);
-            e.Handled = true;
-        }
-
-        /// <summary>
-        /// Handles Enter/gamepad-A while the focus gate is focused - opens the popup if closed; if open with a valid
-        /// <see cref="HighlightedIndex"/>, commits it to <see cref="SelectingItemsControl.SelectedIndex"/> and closes; otherwise no-ops.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected virtual void OnNavigationSelectElement(object? sender, EventArgs e)
-        {
-            if (!IsOpen)
-            {
-                IsOpen = true;
-                return;
-            }
-
-            // Upper bound guarded too: the item count can shrink underneath a stale highlight (a live collection
-            // change, or ComboBox's filtering) - committing it unguarded would throw from SelectedIndex's own range check.
-            if (HighlightedIndex >= 0 && HighlightedIndex < ItemCount)
-            {
-                SelectedIndex = HighlightedIndex;
-                IsOpen = false;
-            }
         }
 
         /// <summary>
