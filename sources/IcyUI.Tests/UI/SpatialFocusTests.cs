@@ -227,6 +227,38 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
+        public void FocusedTextBoxRemoved_DoesNotClaimArrows_AndFocusMovesBackIntoTheCanvas()
+        {
+            // Focus survives Canvas.Remove; the detached box must not keep eating arrows.
+            (Canvas canvas, FakeInputSystem input, _) = CreateCanvas();
+            var gone = new TextBox { Width = 100, Height = 20, Text = "ab", HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(gone);
+            Button other = Place(canvas, 0, 100);
+            canvas.Render();
+            canvas.Focus(gone);
+            canvas.Remove(gone);
+
+            Assert.True(Press(input, Right));
+            Assert.Same(other, canvas.FocusedElement);
+        }
+
+        [Fact]
+        public void FocusedButtonRemoved_IsNotActivated()
+        {
+            (Canvas canvas, FakeInputSystem input, _) = CreateCanvas();
+            Button gone = Place(canvas, 0, 0);
+            int clicks = 0;
+            gone.Click += (_, _) => clicks++;
+            canvas.Render();
+            canvas.Focus(gone);
+            canvas.Remove(gone);
+
+            input.Events.Navigation.RaiseSelectElement();
+
+            Assert.Equal(0, clicks);
+        }
+
+        [Fact]
         public void APress_InAThousandElementScope_StaysUnderAMillisecond()
         {
             (Canvas canvas, FakeInputSystem input, _) = CreateCanvas();

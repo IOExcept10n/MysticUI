@@ -1,4 +1,4 @@
-﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Numerics;
 using Icy.Data;
@@ -152,11 +152,17 @@ namespace Icy.Input.Events
                 case IKeyboardInput keyboard:
                     keyboard.KeyDown -= Keyboard_KeyDown;
                     keyboard.KeyUp -= Keyboard_KeyUp;
+
+                    // A device that goes away mid-hold never sends its release.
+                    Release(HeldSource.Key);
                     break;
                 case IGamepadInput gamepad:
                     gamepad.ButtonPressed -= Gamepad_ButtonPressed;
                     gamepad.ButtonReleased -= Gamepad_ButtonReleased;
                     gamepad.LeftStickMove -= Gamepad_LeftStickMove;
+                    Release(HeldSource.PadButton);
+                    Release(HeldSource.Stick);
+                    stickDirection = Vector2.Zero;
                     break;
 
                 case IMouseInput mouse:

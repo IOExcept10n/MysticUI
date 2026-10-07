@@ -150,5 +150,17 @@ namespace Icy.Tests.Input
 
             Assert.Empty(raised);
         }
+
+        [Fact]
+        public void APadDisconnectingMidHold_StopsTheRepeat()
+        {
+            (NavigationEvents navigation, FakeInputSystem input, FakeGamepadInput pad, List<Vector2> raised) = Create();
+
+            pad.RaiseLeftStick(new Vector2(0.9f, 0));
+            input.Events.Devices.RaiseDeviceDisconnected(pad);
+            navigation.Update(TimeSpan.FromSeconds(1));
+
+            Assert.Single(raised);
+        }
     }
 }

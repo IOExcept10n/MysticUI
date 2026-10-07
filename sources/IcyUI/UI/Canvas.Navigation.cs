@@ -22,6 +22,9 @@ namespace Icy.UI
         private WeakReference<UIElement>? reverseTarget;
         private Vector2 reverseDirection;
 
+        // Focus survives Canvas.Remove; a removed element must not keep claiming presses (or get clicked by Enter).
+        private UIElement? AttachedFocusedElement => FocusedElement?.Canvas == this ? FocusedElement : null;
+
         /// <summary>
         /// Moves focus to the nearest focusable element in <paramref name="direction"/>, the way arrow keys, the D-pad
         /// and the left stick do when the focused element doesn't use the press.
@@ -94,7 +97,7 @@ namespace Icy.UI
             if (!IsKeyboardNavigationEnabled)
                 return;
 
-            foreach (UIElement element in SelfAndAncestors(FocusedElement))
+            foreach (UIElement element in SelfAndAncestors(AttachedFocusedElement))
             {
                 if (element.OnActivate())
                     return;
@@ -103,7 +106,7 @@ namespace Icy.UI
 
         private bool RouteNavigate(Vector2 direction)
         {
-            foreach (UIElement element in SelfAndAncestors(FocusedElement))
+            foreach (UIElement element in SelfAndAncestors(AttachedFocusedElement))
             {
                 if (element.OnNavigate(direction))
                     return true;

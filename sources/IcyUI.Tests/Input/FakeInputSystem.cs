@@ -323,6 +323,8 @@ namespace Icy.Tests.Input
         public event EventHandler<GenericEventArgs<IInputDeviceListener>> DeviceConnected = delegate { };
 
         public event EventHandler<GenericEventArgs<IInputDeviceListener>> DeviceDisconnected = delegate { };
+
+        public void RaiseDeviceDisconnected(IInputDeviceListener device) => DeviceDisconnected(this, new GenericEventArgs<IInputDeviceListener>(device));
     }
 
     /// <summary>
