@@ -189,7 +189,7 @@ namespace Icy.Stride.Rendering
                 options.Source?.AsEngineRectangle(),
                 options.Color.AsEngineColor() * Options.Opacity,
                 options.Rotation + Transform.Rotation,
-                Vector2.Zero,
+                options.Origin.AsEngineVector(),
                 scale * Transform.Scale.AsEngineVector(),
                 SpriteEffects.None,
                 ImageOrientation.AsIs,
