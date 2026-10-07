@@ -195,9 +195,12 @@ namespace Icy.Rendering
         /// </description></item>
         /// </list>
         /// <para>
-        /// The geometry doesn't rely on <see cref="TextureRenderingOptions.Origin"/>, so it looks the same on every
-        /// backend. With partial opacity, the overlapping caps blend twice.
+        /// Unrotated segments are drawn as plain integer rectangles, so the engines can snap them to whole physical pixels.
+        /// Rotated segments keep their sub-pixel position: their <see cref="TextureRenderingOptions.Destination"/> is anchored
+        /// at a whole pixel and <see cref="TextureRenderingOptions.Origin"/> (in texels) carries the fractional rest, so
+        /// consecutive segments meet exactly at their shared point. A rounded-up length is split evenly between both caps.
         /// </para>
+        /// <para>With partial opacity, the overlapping caps blend twice.</para>
         /// </remarks>
         public static void DrawPolyline(this IRenderContext context, Vector2 offset, ReadOnlySpan<Vector2> points, Color color, float thickness = 1f)
         {
@@ -221,17 +224,38 @@ namespace Icy.Rendering
             if (length <= 0)
                 return;
 
-            // The rectangle rotates around its top-left corner; its local Y axis then points along the normal.
             Vector2 direction = delta / length;
-            Vector2 normal = new(-direction.Y, direction.X);
             float half = thickness / 2;
-            Vector2 corner = from - (direction * half) - (normal * half);
-            var rect = new Rectangle(
-                (int)MathF.Round(corner.X),
-                (int)MathF.Round(corner.Y),
-                (int)MathF.Round(length + thickness),
-                Math.Max(1, (int)MathF.Round(thickness)));
-            context.Draw(context.WhiteTexture, new(rect, null, color, MathF.Atan2(direction.Y, direction.X), Vector2.Zero));
+            float rotation = MathF.Atan2(direction.Y, direction.X);
+            if (rotation == 0)
+            {
+                // Unrotated: an integer rectangle the engines can snap to whole physical pixels.
+                Vector2 corner = from - new Vector2(half);
+                var snappable = new Rectangle(
+                    (int)MathF.Round(corner.X),
+                    (int)MathF.Round(corner.Y),
+                    (int)MathF.Round(length + thickness),
+                    Math.Max(1, (int)MathF.Round(thickness)));
+                context.Draw(context.WhiteTexture, new(snappable, null, color));
+                return;
+            }
+
+            // Rotated quads are never snapped, so keep their sub-pixel position: rounding each segment's corner on its own
+            // shifted neighbouring segments apart and left a seam at their shared point. The destination is anchored at a
+            // whole pixel and the origin (in texels, rotated with the quad) carries the fractional rest, putting `from` at
+            // the centerline, with the rounded-up width split evenly between the two caps.
+            int width = (int)MathF.Ceiling(length + thickness);
+            int height = Math.Max(1, (int)MathF.Round(thickness));
+            var anchor = new Vector2(MathF.Round(from.X), MathF.Round(from.Y));
+            Vector2 toFrom = from - anchor;
+            Vector2 localFrom = new((width - length) / 2, height / 2f);
+            Vector2 unrotated = new(
+                (toFrom.X * direction.X) + (toFrom.Y * direction.Y),
+                (toFrom.Y * direction.X) - (toFrom.X * direction.Y));
+            Size textureSize = context.WhiteTexture.Size;
+            Vector2 origin = (localFrom - unrotated) * new Vector2((float)textureSize.Width / width, (float)textureSize.Height / height);
+            var rect = new Rectangle((int)anchor.X, (int)anchor.Y, width, height);
+            context.Draw(context.WhiteTexture, new(rect, null, color, rotation, origin));
         }
 
         /// <summary>
