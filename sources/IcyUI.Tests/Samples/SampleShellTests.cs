@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Configuration;
+using Icy.Input.Devices;
 using Icy.Markup;
 using Icy.SharedSamples;
 using Icy.Tests.Input;
@@ -121,6 +122,58 @@ namespace Icy.Tests.Samples
             Assert.Same(shell.Tree, shell.Canvas.FocusedElement);
         }
 
+        [Fact]
+        public void PageDown_SkipsCategoriesAndWraps()
+        {
+            var shell = Host([Fake("A", "One"), Fake("B", "Two")]);
+
+            Press(shell, Keys.PageDown);
+            Assert.Equal("Two", shell.Tree.SelectedItem!.ToString());
+
+            Press(shell, Keys.PageDown);
+            Assert.Equal("One", shell.Tree.SelectedItem!.ToString());
+        }
+
+        [Fact]
+        public void PageUp_GoesBackAndWrapsToTheLastDemo()
+        {
+            var shell = Host([Fake("A", "One"), Fake("B", "Two"), Fake("B", "Three")]);
+
+            Press(shell, Keys.PageUp);
+            Assert.Equal("Three", shell.Tree.SelectedItem!.ToString());
+
+            Press(shell, Keys.PageUp);
+            Assert.Equal("Two", shell.Tree.SelectedItem!.ToString());
+        }
+
+        [Fact]
+        public void Paging_IntoACollapsedCategory_ExpandsIt()
+        {
+            var shell = Host([Fake("A", "One"), Fake("B", "Two")]);
+            var b = (TreeViewNode)shell.Tree.Items[1];
+            shell.Tree.Collapse(b);
+
+            Press(shell, Keys.PageDown);
+
+            Assert.True(shell.Tree.IsExpanded(b));
+            Assert.Equal("Two", shell.Tree.SelectedItem!.ToString());
+            Assert.Same(built["Two"], ((ScrollViewer)shell.Content.Content!).Content);
+        }
+
+        [Fact]
+        public void Paging_WithNoDemoSelected_StartsFromTheEnds()
+        {
+            var shell = Host([Fake("A", "One"), Fake("A", "Two"), Fake("A", "Three")]);
+
+            shell.Tree.SelectedItem = null;
+            Press(shell, Keys.PageDown);
+            Assert.Equal("One", shell.Tree.SelectedItem!.ToString());
+
+            shell.Tree.SelectedItem = null;
+            Press(shell, Keys.PageUp);
+            Assert.Equal("Three", shell.Tree.SelectedItem!.ToString());
+        }
+
         internal SampleEntry Fake(string category, string name, float height = 100, bool scrollsItself = false) =>
             new(category, name, (_, _) =>
             {
@@ -144,6 +197,12 @@ namespace Icy.Tests.Samples
             canvas.Add(root);
             canvas.Render();
             return new ShellHost(configuration, canvas, input, root);
+        }
+
+        private static void Press(ShellHost shell, Keys key)
+        {
+            Assert.True(shell.Input.Events.RaiseGesture(new KeyGesture(key)));
+            shell.Canvas.Render();
         }
 
         internal sealed record ShellHost(IcyConfiguration Configuration, Canvas Canvas, FakeInputSystem Input, UIElement Root)

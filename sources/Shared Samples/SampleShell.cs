@@ -6,7 +6,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Windows.Input;
 using Icy.Configuration;
+using Icy.Input.Devices;
 using Icy.Rendering.Brushes;
 using Icy.UI;
 using Icy.UI.Controls;
@@ -115,9 +117,39 @@ namespace Icy.SharedSamples
             // Arrows and the D-pad start in the sidebar.
             root.Attached += (_, _) => root.Canvas?.Focus(tree);
 
+            void Step(int delta)
+            {
+                if (leaves.Count == 0)
+                    return;
+
+                int index = tree.SelectedItem is TreeViewNode node ? leaves.IndexOf(node) : -1;
+                int next = index < 0
+                    ? (delta > 0 ? 0 : leaves.Count - 1)
+                    : (index + delta + leaves.Count) % leaves.Count;
+
+                // Selecting reveals the leaf: its category expands and the sidebar scrolls to it.
+                tree.SelectedItem = leaves[next];
+            }
+
+            configuration.Input.Events.RegisterCommand(new ShellCommand(() => Step(1)), new KeyGesture(Keys.PageDown));
+            configuration.Input.Events.RegisterCommand(new ShellCommand(() => Step(-1)), new KeyGesture(Keys.PageUp));
+
             if (leaves.Count > 0)
                 tree.SelectedItem = leaves[0];
             return root;
+        }
+
+        private sealed class ShellCommand(Action execute) : ICommand
+        {
+            public event EventHandler? CanExecuteChanged
+            {
+                add { }
+                remove { }
+            }
+
+            public bool CanExecute(object? parameter) => true;
+
+            public void Execute(object? parameter) => execute();
         }
     }
 }
