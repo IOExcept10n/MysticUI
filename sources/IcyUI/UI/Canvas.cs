@@ -787,6 +787,41 @@ namespace Icy.UI
             return fallback;
         }
 
+        /// <summary>
+        /// Resolves a drag's owner from <paramref name="hit"/>, and when nothing there claims it and the chain belongs to
+        /// an overlay that <see cref="UIElement.PassesUnclaimedInput">passes unclaimed input</see>, from what lies
+        /// beneath that overlay.
+        /// </summary>
+        private UIElement? ResolveDragOwnerFallingThrough(UIElement? hit, in DragInfo drag)
+        {
+            HashSet<UIElement>? passed = null;
+            while (true)
+            {
+                if (ResolveDragOwner(hit, drag) is { } owner)
+                    return owner;
+                if (FallThroughOverlay(hit) is not { } overlay)
+                    return null;
+
+                passed ??= [];
+                passed.Add(overlay);
+                HashSet<UIElement> excluded = passed;
+                hit = HitTest(drag.Start, x => !excluded.Contains(x));
+            }
+        }
+
+        /// <summary>
+        /// Gets the overlay <paramref name="hit"/> belongs to when that overlay passes unclaimed input on; otherwise
+        /// <see langword="null"/>.
+        /// </summary>
+        private UIElement? FallThroughOverlay(UIElement? hit)
+        {
+            UIElement? root = hit;
+            while (root?.Parent is { } parent)
+                root = parent;
+
+            return root is { PassesUnclaimedInput: true } && overlayElements.Contains(root) ? root : null;
+        }
+
         private void OnGestureDragStarted(object? sender, AcceptableEventArgs<DragInfo> e)
         {
             DragInfo drag = e.Data;
@@ -828,7 +863,7 @@ namespace Icy.UI
                 return;
             }
 
-            dragOwner = ResolveDragOwner(hit, drag);
+            dragOwner = ResolveDragOwnerFallingThrough(hit, drag);
             if (dragOwner != null)
             {
                 dragOwner.OnDragStarted(drag.Start);
@@ -964,10 +999,24 @@ namespace Icy.UI
             // Stop at the first element that actually consumes the scroll (see UIElement.OnScroll's remarks) -
             // otherwise a scrollable region nested inside another scrollable region also scrolled every ancestor
             // around it, since every one of them received the same wheel/swipe event.
-            foreach (UIElement element in SelfAndAncestors(hoveredElement))
+            UIElement? hit = hoveredElement;
+            HashSet<UIElement>? passed = null;
+            while (true)
             {
-                if (element.OnScroll(e.Data))
-                    break;
+                foreach (UIElement element in SelfAndAncestors(hit))
+                {
+                    if (element.OnScroll(e.Data))
+                        return;
+                }
+
+                // Nothing took it: an overlay that passes unclaimed input on lets the elements beneath it have a go.
+                if (FallThroughOverlay(hit) is not { } overlay)
+                    return;
+
+                passed ??= [];
+                passed.Add(overlay);
+                HashSet<UIElement> excluded = passed;
+                hit = HitTest(Configuration.Input.Mouse.MouseInfo.Position, x => !excluded.Contains(x));
             }
         }
 

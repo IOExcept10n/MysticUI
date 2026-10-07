@@ -66,6 +66,7 @@ namespace Icy.UI
         private Transform2D inverseLayoutTransform;
         private bool isVisible = true;
         private bool isHitTestVisible = true;
+        private bool passesUnclaimedInput;
         private Rectangle? lastContainerBounds;
         private float layerIndex;
         private Vector2 layoutOffset;
@@ -381,6 +382,33 @@ namespace Icy.UI
         {
             get => isHitTestVisible && IsEnabled;
             set => SetProperty(ref isHitTestVisible, value);
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether a wheel scroll or a drag that nothing in this overlay takes falls
+        /// through to the elements beneath it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Only consulted on the root of a <see cref="UI.Canvas.Overlays">canvas overlay</see>. When a wheel scroll
+        /// reaches no element of the overlay that consumes it (see <see cref="OnScroll"/>), or a starting drag finds no
+        /// element of the overlay that claims it (see <see cref="GetDragAxes(in DragClaimContext)"/>), the canvas
+        /// hit-tests again below the overlay and routes the input there.
+        /// </para>
+        /// <para>
+        /// Hover, taps, clicks, drag-and-drop sources and focus never fall through. <see langword="false"/> by default,
+        /// so an ordinary overlay, such as a modal dialog's backdrop, keeps blocking the page beneath it. Tools use it
+        /// for a layer that takes some gestures but should let the page scroll, like the design-time editor's capture
+        /// layer.
+        /// </para>
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(false)]
+        [RegisterReference]
+        public bool PassesUnclaimedInput
+        {
+            get => passesUnclaimedInput;
+            set => SetProperty(ref passesUnclaimedInput, value);
         }
 
         /// <summary>
