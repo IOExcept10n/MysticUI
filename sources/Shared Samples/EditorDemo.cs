@@ -56,7 +56,8 @@ namespace Icy.SharedSamples
             """;
 
         /// <summary>
-        /// Builds the demo: the tracked page, an "Edit this page" toggle, a Save button and a status line.
+        /// Builds the demo: the tracked page, an "Edit this page" toggle that attaches an editor scoped to the page, a Save
+        /// button and a status line.
         /// </summary>
         /// <param name="configuration">The host's configuration.</param>
         /// <param name="fontFamily">The font family to use.</param>
@@ -109,7 +110,15 @@ namespace Icy.SharedSamples
                 if (root.Canvas is not { } canvas)
                     return;
 
-                frame = EditorFrame.Attach(canvas, session);
+                // A canvas takes one editor; in the samples shell, that may be the shell's own.
+                if (EditorSession.FindAttached(canvas) != null)
+                {
+                    status.Text = "The shell's editor is on; press F4 to stop it.";
+                    return;
+                }
+
+                // Scoped to the page, so this demo's own buttons stay clickable while editing.
+                frame = EditorFrame.Attach(canvas, session, page);
                 editLabel.Text = "Stop editing";
             });
             save.Command = new DemoCommand(() =>
