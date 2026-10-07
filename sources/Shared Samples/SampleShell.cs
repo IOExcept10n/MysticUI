@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using Icy.Configuration;
+using Icy.Design.Editor;
 using Icy.Input.Devices;
 using Icy.Rendering.Brushes;
 using Icy.UI;
@@ -27,6 +28,10 @@ namespace Icy.SharedSamples
     /// <item><description>
     /// The shared design session attaches before any demo is built, so every demo page is tracked, whatever order you
     /// open them in.
+    /// </description></item>
+    /// <item><description>
+    /// The sidebar's footer button (or F4) toggles an editor scoped to the demo area: the sidebar keeps working with the
+    /// pointer, and the editor stays on across demos.
     /// </description></item>
     /// </list>
     /// </remarks>
@@ -78,11 +83,17 @@ namespace Icy.SharedSamples
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
             };
+            EditorFrame? editor = null;
             var cache = new Dictionary<SampleEntry, UIElement>();
             tree.SelectionChanged += (_, _) =>
             {
                 if (tree.SelectedItem is TreeViewNode { Tag: SampleEntry entry })
+                {
                     content.Content = GetOrBuild(entry);
+
+                    // The editor stays on across demos; a selection on the page that left would act on nothing visible.
+                    editor?.Session.Clear();
+                }
             };
 
             UIElement GetOrBuild(SampleEntry entry)
@@ -106,9 +117,33 @@ namespace Icy.SharedSamples
                 return shown;
             }
 
+            var editLabel = new TextBlock { Text = "Edit demo (F4)" };
+            var editButton = new Button
+            {
+                Content = editLabel,
+                Padding = new Thickness(12, 6),
+                Margin = new Thickness(6),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            var editStatus = new TextBlock { Margin = new Thickness(6, 0, 6, 6) };
+            var footer = new StackPanel { Orientation = Orientation.Vertical };
+            footer.Children.Add(editButton);
+            footer.Children.Add(editStatus);
+            Grid.SetRow(footer, 1);
+
+            var sidebar = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+            };
+            sidebar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+            sidebar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            sidebar.Children.Add(tree);
+            sidebar.Children.Add(footer);
+
             var root = new SplitPane
             {
-                First = tree,
+                First = sidebar,
                 Second = content,
                 SplitterPosition = 0.18f,
                 MinFirstSize = 180,
@@ -136,6 +171,34 @@ namespace Icy.SharedSamples
 
             configuration.Input.Events.RegisterCommand(new ShellCommand(() => Step(1)), new KeyGesture(Keys.PageDown));
             configuration.Input.Events.RegisterCommand(new ShellCommand(() => Step(-1)), new KeyGesture(Keys.PageUp));
+
+            // The shell's own editor works on whichever demo is shown; the sidebar stays usable with the pointer.
+            void ToggleEditor()
+            {
+                if (editor != null)
+                {
+                    editor.Dispose();
+                    editor = null;
+                    editLabel.Text = "Edit demo (F4)";
+                    editStatus.Text = string.Empty;
+                    return;
+                }
+
+                if (root.Canvas is not { } canvas)
+                    return;
+                if (EditorSession.FindAttached(canvas) != null)
+                {
+                    editStatus.Text = "The Editor demo's editor is on.";
+                    return;
+                }
+
+                editor = EditorFrame.Attach(canvas, DesignDemo.SessionFor(configuration), content);
+                editLabel.Text = "Stop editing (F4)";
+                editStatus.Text = string.Empty;
+            }
+
+            editButton.Command = new ShellCommand(ToggleEditor);
+            configuration.Input.Events.RegisterCommand(new ShellCommand(ToggleEditor), new KeyGesture(Keys.F4));
 
             if (leaves.Count > 0)
                 tree.SelectedItem = leaves[0];

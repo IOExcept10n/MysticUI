@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using Icy.Configuration;
+using Icy.Design.Editor;
 using Icy.Input.Devices;
 using Icy.Markup;
 using Icy.SharedSamples;
@@ -230,6 +231,73 @@ namespace Icy.Tests.Samples
             AssertRowsShowTheirItems(shell.Tree);
         }
 
+        [Fact]
+        public void F4_TogglesAnEditorScopedToTheContentArea()
+        {
+            var shell = Host([Fake("A", "One")]);
+
+            Press(shell, Keys.F4);
+            Assert.Same(shell.Content, EditorSession.FindAttached(shell.Canvas)?.Scope);
+
+            Press(shell, Keys.F4);
+            Assert.Null(EditorSession.FindAttached(shell.Canvas));
+            Assert.Empty(shell.Canvas.Overlays);
+        }
+
+        [Fact]
+        public void TheFooterButton_TogglesTheEditorToo()
+        {
+            var shell = Host([Fake("A", "One")]);
+
+            shell.EditButton.Command!.Execute(null);
+            Assert.NotNull(EditorSession.FindAttached(shell.Canvas));
+
+            shell.EditButton.Command!.Execute(null);
+            Assert.Null(EditorSession.FindAttached(shell.Canvas));
+        }
+
+        [Fact]
+        public void WhileEditing_TheSidebarSwitchesDemos_AndTheContentSelects()
+        {
+            var shell = Host([Tracked("A", "One"), Tracked("A", "Two")]);
+            Press(shell, Keys.F4);
+            Settle(shell);
+            EditorSession session = EditorSession.FindAttached(shell.Canvas)!;
+
+            shell.Tap(built["One"]);
+            Assert.Same(built["One"], session.Selection?.Instance);
+
+            // Rows: 0 = category "A", 1 = "One", 2 = "Two".
+            shell.Tap(shell.Tree.List.Realized[2]);
+            Settle(shell);
+
+            Assert.Equal("Two", shell.Tree.SelectedItem!.ToString());
+            Assert.Null(session.Selection);
+            Assert.Same(session, EditorSession.FindAttached(shell.Canvas));
+        }
+
+        [Fact]
+        public void F4_Refuses_WhileTheEditorDemoIsEditing()
+        {
+            SampleEntry editor = SampleCatalog.All.Single(e => e.Name == "Editor");
+            var shell = Host([editor]);
+            shell.Root.EnumerateVisualSubtree().OfType<Button>().First(b => b.Content is TextBlock { Text: "Edit this page" }).Command!.Execute(null);
+            EditorSession demoSession = EditorSession.FindAttached(shell.Canvas)!;
+
+            Press(shell, Keys.F4);
+
+            Assert.Same(demoSession, EditorSession.FindAttached(shell.Canvas));
+            Assert.Contains(shell.Root.EnumerateVisualSubtree().OfType<TextBlock>(), t => t.Text == "The Editor demo's editor is on.");
+        }
+
+        internal SampleEntry Tracked(string category, string name) =>
+            new(category, name, (configuration, _) =>
+            {
+                UIElement element = new MarkupLoader(configuration).Load("<Border Width=\"200\" Height=\"100\" HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\"/>", name + ".xml");
+                built[name] = element;
+                return element;
+            });
+
         internal SampleEntry Fake(string category, string name, float height = 100, bool scrollsItself = false) =>
             new(category, name, (_, _) =>
             {
@@ -265,6 +333,12 @@ namespace Icy.Tests.Samples
             }
         }
 
+        private static void Settle(ShellHost shell)
+        {
+            for (int i = 0; i < 3; i++)
+                shell.Canvas.Render();
+        }
+
         private static void Press(ShellHost shell, Keys key)
         {
             Assert.True(shell.Input.Events.RaiseGesture(new KeyGesture(key)));
@@ -273,7 +347,17 @@ namespace Icy.Tests.Samples
 
         internal sealed record ShellHost(IcyConfiguration Configuration, Canvas Canvas, FakeInputSystem Input, UIElement Root)
         {
-            public TreeView Tree => (TreeView)((SplitPane)Root).First!;
+            public TreeView Tree => ((SplitPane)Root).First!.EnumerateVisualSubtree().OfType<TreeView>().First();
+
+            public Button EditButton => ((SplitPane)Root).First!.EnumerateVisualSubtree().OfType<Button>()
+                .First(b => b.Content is TextBlock { Text: var text }
+                    && (text.StartsWith("Edit demo", StringComparison.Ordinal) || text.StartsWith("Stop editing", StringComparison.Ordinal)));
+
+            public void Tap(UIElement element, int x = 5, int y = 5)
+            {
+                Input.Events.Touch.RaiseTap(new Icy.Input.Events.TouchInfo(element.PointToScreen(new System.Numerics.Vector2(x, y)), 1));
+                Canvas.Render();
+            }
 
             public ContentControl Content => (ContentControl)((SplitPane)Root).Second!;
 
