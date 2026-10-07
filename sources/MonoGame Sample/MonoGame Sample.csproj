@@ -46,21 +46,14 @@
     <Compile Include="..\Shared Samples\DesignDemo.cs" Link="Samples\DesignDemo.cs" />
     <Compile Include="..\Shared Samples\EditorDemo.cs" Link="Samples\EditorDemo.cs" />
     <Compile Include="..\Shared Samples\TreeViewDemo.cs" Link="Samples\TreeViewDemo.cs" />
+    <Compile Include="..\Shared Samples\SampleCatalog.cs" Link="Samples\SampleCatalog.cs" />
+    <Compile Include="..\Shared Samples\SampleShell.cs" Link="Samples\SampleShell.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Resources\Fonts\Airfool.otf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Resources\Themes\AccentTheme.xml">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Resources\Fonts\Inter-Italic-VariableFont_opsz,wght.ttf">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Resources\Fonts\My own test Arial font.fnt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Resources\Fonts\My own test Arial font_0.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
