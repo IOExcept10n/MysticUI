@@ -95,6 +95,8 @@ namespace Icy.SharedSamples
                         : new ScrollViewer
                         {
                             Content = demo,
+                            // A long line of text would otherwise widen the whole page; demos scroll vertically only.
+                            HorizontalScrollMode = ScrollMode.Disabled,
                             HorizontalAlignment = HorizontalAlignment.Stretch,
                             VerticalAlignment = VerticalAlignment.Stretch,
                         };

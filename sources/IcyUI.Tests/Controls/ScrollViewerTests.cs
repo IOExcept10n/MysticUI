@@ -208,6 +208,82 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void ScrollModes_DefaultToEnabled()
+        {
+            var scrollViewer = new ScrollViewer();
+
+            Assert.Equal(ScrollMode.Enabled, scrollViewer.HorizontalScrollMode);
+            Assert.Equal(ScrollMode.Enabled, scrollViewer.VerticalScrollMode);
+        }
+
+        [Fact]
+        public void HorizontalScrollModeDisabled_LaysWideContentOutAtTheViewportWidth_AndNeverScrollsSideways()
+        {
+            Border content = Page();
+            var scrollViewer = new TestScrollViewer { Width = 100, Height = 100, Content = content, HorizontalScrollMode = ScrollMode.Disabled };
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(100, content.ActualBounds.Width);
+            Assert.Equal(500, content.ActualBounds.Height);
+            Assert.Equal(100, scrollViewer.ExtentWidth);
+
+            scrollViewer.HorizontalOffset = 50;
+            Assert.Equal(0, scrollViewer.HorizontalOffset);
+            Assert.False(scrollViewer.RaiseScroll(new ScrollInfo(-20, Orientation.Horizontal)));
+            Assert.Equal(0, scrollViewer.HorizontalOffset);
+
+            // The other axis still scrolls.
+            Assert.True(scrollViewer.RaiseScroll(new ScrollInfo(-20, Orientation.Vertical)));
+        }
+
+        [Fact]
+        public void VerticalScrollModeDisabled_LaysTallContentOutAtTheViewportHeight_AndNeverScrollsVertically()
+        {
+            Border content = Page();
+            var scrollViewer = new TestScrollViewer { Width = 100, Height = 100, Content = content, VerticalScrollMode = ScrollMode.Disabled };
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(100, content.ActualBounds.Height);
+            Assert.Equal(100, scrollViewer.ExtentHeight);
+
+            scrollViewer.VerticalOffset = 50;
+            Assert.Equal(0, scrollViewer.VerticalOffset);
+            Assert.False(scrollViewer.RaiseScroll(new ScrollInfo(-20, Orientation.Vertical)));
+        }
+
+        [Fact]
+        public void DisabledAxis_KeepsTheNaturalExtentOfContentSmallerThanTheViewport()
+        {
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = new UIElement { Width = 40, Height = 40 }, HorizontalScrollMode = ScrollMode.Disabled };
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(40, scrollViewer.ExtentWidth);
+        }
+
+        [Fact]
+        public void ChangingAScrollMode_ReArrangesTheContent()
+        {
+            Border content = Page();
+            var scrollViewer = new ScrollViewer { Width = 100, Height = 100, Content = content };
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+            scrollViewer.HorizontalOffset = 50;
+
+            scrollViewer.HorizontalScrollMode = ScrollMode.Disabled;
+            scrollViewer.Arrange(new Rectangle(0, 0, 100, 100));
+
+            Assert.Equal(100, content.ActualBounds.Width);
+            Assert.Equal(0, scrollViewer.HorizontalOffset);
+        }
+
+        /// <summary>A page-like content: stretched, with no size of its own, around a 500 x 500 child.</summary>
+        private static Border Page() => new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Child = new UIElement { Width = 500, Height = 500 },
+        };
+
+        [Fact]
         public void ContentIsNull_ExtentIsZero()
         {
             var scrollViewer = new ScrollViewer { Width = 100, Height = 100 };

@@ -67,6 +67,23 @@ namespace Icy.Tests.Samples
         }
 
         [Fact]
+        public void AWideDemo_IsLaidOutWithinTheContentArea_AndScrollsOnlyVertically()
+        {
+            Border? page = null;
+            var wide = new SampleEntry("A", "Wide", (_, _) => page = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Child = new UIElement { Width = 3000, Height = 50 },
+            });
+            var shell = Host([wide]);
+
+            var viewer = Assert.IsType<ScrollViewer>(shell.Content.Content);
+            Assert.Equal(ScrollMode.Disabled, viewer.HorizontalScrollMode);
+            Assert.Equal(ScrollMode.Enabled, viewer.VerticalScrollMode);
+            Assert.Equal(shell.Content.ActualBounds.Width, page!.ActualBounds.Width);
+        }
+
+        [Fact]
         public void ADemoThatScrollsItself_IsShownUnwrapped()
         {
             var shell = Host([Fake("A", "One", scrollsItself: true)]);

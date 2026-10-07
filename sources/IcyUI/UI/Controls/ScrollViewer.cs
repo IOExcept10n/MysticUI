@@ -30,11 +30,13 @@ namespace Icy.UI.Controls
         private Point lastDragScreenPoint;
         private bool swallowTap;
         private float horizontalOffset;
+        private ScrollMode horizontalScrollMode;
         private Vector2? panAnchor;
         private DragAxes panAxes;
         private PanningMode panningMode = PanningMode.Auto;
         private DragAxes pendingClaim;
         private float verticalOffset;
+        private ScrollMode verticalScrollMode;
         private IVirtualizingScrollInfo? subscribedVirtualizingContent;
 
         /// <summary>
@@ -73,14 +75,36 @@ namespace Icy.UI.Controls
         /// currently visible - or, when <see cref="ContentControl.Content"/> implements
         /// <see cref="IVirtualizingScrollInfo"/>, its own reported estimate instead of a full measure.
         /// </summary>
-        public float ExtentHeight => Content is IVirtualizingScrollInfo virtualizing ? virtualizing.ExtentHeight : Content?.Measure().Height ?? 0;
+        /// <remarks>
+        /// While <see cref="VerticalScrollMode"/> is <see cref="ScrollMode.Disabled"/>, the extent is capped at
+        /// <see cref="ViewportHeight"/>, so there is nothing to scroll vertically.
+        /// </remarks>
+        public float ExtentHeight
+        {
+            get
+            {
+                float natural = Content is IVirtualizingScrollInfo virtualizing ? virtualizing.ExtentHeight : Content?.Measure().Height ?? 0;
+                return verticalScrollMode == ScrollMode.Disabled ? Math.Min(natural, ViewportHeight) : natural;
+            }
+        }
 
         /// <summary>
         /// Gets <see cref="ContentControl.Content"/>'s full natural width, regardless of how much of it is
         /// currently visible - or, when <see cref="ContentControl.Content"/> implements
         /// <see cref="IVirtualizingScrollInfo"/>, its own reported estimate instead of a full measure.
         /// </summary>
-        public float ExtentWidth => Content is IVirtualizingScrollInfo virtualizing ? virtualizing.ExtentWidth : Content?.Measure().Width ?? 0;
+        /// <remarks>
+        /// While <see cref="HorizontalScrollMode"/> is <see cref="ScrollMode.Disabled"/>, the extent is capped at
+        /// <see cref="ViewportWidth"/>, so there is nothing to scroll horizontally.
+        /// </remarks>
+        public float ExtentWidth
+        {
+            get
+            {
+                float natural = Content is IVirtualizingScrollInfo virtualizing ? virtualizing.ExtentWidth : Content?.Measure().Width ?? 0;
+                return horizontalScrollMode == ScrollMode.Disabled ? Math.Min(natural, ViewportWidth) : natural;
+            }
+        }
 
         /// <summary>
         /// Gets or sets how far <see cref="ContentControl.Content"/> is scrolled horizontally, clamped to
@@ -100,6 +124,36 @@ namespace Icy.UI.Controls
                     UpdateContentOffset();
                     ScrollChanged?.Invoke(this, EventArgs.Empty);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether <see cref="ContentControl.Content"/> scrolls horizontally. Defaults to
+        /// <see cref="ScrollMode.Enabled"/>.
+        /// </summary>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>
+        /// <see cref="ScrollMode.Enabled"/>: the content keeps its natural width, which can be wider than the viewport.
+        /// </description></item>
+        /// <item><description>
+        /// <see cref="ScrollMode.Disabled"/>: the content is laid out at most as wide as the viewport, and
+        /// <see cref="HorizontalOffset"/> stays at <c>0</c>. Use it for pages that should only scroll vertically, so a
+        /// long line of text can't widen the whole page.
+        /// </description></item>
+        /// </list>
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(ScrollMode.Enabled)]
+        [RegisterReference]
+        [AffectsArrange]
+        public ScrollMode HorizontalScrollMode
+        {
+            get => horizontalScrollMode;
+            set
+            {
+                if (SetProperty(ref horizontalScrollMode, value))
+                    InvalidateArrange();
             }
         }
 
@@ -173,6 +227,36 @@ namespace Icy.UI.Controls
                     UpdateContentOffset();
                     ScrollChanged?.Invoke(this, EventArgs.Empty);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether <see cref="ContentControl.Content"/> scrolls vertically. Defaults to
+        /// <see cref="ScrollMode.Enabled"/>.
+        /// </summary>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>
+        /// <see cref="ScrollMode.Enabled"/>: the content keeps its natural height, which can be taller than the viewport.
+        /// </description></item>
+        /// <item><description>
+        /// <see cref="ScrollMode.Disabled"/>: the content is laid out at most as tall as the viewport, and
+        /// <see cref="VerticalOffset"/> stays at <c>0</c>. Use it for content that should only scroll
+        /// horizontally.
+        /// </description></item>
+        /// </list>
+        /// </remarks>
+        [Category("Behavior")]
+        [DefaultValue(ScrollMode.Enabled)]
+        [RegisterReference]
+        [AffectsArrange]
+        public ScrollMode VerticalScrollMode
+        {
+            get => verticalScrollMode;
+            set
+            {
+                if (SetProperty(ref verticalScrollMode, value))
+                    InvalidateArrange();
             }
         }
 
@@ -373,8 +457,8 @@ namespace Icy.UI.Controls
             Rectangle chromeRect = new(
                 ActualBounds.X,
                 ActualBounds.Y,
-                Math.Max(ActualBounds.Width, contentDesired.Width + inset.Width),
-                Math.Max(ActualBounds.Height, contentDesired.Height + inset.Height));
+                horizontalScrollMode == ScrollMode.Disabled ? ActualBounds.Width : Math.Max(ActualBounds.Width, contentDesired.Width + inset.Width),
+                verticalScrollMode == ScrollMode.Disabled ? ActualBounds.Height : Math.Max(ActualBounds.Height, contentDesired.Height + inset.Height));
 
             Chrome.InvalidateArrange();
             Chrome.Arrange(chromeRect);
