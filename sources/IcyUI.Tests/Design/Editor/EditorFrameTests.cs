@@ -21,7 +21,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void Attach_AddsTheTwoLayersOnTop()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
 
             Assert.Same(frame.CaptureLayer, host.Canvas.Overlays[^2]);
@@ -33,7 +33,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void EditMode_CapturesThePointerEverywhere()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             host.Input.Mouse.MouseInfo = new MouseInfo(host.At(host.Named<Button>("ok"), 5, 5));
             host.Render();
@@ -45,7 +45,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void InteractMode_LetsTheClickReachThePage()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var ok = host.Named<Button>("ok");
             bool clicked = false;
@@ -60,7 +60,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void TheToolbar_ShowsTheModeTheSelectionAndTheBlockedReason()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
 
             frame.Session.Select(host.Named<Border>("box"));
@@ -76,7 +76,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void TheToolbar_SaysSoWhenNothingOnTheCanvasIsTracked()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             var empty = new Canvas(host.Configuration) { IsInputEnabled = true, IsVisible = true };
             empty.Add(new Border { Width = 50, Height = 50 });
 
@@ -88,7 +88,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void TheFrame_ReturnsOnTopOfALaterPopup()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var popup = new Border { Width = 50, Height = 50 };
             host.Canvas.AddOverlay(popup);
@@ -103,12 +103,10 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void Dispose_RemovesTheLayersAndTheBindings()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
 
-            // Detach in reverse order of attaching: each session restores the navigation flag it found.
             frame.Dispose();
-            host.Session.Dispose();
 
             Assert.DoesNotContain(frame.CaptureLayer, host.Canvas.Overlays);
             Assert.DoesNotContain(frame.Toolbar, host.Canvas.Overlays);
@@ -119,7 +117,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void ToolbarPlacement_MovesTheToolbar()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
 
             frame.ToolbarPlacement = EditorToolbarPlacement.BottomRight;

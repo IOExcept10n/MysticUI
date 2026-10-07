@@ -1,6 +1,8 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.Drawing;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using Icy.Design.Editor.Placement;
 using Icy.Design.Syntax;
 using Icy.Markup;
@@ -24,9 +26,11 @@ namespace Icy.Design.Editor
     /// </para>
     /// <para>The visual frame (<c>EditorFrame</c>) is built on top of a session. Tools such as an outline panel can share the
     /// same session, and therefore the same selection.</para>
+    /// <para>A canvas takes one session at a time; see <see cref="FindAttached"/>.</para>
     /// </remarks>
     public sealed class EditorSession : IDisposable
     {
+        private static readonly ConditionalWeakTable<Canvas, EditorSession> AttachedSessions = new();
         private readonly HashSet<DesignDocument> watched = [];
         private EditorMode mode = EditorMode.Edit;
         private EditorSelection? selection;
@@ -35,10 +39,11 @@ namespace Icy.Design.Editor
         private bool blocked;
         private bool disposed;
 
-        private EditorSession(DesignSession design, Canvas canvas)
+        private EditorSession(DesignSession design, Canvas canvas, UIElement? scope)
         {
             Design = design;
             Canvas = canvas;
+            Scope = scope;
             Commands = new EditorCommands(this);
             Bindings = new EditorBindings(Commands);
         }
@@ -67,6 +72,21 @@ namespace Icy.Design.Editor
         /// Gets the canvas this editor works on.
         /// </summary>
         public Canvas Canvas { get; }
+
+        /// <summary>
+        /// Gets the subtree this editor is limited to, or <see langword="null"/> when it edits the whole canvas.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The editor sees only the scope's visible area: its bounds, clipped by every ancestor that
+        /// <see cref="UIElement.ClipToBounds">clips</see> and by the canvas surface. <see cref="HitTest"/> finds nothing
+        /// outside that area, and <see cref="Select(UIElement)"/> refuses elements that are neither in the scope nor in a
+        /// canvas overlay (the page's popups and dialogs).
+        /// </para>
+        /// <para>The keyboard is not scoped: in <see cref="EditorMode.Edit"/> the editor's key bindings stay canvas-wide.</para>
+        /// <para>The scope is fixed for the session's lifetime; dispose the session and attach a new one to change it.</para>
+        /// </remarks>
+        public UIElement? Scope { get; }
 
         /// <summary>
         /// Gets or sets the editor's mode.
@@ -159,30 +179,74 @@ namespace Icy.Design.Editor
         internal ResizeGesture? ActiveResize { get; private set; }
 
         /// <summary>
-        /// Attaches an editor to <paramref name="canvas"/>, in <see cref="EditorMode.Edit"/>.
+        /// Attaches an editor to the whole of <paramref name="canvas"/>, in <see cref="EditorMode.Edit"/>.
         /// </summary>
         /// <param name="design">The design session tracking the canvas's pages.</param>
         /// <param name="canvas">The canvas to edit.</param>
         /// <returns>The session; dispose it to detach.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="design"/> or <paramref name="canvas"/> is <see langword="null"/>.</exception>
-        public static EditorSession Attach(DesignSession design, Canvas canvas)
+        /// <exception cref="InvalidOperationException">Another session is attached to <paramref name="canvas"/>.</exception>
+        public static EditorSession Attach(DesignSession design, Canvas canvas) => Attach(design, canvas, null);
+
+        /// <summary>
+        /// Attaches an editor to <paramref name="canvas"/>, limited to <paramref name="scope"/>, in <see cref="EditorMode.Edit"/>.
+        /// </summary>
+        /// <param name="design">The design session tracking the canvas's pages.</param>
+        /// <param name="canvas">The canvas to edit.</param>
+        /// <param name="scope">The subtree to edit (see <see cref="Scope"/>), or <see langword="null"/> for the whole canvas.</param>
+        /// <returns>The session; dispose it to detach.</returns>
+        /// <remarks>
+        /// A canvas takes one session at a time: two would both bind the editor's keys and fight over the focus and
+        /// navigation state. Check <see cref="FindAttached"/> first when another tool might hold the canvas.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="design"/> or <paramref name="canvas"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="scope"/> is not on <paramref name="canvas"/>.</exception>
+        /// <exception cref="InvalidOperationException">Another session is attached to <paramref name="canvas"/>.</exception>
+        public static EditorSession Attach(DesignSession design, Canvas canvas, UIElement? scope)
         {
             ArgumentNullException.ThrowIfNull(design);
             ArgumentNullException.ThrowIfNull(canvas);
+            if (scope != null && !ReferenceEquals(scope.Canvas, canvas))
+                throw new ArgumentException("The scope must be on the canvas the editor attaches to.", nameof(scope));
 
-            var session = new EditorSession(design, canvas);
+            var session = new EditorSession(design, canvas, scope);
+            if (!AttachedSessions.TryAdd(canvas, session))
+                throw new InvalidOperationException("Another editor session is attached to this canvas; dispose it first.");
+
             session.EnterEdit();
             session.Bindings.Register(design.Configuration.Input.Events);
             return session;
         }
 
         /// <summary>
+        /// Finds the editor session attached to <paramref name="canvas"/>.
+        /// </summary>
+        /// <param name="canvas">The canvas.</param>
+        /// <returns>The attached session, or <see langword="null"/> when there's none.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="canvas"/> is <see langword="null"/>.</exception>
+        public static EditorSession? FindAttached(Canvas canvas)
+        {
+            ArgumentNullException.ThrowIfNull(canvas);
+            return AttachedSessions.TryGetValue(canvas, out EditorSession? session) ? session : null;
+        }
+
+        /// <summary>
         /// Finds the element under a screen point the way the editor sees the canvas: past the editor's own layers, but
-        /// including the page's popups and dialogs.
+        /// including the page's popups and dialogs, and only inside the <see cref="Scope"/>'s visible area.
         /// </summary>
         /// <param name="screenPoint">A point in screen space, where pointer positions arrive.</param>
         /// <returns>The topmost hit element, or <see langword="null"/>.</returns>
-        public UIElement? HitTest(Point screenPoint) => Canvas.HitTest(screenPoint, overlay => !OwnLayers.Contains(overlay));
+        public UIElement? HitTest(Point screenPoint)
+        {
+            if (Scope != null)
+            {
+                Vector2 surface = AdornerGeometry.ScreenToSurface(screenPoint, Canvas.EffectiveScale);
+                if (!Region().Contains((int)MathF.Floor(surface.X), (int)MathF.Floor(surface.Y)))
+                    return null;
+            }
+
+            return Canvas.HitTest(screenPoint, overlay => !OwnLayers.Contains(overlay));
+        }
 
         /// <summary>
         /// Finds the element a click on <paramref name="hit"/> selects: the nearest element, from <paramref name="hit"/>
@@ -211,12 +275,17 @@ namespace Icy.Design.Editor
         /// Selects <paramref name="instance"/>.
         /// </summary>
         /// <param name="instance">A live element.</param>
-        /// <returns><see langword="false"/>, changing nothing, when no tracked document can edit it.</returns>
+        /// <returns>
+        /// <see langword="false"/>, changing nothing, when no tracked document can edit it, or when it's outside the
+        /// <see cref="Scope"/> and not in an overlay.
+        /// </returns>
         /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
         public bool Select(UIElement instance)
         {
             ArgumentNullException.ThrowIfNull(instance);
             ThrowIfDisposed();
+            if (!IsInScope(instance))
+                return false;
             if (Design.FindDocument(instance, out NodeId node) is not { } document || document.GetNode(node) is not { } element || !document.IsEditable(element))
                 return false;
 
@@ -225,19 +294,21 @@ namespace Icy.Design.Editor
         }
 
         /// <summary>
-        /// Selects a document's element, picking its first live copy on this canvas.
+        /// Selects a document's element, picking its first live copy in the editor's scope on this canvas.
         /// </summary>
         /// <param name="document">The document.</param>
         /// <param name="node">The element's node.</param>
         /// <exception cref="ArgumentNullException"><paramref name="document"/> is <see langword="null"/>.</exception>
-        /// <exception cref="ArgumentException">The element has no live copy on this canvas, or can't be edited.</exception>
+        /// <exception cref="ArgumentException">
+        /// The element has no live copy in the editor's <see cref="Scope"/> on this canvas, or can't be edited.
+        /// </exception>
         /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
         public void Select(DesignDocument document, NodeId node)
         {
             ArgumentNullException.ThrowIfNull(document);
             ThrowIfDisposed();
-            UIElement instance = document.GetObjects(node).OfType<UIElement>().FirstOrDefault(x => ReferenceEquals(x.Canvas, Canvas))
-                ?? throw new ArgumentException($"Element {node} has no live copy on this canvas.", nameof(node));
+            UIElement instance = document.GetObjects(node).OfType<UIElement>().FirstOrDefault(x => ReferenceEquals(x.Canvas, Canvas) && IsInScope(x))
+                ?? throw new ArgumentException($"Element {node} has no live copy in this editor's scope.", nameof(node));
             if (!Select(instance))
                 throw new ArgumentException($"Element {node} can't be edited.", nameof(node));
         }
@@ -355,6 +426,8 @@ namespace Icy.Design.Editor
                 Unwatch(document);
             watched.Clear();
             Bindings.Unregister();
+            if (AttachedSessions.TryGetValue(Canvas, out EditorSession? attached) && ReferenceEquals(attached, this))
+                AttachedSessions.Remove(Canvas);
             disposed = true;
         }
 
@@ -406,6 +479,54 @@ namespace Icy.Design.Editor
         }
 
         internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
+
+        /// <summary>
+        /// Gets the <see cref="Scope"/>'s visible area in surface units: its bounds clipped by every clipping ancestor and
+        /// by the canvas surface. Without a scope, the whole surface; empty while the scope is off the canvas or hidden.
+        /// </summary>
+        internal Rectangle Region()
+        {
+            var surface = new Rectangle(Point.Empty, Canvas.SurfaceSize);
+            if (Scope is not { } scope)
+                return surface;
+            if (!ReferenceEquals(scope.Canvas, Canvas))
+                return Rectangle.Empty;
+
+            for (UIElement? current = scope; current != null; current = current.Parent)
+            {
+                if (!current.IsVisible)
+                    return Rectangle.Empty;
+            }
+
+            Rectangle region = Rectangle.Intersect(surface, Rectangle.Round(AdornerGeometry.SurfaceBounds(scope)));
+            for (UIElement? ancestor = scope.Parent; ancestor != null; ancestor = ancestor.Parent)
+            {
+                if (ancestor.ClipToBounds)
+                    region = Rectangle.Intersect(region, Rectangle.Round(AdornerGeometry.SurfaceBounds(ancestor)));
+            }
+
+            return region.Width > 0 && region.Height > 0 ? region : Rectangle.Empty;
+        }
+
+        /// <summary>
+        /// Gets whether the editor may select <paramref name="element"/>: it's in the <see cref="Scope"/>, or in one of the
+        /// canvas's overlays (the page's popups and dialogs), or there's no scope.
+        /// </summary>
+        internal bool IsInScope(UIElement element)
+        {
+            if (Scope == null)
+                return true;
+
+            UIElement root = element;
+            for (UIElement? current = element; current != null; current = current.Parent)
+            {
+                if (ReferenceEquals(current, Scope))
+                    return true;
+                root = current;
+            }
+
+            return Canvas.Overlays.Contains(root);
+        }
 
         private static bool IsInside(UIElement element, UIElement ancestor)
         {

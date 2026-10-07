@@ -18,8 +18,7 @@ namespace Icy.Tests.Design.Editor
             for (int i = 0; i < 500; i++)
                 markup.Append("<Border Width=\"4\" Height=\"1\"/>");
             markup.Append("</StackPanel>");
-            using var host = new EditorTestHost(markup.ToString());
-            host.Session.Dispose();
+            using var host = new EditorTestHost(markup.ToString(), attachSession: false);
             host.Input.Mouse.MouseInfo = new MouseInfo(host.At(host.Root, 2, 2));
 
             // Warm up long enough for tiered JIT to settle, and measure the detached canvas on both sides of the editor

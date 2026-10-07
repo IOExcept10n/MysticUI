@@ -26,7 +26,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void ATap_SelectsTheElement_AndATapOnNothingClearsIt()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var ok = host.Named<Button>("ok");
 
@@ -40,7 +40,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void AToolbarClick_DoesntChangeTheSelection()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             frame.Session.Select(host.Named<Border>("a"));
 
@@ -52,7 +52,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void ABodyDrag_MovesTheElement()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var a = host.Named<Border>("a");
             Point from = host.At(a, 50, 10);
@@ -71,7 +71,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void AMiddleButtonDrag_EditsNothing()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var a = host.Named<Border>("a");
             string before = host.Document.Text;
@@ -90,7 +90,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void AHandleDrag_ResizesTheElement()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var a = host.Named<Border>("a");
             frame.Session.Select(a);
@@ -109,7 +109,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void ACancelledDrag_RollsTheResizeBack()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var a = host.Named<Border>("a");
             frame.Session.Select(a);
@@ -127,7 +127,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void TheScene_ShowsTheSelectionAndItsHandles()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             frame.Session.Select(host.Named<Border>("a"));
 
@@ -141,7 +141,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void InteractMode_DimsTheSelectionAndHidesTheHandles()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             frame.Session.Select(host.Named<Border>("a"));
             frame.Session.Mode = EditorMode.Interact;
@@ -156,7 +156,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void TheScene_ShowsTheHoverTarget()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             host.Input.Mouse.MouseInfo = new MouseInfo(host.At(host.Named<Border>("b"), 5, 5));
 
@@ -166,7 +166,7 @@ namespace Icy.Tests.Design.Editor
         [Fact]
         public void Rendering_DrawsTheAdorners()
         {
-            using var host = new EditorTestHost(Page);
+            using var host = new EditorTestHost(Page, attachSession: false);
             using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
             var render = (Icy.Tests.Rendering.FakeRenderContext)host.Configuration.RenderContext;
             host.Render();

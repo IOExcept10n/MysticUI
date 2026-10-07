@@ -17,7 +17,9 @@ namespace Icy.Tests.Design.Editor
     /// </summary>
     internal sealed class EditorTestHost : IDisposable
     {
-        public EditorTestHost(string markup)
+        private readonly EditorSession? session;
+
+        public EditorTestHost(string markup, bool attachSession = true)
         {
             Input = new FakeInputSystem();
             Configuration = new IcyConfiguration(Input, new AssetConfiguration(AssetContext.ApplicationContext), new FakeRenderContext(), new ReflectionConfiguration());
@@ -29,7 +31,8 @@ namespace Icy.Tests.Design.Editor
             Canvas = new Canvas(Configuration) { IsInputEnabled = true, IsVisible = true };
             Canvas.Add(Root);
             Canvas.Render();
-            Session = EditorSession.Attach(Design, Canvas);
+            if (attachSession)
+                session = EditorSession.Attach(Design, Canvas);
         }
 
         public FakeInputSystem Input { get; }
@@ -44,7 +47,13 @@ namespace Icy.Tests.Design.Editor
 
         public Canvas Canvas { get; }
 
-        public EditorSession Session { get; }
+        public FakeRenderContext RenderContext => (FakeRenderContext)Configuration.RenderContext;
+
+        /// <summary>
+        /// Gets the session the host attached. Hosts built with <c>attachSession: false</c> have none: the test attaches
+        /// its own session or frame, since a canvas takes one session at a time.
+        /// </summary>
+        public EditorSession Session => session ?? throw new InvalidOperationException("This host was built without a session.");
 
         public T Named<T>(string name)
             where T : UIElement =>
@@ -62,7 +71,7 @@ namespace Icy.Tests.Design.Editor
 
         public void Dispose()
         {
-            Session.Dispose();
+            session?.Dispose();
             Design.Dispose();
         }
     }
