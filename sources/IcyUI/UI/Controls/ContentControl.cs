@@ -70,6 +70,9 @@ namespace Icy.UI.Controls
         protected override object? CaptureTemplateState() => Content;
 
         /// <inheritdoc/>
+        protected override UIElement? GetHostedElement(object? state) => state as UIElement;
+
+        /// <inheritdoc/>
         protected override void RestoreTemplateState(object? state)
         {
             var content = (UIElement?)state;

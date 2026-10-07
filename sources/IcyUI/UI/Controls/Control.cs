@@ -288,8 +288,13 @@ namespace Icy.UI.Controls
                 // The old Chrome subtree's {TemplateBinding}s subscribed to this control's PropertyChanged - this
                 // control outlives the orphaned subtree, so without unbinding, the old tree (and every Binding it
                 // created) leaks for this control's whole remaining lifetime and keeps refreshing forever.
+                // Hosted content isn't the template's: its own {Binding}s survive (see GetHostedElement).
+                HashSet<UIElement>? hosted = GetHostedElement(snapshotState)?.EnumerateVisualSubtree().ToHashSet();
                 foreach (UIElement element in oldChrome.EnumerateVisualSubtree())
-                    element.UnbindAll();
+                {
+                    if (hosted?.Contains(element) != true)
+                        element.UnbindAll();
+                }
                 oldChrome.Parent = null;
                 oldChrome.Canvas = null;
 
@@ -409,6 +414,22 @@ namespace Icy.UI.Controls
         protected virtual void RestoreTemplateState(object? state)
         {
         }
+
+        /// <summary>
+        /// Gets the element, if any, that the old <see cref="Chrome"/> displays but doesn't own, so a
+        /// <see cref="Template"/> swap leaves its bindings alone.
+        /// </summary>
+        /// <param name="state">The state <see cref="CaptureTemplateState"/> returned before the swap.</param>
+        /// <returns>The hosted element, or <see langword="null"/> for none. Returns <see langword="null"/> by default.</returns>
+        /// <remarks>
+        /// <para>
+        /// A swap unbinds every element of the old <see cref="Chrome"/>, so its <c>{TemplateBinding}</c>s stop
+        /// following this control. Elements the control only hosts there belong to the application, and so do their
+        /// <c>{Binding}</c>s. They move on to the new <see cref="Chrome"/> and must keep working.
+        /// </para>
+        /// <para><see cref="ContentControl"/> returns its <see cref="ContentControl.Content"/>.</para>
+        /// </remarks>
+        protected virtual UIElement? GetHostedElement(object? state) => null;
 
         /// <summary>
         /// Finds a named element inside the <em>current</em> <see cref="Template"/>'s content - a "template part".

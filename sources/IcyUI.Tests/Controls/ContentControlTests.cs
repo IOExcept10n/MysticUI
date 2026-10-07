@@ -88,6 +88,39 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Template_Swaps_KeepTheContentsOwnBindings()
+        {
+            // Regression: the swap unbound the old Chrome's whole subtree, including Content, which the template
+            // doesn't own - a {Binding} inside it froze at its first value.
+            ControlTemplate template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="ContentControl">
+                  <ContentPresenter Content="{TemplateBinding Content}"/>
+                </ControlTemplate>
+                """);
+            var data = new NamedItem { Name = "a" };
+            var text = (TextBlock)TreeViewTestKit.LoadDataTemplate("""<DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate>""").Build(data);
+            var contentControl = new ContentControl { Content = text };
+
+            contentControl.Template = template;
+            data.Name = "b";
+            Assert.Equal("b", text.Text);
+
+            contentControl.Template = LoadTemplate(
+                """
+                <ControlTemplate TargetType="ContentControl">
+                  <Border><ContentPresenter Content="{TemplateBinding Content}"/></Border>
+                </ControlTemplate>
+                """);
+            data.Name = "c";
+            Assert.Equal("c", text.Text);
+
+            contentControl.Template = null;
+            data.Name = "d";
+            Assert.Equal("d", text.Text);
+        }
+
+        [Fact]
         public void Content_SetWhileTemplated_IsParentedToWhateverTheTemplateHostsItWith()
         {
             // Regression: Content's templated-mode setter used to explicitly wire the new value's Parent/Canvas
@@ -116,6 +149,23 @@ namespace Icy.Tests.Controls
             Assert.Same(presenter, content.Parent);
             Assert.NotSame(contentControl, content.Parent);
             Assert.Same(canvas, content.Canvas);
+        }
+
+        private sealed class NamedItem : System.ComponentModel.INotifyPropertyChanged
+        {
+            private string name = string.Empty;
+
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+            public string Name
+            {
+                get => name;
+                set
+                {
+                    name = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Name)));
+                }
+            }
         }
     }
 }
