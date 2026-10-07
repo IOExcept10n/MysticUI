@@ -13,7 +13,7 @@ namespace Icy.UI.Controls
     /// <remarks>
     /// <para>
     /// No backdrop/pointer-input isolation in v1 - opening a <see cref="Window"/> only traps keyboard/gamepad
-    /// focus traversal (via <see cref="UIElement.IsFocusScope"/>, see <see cref="UI.Canvas.MoveFocus"/>); elements
+    /// focus traversal (via <see cref="UIElement.IsFocusScope"/>, see <see cref="UI.Canvas.MoveFocus(bool)"/>); elements
     /// behind it remain clickable. A caller wanting true pointer modality needs to layer that on top (e.g. a
     /// full-screen sibling element with a high enough <see cref="UIElement.ZIndex"/>) - not attempted here.
     /// </para>

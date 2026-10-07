@@ -2001,7 +2001,7 @@ namespace Icy.UI
         /// <returns>
         /// <see langword="true"/> to claim the press. <see cref="UI.Canvas"/> calls the focused element first, then
         /// each ancestor, and stops at the first claim. When nothing claims it, focus moves to the nearest control in
-        /// <paramref name="direction"/> (see <see cref="UI.Canvas.MoveFocus(bool)"/>). The base implementation
+        /// <paramref name="direction"/> (see <see cref="UI.Canvas.MoveFocus(Vector2)"/>). The base implementation
         /// returns <see langword="false"/>.
         /// </returns>
         /// <remarks>

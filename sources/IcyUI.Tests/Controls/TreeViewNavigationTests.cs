@@ -132,12 +132,15 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void WithoutFocus_TheTreeIgnoresNavigation()
+        public void WithoutFocus_APressFocusesTheTree_WithoutAlsoMovingARow()
         {
             tree.Canvas!.Focus(null);
-
-            Assert.False(Press(Down));
             Assert.Equal(-1, tree.List.CurrentIndex);
+
+            // Nothing focused: the press goes to the canvas, which focuses the first element in Tab order.
+            Assert.True(Press(Down));
+            Assert.Same(tree, tree.Canvas.FocusedElement);
+            Assert.Equal(0, tree.List.CurrentIndex);
         }
 
         private bool Press(Vector2 direction) => input.Events.Navigation.RaiseFocusChanging(direction).Handled;

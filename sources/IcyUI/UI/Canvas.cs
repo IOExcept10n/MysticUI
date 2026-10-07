@@ -531,6 +531,7 @@ namespace Icy.UI
             if (enteredScope != null && FindEnclosingFocusScope(FocusedElement) != enteredScope)
                 scopeReturnFocus[enteredScope] = FocusedElement;
 
+            ClearReverseStep();
             FocusedElement?.SetFocused(false);
             FocusedElement = element;
             FocusedElement?.SetFocused(true);
@@ -563,11 +564,10 @@ namespace Icy.UI
         /// <param name="forward">
         /// <see langword="true"/> to move to the next element in traversal order; <see langword="false"/> for the previous one.
         /// </param>
+        /// <remarks>The newly focused element is brought into view (see <see cref="UIElement.BringIntoView"/>).</remarks>
         public void MoveFocus(bool forward)
         {
-            UIElement? scope = FindEnclosingFocusScope(FocusedElement);
-            IEnumerable<UIElement> roots = scope != null ? scope.EnumerateVisualSubtree().Skip(1) : EnumerateAllElements();
-            List<UIElement> focusable = [.. roots.Where(e => e.IsFocusable && e.IsVisible)];
+            List<UIElement> focusable = [.. EnumerateFocusOrder(FocusedElement)];
             if (focusable.Count == 0)
                 return;
 
@@ -575,7 +575,7 @@ namespace Icy.UI
             int nextIndex = currentIndex == -1
                 ? (forward ? 0 : focusable.Count - 1)
                 : ((currentIndex + (forward ? 1 : -1)) + focusable.Count) % focusable.Count;
-            Focus(focusable[nextIndex]);
+            FocusFromNavigation(focusable[nextIndex]);
         }
 
         /// <summary>
