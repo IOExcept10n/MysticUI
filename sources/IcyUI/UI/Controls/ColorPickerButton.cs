@@ -218,10 +218,12 @@ namespace Icy.UI.Controls
             Size popupSize = popupRoot.Measure();
             float spaceBelow = viewport.Height - bottomLeft.Y;
             bool placeBelow = spaceBelow >= popupSize.Height;
+            int right = PointToSurface(new Vector2(ActualBounds.Width, 0)).X;
+            int left = PopupPlacement.FitHorizontally(topLeft.X, right, popupSize.Width, viewport.Width);
 
             popupRoot.Margin = placeBelow
-                ? new Thickness(bottomLeft.X, bottomLeft.Y, 0, 0)
-                : new Thickness(topLeft.X, (int)(topLeft.Y - popupSize.Height), 0, 0);
+                ? new Thickness(left, bottomLeft.Y, 0, 0)
+                : new Thickness(left, (int)(topLeft.Y - popupSize.Height), 0, 0);
         }
 
         private void OnOutsideTouchDown(object? sender, GenericEventArgs<Point> e)

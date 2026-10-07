@@ -578,9 +578,11 @@ namespace Icy.UI.Controls
 
             popupRoot.Width = ActualBounds.Width;
             popupScrollViewer.Height = desiredHeight;
+            int right = PointToSurface(new Vector2(ActualBounds.Width, 0)).X;
+            int left = PopupPlacement.FitHorizontally(topLeft.X, right, (int)ActualBounds.Width, viewport.Width);
             popupRoot.Margin = placeBelow
-                ? new Thickness(bottomLeft.X, bottomLeft.Y, 0, 0)
-                : new Thickness(topLeft.X, (int)(topLeft.Y - desiredHeight), 0, 0);
+                ? new Thickness(left, bottomLeft.Y, 0, 0)
+                : new Thickness(left, (int)(topLeft.Y - desiredHeight), 0, 0);
         }
 
         private void PopupScrollViewer_ScrollChanged(object? sender, EventArgs e) =>

@@ -145,6 +145,28 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void OpeningNearTheRightEdge_RightAlignsThePopupWithTheButton()
+        {
+            (Canvas canvas, ColorPickerButton button) = OpenThemed(viewportWidth: 800, HorizontalAlignment.Right);
+
+            Rectangle popup = canvas.Overlays.Single().GetScreenBounds();
+            Rectangle owner = button.GetScreenBounds();
+            Assert.True(popup.Width > 2 * owner.Width, $"The popup must be much wider than the button for this test to mean anything ({popup}).");
+            Assert.Equal(owner.Right, popup.Right);
+            Assert.True(popup.Right <= 800);
+        }
+
+        [Fact]
+        public void APopupWiderThanTheSurface_StartsAtItsLeftEdge()
+        {
+            (Canvas canvas, ColorPickerButton _) = OpenThemed(viewportWidth: 120, HorizontalAlignment.Right);
+
+            Rectangle popup = canvas.Overlays.Single().GetScreenBounds();
+            Assert.True(popup.Width > 120);
+            Assert.Equal(0, popup.X);
+        }
+
+        [Fact]
         public void OpeningWithRoomBelow_PlacesThePopupBelow()
         {
             var configuration = new IcyConfiguration(
@@ -182,6 +204,28 @@ namespace Icy.Tests.Controls
             var picker = (ColorPicker)typeof(ColorPickerButton).GetField("picker", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(button)!;
             var swatchStrip = (StackPanel)typeof(ColorPicker).GetField("swatchStrip", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(picker)!;
             Assert.Equal(button.SwatchColors.Count, swatchStrip.Children.Count);
+        }
+
+        /// <summary>Opens a themed button with a real font at the top of a canvas, so its popup has its real (much wider) size.</summary>
+        private static (Canvas Canvas, ColorPickerButton Button) OpenThemed(int viewportWidth, HorizontalAlignment alignment)
+        {
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(new FakeRenderContext { ViewportSize = new Size(viewportWidth, 600) })
+                   .ConfigureInput(new FakeInputSystem())
+                   .ConfigureTypes()
+                   .ConfigureAssets()
+                   .AddBasicFontSupport();
+            IcyConfiguration configuration = builder.Build().UseDefaultTheme();
+            configuration.Fonts.ImportFont(configuration.Assets.DefaultAssetContext, "Resources/Airfool.otf");
+            configuration.Fonts.DefaultFontFamily = "Airfool";
+            var canvas = new Canvas(configuration) { IsInputEnabled = true, IsVisible = true };
+            var button = new ColorPickerButton { Width = 40, Height = 24, HorizontalAlignment = alignment, VerticalAlignment = VerticalAlignment.Top };
+            canvas.Add(button);
+            canvas.Render();
+            button.IsOpen = true;
+            canvas.Render();
+            canvas.Render();
+            return (canvas, button);
         }
     }
 }

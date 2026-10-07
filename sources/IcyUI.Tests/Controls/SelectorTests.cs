@@ -320,6 +320,32 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void APopupOfAControlPastTheRightEdge_StaysInsideTheSurface()
+        {
+            var (canvas, _) = CreateCanvas(viewportWidth: 800, viewportHeight: 600);
+            var selector = new TestSelector
+            {
+                ItemsSource = Enumerable.Range(0, 5).Cast<object>().ToList(),
+                ItemTemplate = LoadDataTemplate("""<DataTemplate><Border Height="20"/></DataTemplate>"""),
+                Width = 200,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            canvas.Add(selector);
+            canvas.Offset = new System.Numerics.Vector2(700, 0);
+            canvas.Render();
+
+            selector.IsOpen = true;
+            canvas.Render();
+
+            Rectangle owner = selector.GetScreenBounds();
+            Rectangle popup = canvas.Overlays.Single().GetScreenBounds();
+            Assert.True(owner.Right > 800, $"The control must stick out past the right edge for this test to mean anything ({owner}).");
+            Assert.Equal(800, popup.Right);
+        }
+
+        [Fact]
         public void OpeningWithRoomBelow_PlacesThePopupBelow()
         {
             var (canvas, _) = CreateCanvas(viewportWidth: 800, viewportHeight: 600);
