@@ -1869,6 +1869,16 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Gets the screen rectangle spatial navigation starts from when this element has focus.
+        /// </summary>
+        /// <returns>
+        /// The element's <see cref="GetScreenBounds">screen bounds</see> by default. A control with its own current item,
+        /// like a <see cref="Controls.TreeView"/> row, returns that item's bounds, so a press leaving the control goes to
+        /// what lines up with the item rather than with the whole control.
+        /// </returns>
+        internal virtual Rectangle GetNavigationOrigin() => GetScreenBounds();
+
+        /// <summary>
         /// Scrolls this element's content so that <paramref name="target"/> becomes visible, if this element scrolls.
         /// </summary>
         /// <param name="target">The screen rectangle to reveal.</param>

@@ -160,7 +160,7 @@ namespace Icy.UI
                 spatialRectangles.Add(element.GetScreenBounds());
             }
 
-            int best = SpatialNavigation.FindBest(from.GetScreenBounds(), direction, spatialRectangles, SpatialTolerance * EffectiveScale);
+            int best = SpatialNavigation.FindBest(from.GetNavigationOrigin(), direction, spatialRectangles, SpatialTolerance * EffectiveScale);
             UIElement? result = best < 0 ? null : spatialCandidates[best];
             spatialCandidates.Clear();
             return result;

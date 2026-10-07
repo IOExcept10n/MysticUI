@@ -105,6 +105,20 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Right_OnALeaf_GoesToTheControlLevelWithItsRow()
+        {
+            // The tree is 400 tall: scored from its whole bounds, the decoy (nearer its centre) would win.
+            Button level = PlaceButton(40);
+            PlaceButton(190);
+            tree.Canvas!.Render();
+            tree.SelectedItem = e;
+            ResetFocus();
+
+            Assert.True(Press(Right));
+            Assert.Same(level, tree.Canvas.FocusedElement);
+        }
+
+        [Fact]
         public void Left_GoesToTheParent_ThenCollapses()
         {
             tree.Expand(b);
@@ -164,6 +178,13 @@ namespace Icy.Tests.Controls
         }
 
         private bool Press(Vector2 direction) => input.Events.Navigation.RaiseFocusChanging(direction).Handled;
+
+        private Button PlaceButton(int y)
+        {
+            var button = new Button { Width = 40, Height = 20, Margin = new Thickness(300, y, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            tree.Canvas!.Add(button);
+            return button;
+        }
 
         private void ResetFocus()
         {

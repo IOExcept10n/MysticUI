@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.Diagnostics;
@@ -361,6 +362,18 @@ namespace Icy.UI.Controls
             }
 
             SyncList();
+        }
+
+        /// <summary>
+        /// Gets the current row's screen bounds, so a press that leaves the tree goes to what lines up with that row.
+        /// </summary>
+        /// <returns>The current row's bounds, or the tree's own while no row is current or realized.</returns>
+        internal override Rectangle GetNavigationOrigin()
+        {
+            int index = currentRow == null ? -1 : rows.IndexOf(currentRow);
+            return index >= 0 && list.Realized.TryGetValue(index, out ItemContainer? row)
+                ? row.GetScreenBounds()
+                : base.GetNavigationOrigin();
         }
 
         /// <summary>
