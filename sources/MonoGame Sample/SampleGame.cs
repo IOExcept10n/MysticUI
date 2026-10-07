@@ -54,6 +54,11 @@ namespace Icy.MonoGameSample
             uiConfiguration.Input.Events.RegisterCommand(toggleBoundsOverlay, new(Input.Devices.Keys.F1));
             uiConfiguration.Input.Events.RegisterCommand(toggleDiagnosticsHud, new(Input.Devices.Keys.F2));
 
+            // The canvas re-lays out when the back buffer size changes; MonoGame doesn't resize the back buffer with
+            // the window by itself.
+            Window.AllowUserResizing = true;
+            Window.ClientSizeChanged += (_, _) => FollowWindowSize();
+
             ToWindow();
             graphics.ApplyChanges();
             base.Initialize();
@@ -87,6 +92,21 @@ namespace Icy.MonoGameSample
         {
             if (!canvas.ActiveDebugTools.Remove(name))
                 canvas.ActiveDebugTools.Add(name);
+        }
+
+        private void FollowWindowSize()
+        {
+            Rectangle client = Window.ClientBounds;
+            if (graphics.IsFullScreen || client.Width <= 0 || client.Height <= 0)
+                return;
+
+            // ApplyChanges can raise ClientSizeChanged again; once the sizes match there's nothing left to apply.
+            if (graphics.PreferredBackBufferWidth == client.Width && graphics.PreferredBackBufferHeight == client.Height)
+                return;
+
+            graphics.PreferredBackBufferWidth = client.Width;
+            graphics.PreferredBackBufferHeight = client.Height;
+            graphics.ApplyChanges();
         }
 
         private void ToWindow()

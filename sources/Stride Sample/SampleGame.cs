@@ -24,6 +24,9 @@ namespace Icy.StrideSample
         {
             base.BeginRun();
 
+            // Stride resizes the back buffer with the window itself; the canvas re-lays out when it changes.
+            Window.AllowUserResizing = true;
+
             // Minimal in-code GraphicsCompositor: clear the back buffer, then hand the "Game" render slot to
             // UseIcyUI(), which wraps it so the UI overlay draws on top of whatever was there before (nothing,
             // here - this sample has no 3D content).
