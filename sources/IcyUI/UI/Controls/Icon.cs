@@ -107,9 +107,11 @@ namespace Icy.UI.Controls
         protected override void OnRender(IRenderContext context)
         {
             Color color = Stroke is SolidColorBrush solid ? solid.Color : Color.White;
-            Rectangle bounds = ActualBounds;
-            Vector2[] points = GetGlyphPoints(kind, bounds.Width, bounds.Height);
-            context.DrawPolygon(new Vector2(bounds.X, bounds.Y), points, color, strokeThickness);
+            Size size = ActualBounds.Size;
+            Vector2[] points = GetGlyphPoints(kind, size.Width, size.Height);
+
+            // Local space: Draw() has already moved the context to this element's position.
+            context.DrawPolyline(Vector2.Zero, points, color, strokeThickness);
         }
 
         private static Vector2[] GetGlyphPoints(IconKind glyphKind, float width, float height) => glyphKind switch

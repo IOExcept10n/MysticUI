@@ -178,6 +178,63 @@ namespace Icy.Rendering
         }
 
         /// <summary>
+        /// Draws an open polyline: a stroke through <paramref name="points"/> in order, without closing it.
+        /// </summary>
+        /// <param name="context">Instance of the <see cref="IRenderContext"/> to draw.</param>
+        /// <param name="offset">Value to offset all points.</param>
+        /// <param name="points">The points to connect, in order.</param>
+        /// <param name="color">Color to draw the stroke with.</param>
+        /// <param name="thickness">Thickness of the stroke.</param>
+        /// <remarks>
+        /// <para>Unlike <see cref="DrawLine(IRenderContext, Vector2, Vector2, Color, float)"/>, which grows its thickness to one side:</para>
+        /// <list type="bullet">
+        /// <item><description>each segment is centered on the line between its two points;</description></item>
+        /// <item><description>
+        /// each segment extends by half the thickness past both ends (a square cap), so consecutive segments overlap at
+        /// their shared point and the joint has no gap.
+        /// </description></item>
+        /// </list>
+        /// <para>
+        /// The geometry doesn't rely on <see cref="TextureRenderingOptions.Origin"/>, so it looks the same on every
+        /// backend. With partial opacity, the overlapping caps blend twice.
+        /// </para>
+        /// </remarks>
+        public static void DrawPolyline(this IRenderContext context, Vector2 offset, ReadOnlySpan<Vector2> points, Color color, float thickness = 1f)
+        {
+            if (points.Length == 0)
+                return;
+
+            if (points.Length == 1)
+            {
+                context.DrawPoint(points[0] + offset, color, (int)thickness);
+                return;
+            }
+
+            for (var i = 0; i < points.Length - 1; i++)
+                DrawCenteredSegment(context, points[i] + offset, points[i + 1] + offset, color, thickness);
+        }
+
+        private static void DrawCenteredSegment(IRenderContext context, Vector2 from, Vector2 to, Color color, float thickness)
+        {
+            Vector2 delta = to - from;
+            float length = delta.Length();
+            if (length <= 0)
+                return;
+
+            // The rectangle rotates around its top-left corner; its local Y axis then points along the normal.
+            Vector2 direction = delta / length;
+            Vector2 normal = new(-direction.Y, direction.X);
+            float half = thickness / 2;
+            Vector2 corner = from - (direction * half) - (normal * half);
+            var rect = new Rectangle(
+                (int)MathF.Round(corner.X),
+                (int)MathF.Round(corner.Y),
+                (int)MathF.Round(length + thickness),
+                Math.Max(1, (int)MathF.Round(thickness)));
+            context.Draw(context.WhiteTexture, new(rect, null, color, MathF.Atan2(direction.Y, direction.X), Vector2.Zero));
+        }
+
+        /// <summary>
         /// Draws a rectangle.
         /// </summary>
         /// <param name="context">Instance of the <see cref="IRenderContext"/> to draw.</param>
