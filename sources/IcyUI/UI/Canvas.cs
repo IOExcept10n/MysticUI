@@ -44,6 +44,7 @@ namespace Icy.UI
         private bool isInputEnabled;
         private bool isTransformInvalid = true;
         private bool isVisible = true;
+        private Size lastViewportSize;
         private Vector2 offset;
         private float opacity = 1f;
         private UIElement? dragOwner;
@@ -422,12 +423,20 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Handles the resize event, invalidating the arrangement of child elements.
+        /// Invalidates the arrangement of every root element and overlay, so the next <see cref="Render"/> lays them out
+        /// against the current <see cref="SurfaceSize"/>.
         /// </summary>
+        /// <remarks>
+        /// <see cref="Render"/> calls this itself whenever the render context's
+        /// <see cref="Rendering.IRenderContext.ViewportSize"/> changes, so a window resize needs no extra wiring. Call it
+        /// directly only to force a re-layout without a size change.
+        /// </remarks>
         public void OnResize()
         {
             foreach (var element in rootElements)
                 element.InvalidateArrange();
+            foreach (UIElement overlay in overlayElements)
+                overlay.InvalidateArrange();
         }
 
         /// <summary>
@@ -589,6 +598,15 @@ namespace Icy.UI
         {
             frameTime.Stop();
             RefreshScale();
+
+            // Polled like the scale above: a resize at the same scale must still re-lay out the surface.
+            Size viewport = Configuration.RenderContext.ViewportSize;
+            if (viewport != lastViewportSize)
+            {
+                lastViewportSize = viewport;
+                OnResize();
+            }
+
             if (isTransformInvalid)
                 UpdateTransform();
 

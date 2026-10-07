@@ -63,6 +63,58 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
+        public void ViewportResize_AtTheSameScale_ReArrangesRootsOnNextRender()
+        {
+            var (canvas, context, _) = Create(displayScale: 1f);
+            UIElement root = Stretch();
+            canvas.Add(root);
+            canvas.Render();
+
+            context.ViewportSize = new Size(1000, 700);
+            canvas.Render();
+
+            Assert.Equal(new Size(1000, 700), root.ActualBounds.Size);
+        }
+
+        [Fact]
+        public void ViewportResize_ReArrangesOverlays()
+        {
+            var (canvas, context, _) = Create(displayScale: 1f);
+            UIElement overlay = Stretch();
+            canvas.AddOverlay(overlay);
+            canvas.Render();
+
+            context.ViewportSize = new Size(1000, 700);
+            canvas.Render();
+
+            Assert.Equal(new Size(1000, 700), overlay.ActualBounds.Size);
+        }
+
+        [Fact]
+        public void ViewportResize_KeepsAnOpenPopupOnItsOwner()
+        {
+            var context = new FakeRenderContext { ViewportSize = new Size(800, 600) };
+            var builder = new IcyConfigurationBuilder();
+            builder.ConfigureRendering(context).ConfigureInput(new FakeInputSystem()).ConfigureTypes().ConfigureAssets();
+            var canvas = new Canvas(builder.Build().UseDefaultTheme()) { IsVisible = true };
+            var dropdown = new Icy.UI.Controls.Dropdown { Width = 200, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
+            dropdown.ItemsSource = new[] { "A", "B" };
+            canvas.Add(dropdown);
+            canvas.Render();
+            dropdown.IsOpen = true;
+            canvas.Render();
+            canvas.Render();
+            Assert.Equal(300, dropdown.GetScreenBounds().X);
+
+            context.ViewportSize = new Size(1200, 600);
+            canvas.Render();
+
+            UIElement popup = canvas.Overlays.Single();
+            Assert.Equal(500, dropdown.GetScreenBounds().X);
+            Assert.Equal(dropdown.GetScreenBounds().X, popup.GetScreenBounds().X);
+        }
+
+        [Fact]
         public void DisplayScaleChange_IsPickedUpOnNextRender()
         {
             var (canvas, context, _) = Create(displayScale: 1f);
