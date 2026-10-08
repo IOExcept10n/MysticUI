@@ -594,7 +594,14 @@ namespace Icy.UI
         /// Gets or sets the margin around the <see cref="UIElement"/> instance.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// The margin is the space between this <see cref="UIElement"/> instance and its parent or adjacent <see cref="UIElement"/> instances.
+        /// </para>
+        /// <para>
+        /// When the element and its margin don't fit into the space its container arranges it in, and the element can't
+        /// shrink (see <see cref="MinWidth"/>), the margin on that axis is scaled down proportionally while the element
+        /// keeps its size.
+        /// </para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(typeof(Thickness), "0,0,0,0")]
@@ -669,6 +676,30 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets the minimal <see cref="UIElement"/> height.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="float.NaN"/> (the default) means unset: no lower limit.
+        /// </para>
+        /// <para>
+        /// This property also decides whether the element may <b>shrink</b> when it doesn't fit into the space its
+        /// container arranges it in. This applies unless the element stretches with an unset <see cref="Height"/>,
+        /// which always fills the available space instead:
+        /// <list type="bullet">
+        /// <item><description>
+        /// Unset: the element keeps its measured height and overflows; only its <see cref="Margin"/> on that axis is
+        /// scaled down. Popups, toolbars and other content-sized elements rely on this.
+        /// </description></item>
+        /// <item><description>
+        /// Set, and the available height (the container minus the margin) is at least this value: the element shrinks
+        /// to the available height, still limited by <see cref="MaxHeight"/>.
+        /// </description></item>
+        /// <item><description>
+        /// Set, but the available height is smaller than this value: the element keeps its height, as when unset.
+        /// </description></item>
+        /// </list>
+        /// Set it to <c>0</c> to let an element shrink as far as needed.
+        /// </para>
+        /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
         [RegisterReference]
@@ -695,6 +726,30 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets the minimal <see cref="UIElement"/> width.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="float.NaN"/> (the default) means unset: no lower limit.
+        /// </para>
+        /// <para>
+        /// This property also decides whether the element may <b>shrink</b> when it doesn't fit into the space its
+        /// container arranges it in. This applies unless the element stretches with an unset <see cref="Width"/>,
+        /// which always fills the available space instead:
+        /// <list type="bullet">
+        /// <item><description>
+        /// Unset: the element keeps its measured width and overflows; only its <see cref="Margin"/> on that axis is
+        /// scaled down. Popups, toolbars and other content-sized elements rely on this.
+        /// </description></item>
+        /// <item><description>
+        /// Set, and the available width (the container minus the margin) is at least this value: the element shrinks
+        /// to the available width, still limited by <see cref="MaxWidth"/>.
+        /// </description></item>
+        /// <item><description>
+        /// Set, but the available width is smaller than this value: the element keeps its width, as when unset.
+        /// </description></item>
+        /// </list>
+        /// Set it to <c>0</c> to let an element shrink as far as needed.
+        /// </para>
+        /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
         [RegisterReference]
@@ -2118,8 +2173,9 @@ namespace Icy.UI
             }
             else if (totalWidth > containerBounds.Width)
             {
-                // Handle width overflow
-                if (availableWidth >= MinWidth)
+                // Handle width overflow. Shrinking is opt-in through MinWidth (see its remarks): unset (NaN) keeps the
+                // size and only scales the margins.
+                if (!float.IsNaN(MinWidth) && availableWidth >= MinWidth)
                 {
                     effectiveSize.Width = (int)ClampToLimits(availableWidth, MinWidth, MaxWidth);
                 }
@@ -2142,8 +2198,8 @@ namespace Icy.UI
             }
             else if (totalHeight > containerBounds.Height)
             {
-                // Handle vertical overflow
-                if (availableHeight >= MinHeight)
+                // Handle vertical overflow. Shrinking is opt-in through MinHeight, as in the width branch.
+                if (!float.IsNaN(MinHeight) && availableHeight >= MinHeight)
                 {
                     effectiveSize.Height = (int)ClampToLimits(availableHeight, MinHeight, MaxHeight);
                 }

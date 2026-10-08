@@ -198,6 +198,63 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
+        public void Arrange_OverflowingElementWithUnsetMinimums_KeepsItsSizeAndScalesItsMargins()
+        {
+            // Shrinking on overflow is opt-in through MinWidth/MinHeight: unset (NaN), the element keeps its size and
+            // only its margins are scaled by container / (size + margins) = 100 / 320 and 80 / 220.
+            var element = new TestElement
+            {
+                Width = 300,
+                Height = 200,
+                Margin = new Thickness(10),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+
+            element.Arrange(new Rectangle(0, 0, 100, 80));
+
+            Assert.Equal(new Rectangle(3, 3, 300, 200), element.ActualBounds);
+        }
+
+        [Fact]
+        public void Arrange_OverflowingElementWithReachableMinimums_ShrinksToTheAvailableSpace()
+        {
+            var element = new TestElement
+            {
+                Width = 300,
+                Height = 200,
+                MinWidth = 0,
+                MinHeight = 50,
+                Margin = new Thickness(10),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+
+            element.Arrange(new Rectangle(0, 0, 100, 80));
+
+            Assert.Equal(new Rectangle(10, 10, 80, 60), element.ActualBounds);
+        }
+
+        [Fact]
+        public void Arrange_OverflowingElementWithUnreachableMinimums_KeepsItsSize()
+        {
+            var element = new TestElement
+            {
+                Width = 300,
+                Height = 200,
+                MinWidth = 150,
+                MinHeight = 150,
+                Margin = new Thickness(10),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+
+            element.Arrange(new Rectangle(0, 0, 100, 80));
+
+            Assert.Equal(new Rectangle(3, 3, 300, 200), element.ActualBounds);
+        }
+
+        [Fact]
         public void Arrange_WithMargins_RespectsMargins()
         {
             // Arrange
