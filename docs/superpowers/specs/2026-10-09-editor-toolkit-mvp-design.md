@@ -233,11 +233,11 @@ A public `Control` for a game's own debug page.
   today.
 - **`EditorDemo`** stays as the minimal frame-only example.
 
-### Prerequisite, separate bounded item: the `CalculateOverflow` NaN bug
+### Resolved separately: `CalculateOverflow`
 
-`availableWidth >= MinWidth` is always false while `MinWidth` is unset (`NaN`), so the overflow clamp never runs. It's
-fixed first, on its own, with its own tests. It hides the toolbar-creep case from the scope review and will affect the
-docks.
+It isn't a bug. Shrinking on overflow is opt-in through `MinWidth`/`MinHeight` (documented, commit 97ca604). Applying
+"unset = 0" collapsed detached arranges and squeezed popups wider than the surface. So the docks and the top bar are
+placed against the region explicitly, as the toolbar already is, and set a minimum only where shrinking is wanted.
 
 ## Testing
 
