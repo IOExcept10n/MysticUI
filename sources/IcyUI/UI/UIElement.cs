@@ -624,6 +624,10 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets the maximal <see cref="UIElement"/> height.
         /// </summary>
+        /// <remarks>
+        /// <see cref="float.NaN"/> (the default) means no limit. A value below <see cref="MinHeight"/> is ignored: the
+        /// minimum wins, so a conflicting pair never breaks layout.
+        /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
         [RegisterReference]
@@ -650,6 +654,10 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets the maximal <see cref="UIElement"/> width.
         /// </summary>
+        /// <remarks>
+        /// <see cref="float.NaN"/> (the default) means no limit. A value below <see cref="MinWidth"/> is ignored: the
+        /// minimum wins, so a conflicting pair never breaks layout.
+        /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
         [RegisterReference]
@@ -1658,20 +1666,26 @@ namespace Icy.UI
         /// <see cref="float.NaN"/> means "no limit".
         /// </summary>
         /// <remarks>
+        /// <para>
         /// <see cref="float.Clamp(float, float, float)"/> can't be used directly: since .NET 9 it propagates a
         /// <see cref="float.NaN"/> bound into the result instead of ignoring it, which would turn every size with an
         /// unset limit into <see cref="float.NaN"/> (and <c>0</c> once cast to <see cref="int"/>).
+        /// </para>
+        /// <para>
+        /// When both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>, the minimum wins,
+        /// as in WPF. Throwing instead would fail every layout pass from then on, so a conflicting pair set by a
+        /// style, a binding or a design-time edit would stop the whole UI.
+        /// </para>
         /// </remarks>
         /// <param name="value">The size to clamp.</param>
         /// <param name="min">The lower limit, or <see cref="float.NaN"/> for none.</param>
         /// <param name="max">The upper limit, or <see cref="float.NaN"/> for none.</param>
         /// <returns><paramref name="value"/> constrained to whichever of the limits are set.</returns>
-        /// <exception cref="ArgumentException">Both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>.</exception>
         private static float ClampToLimits(float value, float min, float max)
         {
             if (float.IsNaN(min))
                 return float.IsNaN(max) ? value : float.Min(value, max);
-            if (float.IsNaN(max))
+            if (float.IsNaN(max) || min > max)
                 return float.Max(value, min);
             return float.Clamp(value, min, max);
         }

@@ -137,6 +137,16 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
+        public void Measure_WithMinAboveMax_LetsMinWin_InsteadOfThrowing()
+        {
+            var element = new TestElement { ContentSize = new Size(10, 5), MinWidth = 50, MaxWidth = 20, MinHeight = 30, MaxHeight = 10 };
+
+            var size = element.Measure();
+
+            Assert.Equal(new Size(50, 30), size);
+        }
+
+        [Fact]
         public void Arrange_WithStretchAlignment_ReturnsZeroBoundsOnEmptySpace()
         {
             // Arrange
