@@ -99,6 +99,29 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void AScopedOverlay_PlacesItsDocksInsideTheScope()
+        {
+            using var host = new EditorTestHost(Page, attachSession: false);
+            var scope = host.Named<StackPanel>("root");
+            scope.Margin = new Icy.UI.Thickness(200, 0, 0, 0);
+            scope.Width = 500;
+            scope.Height = 400;
+            host.Render();
+            using EditorOverlay overlay = EditorOverlay.Attach(host.Canvas, host.Design, new EditorOverlayOptions { Scope = scope, DockWidth = 100 });
+
+            overlay.Show();
+            host.Render();
+            host.Render();
+
+            System.Drawing.Rectangle region = overlay.Session!.Region();
+            Assert.Equal(200, region.X);
+            foreach (Icy.UI.UIElement dock in overlay.Docks)
+            {
+                Assert.True(region.Contains(dock.ActualBounds), $"{dock.ActualBounds} is outside {region}");
+            }
+        }
+
+        [Fact]
         public void Hiding_DisconnectsThePanels()
         {
             using var host = new EditorTestHost(Page, attachSession: false);

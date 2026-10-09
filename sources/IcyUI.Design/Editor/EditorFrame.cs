@@ -63,6 +63,7 @@ namespace Icy.Design.Editor
         private (Rectangle Region, Size Toolbar, EditorToolbarPlacement Placement)? applied;
         private bool regionEmpty;
         private bool showsToolbar = true;
+        private Rectangle? reportedRegion;
         private bool disposed;
 
         private EditorFrame(Canvas canvas, DesignSession design, UIElement? scope)
@@ -122,6 +123,12 @@ namespace Icy.Design.Editor
         /// top of the canvas's overlays (docks around the page, say). Their clicks never reach the capture layer.
         /// </summary>
         internal List<UIElement> CompanionLayers { get; } = [];
+
+        /// <summary>
+        /// Occurs during rendering when the editor's region (see <see cref="EditorSession.Region"/>) changed, so companion
+        /// layers can follow it. Empty when the scope is hidden or off the canvas.
+        /// </summary>
+        internal event Action<Rectangle>? RegionChanged;
 
         /// <summary>
         /// Gets or sets a value indicating whether the frame's own toolbar is on the canvas. A host that shows the mode and
@@ -413,6 +420,12 @@ namespace Icy.Design.Editor
         private void SyncRegion()
         {
             Rectangle region = Session.Region();
+            if (reportedRegion != region)
+            {
+                reportedRegion = region;
+                RegionChanged?.Invoke(region);
+            }
+
             bool empty = region.IsEmpty;
             if (empty != regionEmpty)
             {

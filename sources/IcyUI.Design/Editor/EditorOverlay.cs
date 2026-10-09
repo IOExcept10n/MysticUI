@@ -57,6 +57,10 @@ namespace Icy.Design.Editor
         private readonly List<UIElement> docks = [];
         private readonly List<Control> panels = [];
         private EditorFrame? frame;
+        private Border? barHost;
+        private Border? leftDock;
+        private Border? rightDock;
+        private Rectangle region;
         private bool disposed;
 
         private EditorOverlay(Canvas canvas, DesignSession design, EditorOverlayOptions options)
@@ -146,11 +150,11 @@ namespace Icy.Design.Editor
             EditorSession session = frame.Session;
 
             var bar = new EditorCommandBar { Session = session, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
-            var barHost = new Border
+            barHost = new Border
             {
                 Background = new SolidColorBrush(PanelBackground),
                 Height = BarHeight,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 Child = bar,
             };
@@ -170,15 +174,20 @@ namespace Icy.Design.Editor
                 VerticalAlignment = VerticalAlignment.Stretch,
             };
 
+            leftDock = CreateDock(tabs, HorizontalAlignment.Left);
+            rightDock = CreateDock(properties, HorizontalAlignment.Right);
             docks.Add(barHost);
-            docks.Add(CreateDock(tabs, HorizontalAlignment.Left));
-            docks.Add(CreateDock(properties, HorizontalAlignment.Right));
+            docks.Add(leftDock);
+            docks.Add(rightDock);
             panels.AddRange([bar, outline, toolbox, properties]);
             foreach (UIElement dock in docks)
             {
                 canvas.AddOverlay(dock);
                 frame.CompanionLayers.Add(dock);
             }
+
+            frame.RegionChanged += OnRegionChanged;
+            OnRegionChanged(session.Region());
 
             LastShowError = null;
             IsShownChanged?.Invoke(this, EventArgs.Empty);
@@ -216,6 +225,8 @@ namespace Icy.Design.Editor
 
             docks.Clear();
             panels.Clear();
+            barHost = leftDock = rightDock = null;
+            frame.RegionChanged -= OnRegionChanged;
             frame.Dispose();
             frame = null;
             IsShownChanged?.Invoke(this, EventArgs.Empty);
@@ -246,15 +257,45 @@ namespace Icy.Design.Editor
             disposed = true;
         }
 
+        /// <summary>
+        /// Places the bar along the top of the editor's region and the docks down its sides, below the bar. The docks
+        /// are sized explicitly, so nothing depends on overflow shrinking.
+        /// </summary>
+        /// <param name="value">The region, in surface units; empty hides the bar and the docks.</param>
+        private void OnRegionChanged(Rectangle value)
+        {
+            region = value;
+            Place();
+        }
+
+        private void Place()
+        {
+            if (barHost == null || leftDock == null || rightDock == null)
+                return;
+
+            bool visible = !region.IsEmpty;
+            foreach (UIElement dock in docks)
+                dock.IsVisible = visible;
+            if (!visible)
+                return;
+
+            int dockHeight = Math.Max(0, region.Height - BarHeight);
+            barHost.Margin = new Thickness(region.X, region.Y, 0, 0);
+            barHost.Width = region.Width;
+            leftDock.Margin = new Thickness(region.X, region.Y + BarHeight, 0, 0);
+            leftDock.Height = dockHeight;
+            rightDock.Margin = new Thickness(region.Right - (int)rightDock.Width, region.Y + BarHeight, 0, 0);
+            rightDock.Height = dockHeight;
+        }
+
         private Border CreateDock(UIElement content, HorizontalAlignment side)
         {
             var dock = new Border
             {
                 Background = new SolidColorBrush(PanelBackground),
                 Width = options.DockWidth,
-                HorizontalAlignment = side,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                Margin = new Thickness(0, BarHeight, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
             };
 
             var collapse = new TextBlock { Text = side == HorizontalAlignment.Left ? "<" : ">" };
@@ -273,6 +314,7 @@ namespace Icy.Design.Editor
                 content.IsVisible = !collapsed;
                 dock.Width = collapsed ? CollapsedWidth : options.DockWidth;
                 collapse.Text = collapsed == (side == HorizontalAlignment.Left) ? ">" : "<";
+                Place();
             });
             UI.Controls.Grid.SetRow(content, 1);
             layout.Children.Add(button);
