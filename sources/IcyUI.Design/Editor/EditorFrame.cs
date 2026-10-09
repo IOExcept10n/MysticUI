@@ -62,6 +62,7 @@ namespace Icy.Design.Editor
         private ResizeGesture? resize;
         private (Rectangle Region, Size Toolbar, EditorToolbarPlacement Placement)? applied;
         private bool regionEmpty;
+        private bool showsToolbar = true;
         private bool disposed;
 
         private EditorFrame(Canvas canvas, DesignSession design, UIElement? scope)
@@ -115,6 +116,31 @@ namespace Icy.Design.Editor
         internal EditorCaptureLayer CaptureLayer { get; }
 
         internal Border Toolbar { get; }
+
+        /// <summary>
+        /// Gets overlays that belong with the frame and stay above it, in order, whenever the frame raises itself back on
+        /// top of the canvas's overlays (docks around the page, say). Their clicks never reach the capture layer.
+        /// </summary>
+        internal List<UIElement> CompanionLayers { get; } = [];
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the frame's own toolbar is on the canvas. A host that shows the mode and
+        /// status elsewhere turns it off.
+        /// </summary>
+        internal bool ShowsToolbar
+        {
+            get => showsToolbar;
+            set
+            {
+                if (showsToolbar == value || disposed)
+                    return;
+                showsToolbar = value;
+                if (value)
+                    BringToTop();
+                else
+                    canvas.RemoveOverlay(Toolbar);
+            }
+        }
 
         internal string ToolbarLabel => modeLabel.Text ?? string.Empty;
 
@@ -453,10 +479,32 @@ namespace Icy.Design.Editor
             return false;
         }
 
+        /// <summary>
+        /// Gets the layers that must close the canvas's overlay list, bottom to top: the capture layer, the toolbar when
+        /// shown, then the companions.
+        /// </summary>
+        private IEnumerable<UIElement> TopLayers()
+        {
+            yield return CaptureLayer;
+            if (showsToolbar)
+                yield return Toolbar;
+            foreach (UIElement companion in CompanionLayers)
+                yield return companion;
+        }
+
         private bool IsOnTop()
         {
             IReadOnlyList<UIElement> overlays = canvas.Overlays;
-            return overlays.Count >= 2 && ReferenceEquals(overlays[^1], Toolbar) && ReferenceEquals(overlays[^2], CaptureLayer);
+            List<UIElement> top = [.. TopLayers()];
+            if (overlays.Count < top.Count)
+                return false;
+            for (int i = 0; i < top.Count; i++)
+            {
+                if (!ReferenceEquals(overlays[overlays.Count - top.Count + i], top[i]))
+                    return false;
+            }
+
+            return true;
         }
 
         private void BringToTop()
@@ -464,10 +512,11 @@ namespace Icy.Design.Editor
             if (disposed || IsOnTop())
                 return;
 
-            canvas.RemoveOverlay(CaptureLayer);
-            canvas.RemoveOverlay(Toolbar);
-            canvas.AddOverlay(CaptureLayer);
-            canvas.AddOverlay(Toolbar);
+            List<UIElement> top = [.. TopLayers()];
+            foreach (UIElement layer in top)
+                canvas.RemoveOverlay(layer);
+            foreach (UIElement layer in top)
+                canvas.AddOverlay(layer);
         }
     }
 }

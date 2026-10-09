@@ -16,6 +16,10 @@ namespace Icy.Design.Editor.Panels
     /// throwing, so the game keeps running.
     /// </para>
     /// <para>
+    /// While the selection's document can't take edits (see <see cref="EditorSession.BlockedReason"/>), the status line
+    /// shows why, ahead of any save problem.
+    /// </para>
+    /// <para>
     /// The bar listens to its session from the moment <see cref="Session"/> is set. Set it back to
     /// <see langword="null"/> when the bar is discarded.
     /// </para>
@@ -163,6 +167,7 @@ namespace Icy.Design.Editor.Panels
 
             session.SelectionChanged += OnSessionChanged;
             session.ModeChanged += OnSessionChanged;
+            session.BlockedChanged += OnSessionChanged;
             modeButton.Command = session.Commands.ToggleMode;
             undoButton.Command = session.Commands.Undo;
             redoButton.Command = session.Commands.Redo;
@@ -176,6 +181,7 @@ namespace Icy.Design.Editor.Panels
             {
                 session.SelectionChanged -= OnSessionChanged;
                 session.ModeChanged -= OnSessionChanged;
+                session.BlockedChanged -= OnSessionChanged;
             }
 
             foreach (DesignDocument document in subscribed)
@@ -212,7 +218,7 @@ namespace Icy.Design.Editor.Panels
             modeLabel.Text = session == null ? "Mode" : session.Mode == EditorMode.Edit ? "Edit" : "Interact";
             badge.Text = HasUnsavedChanges ? "● unsaved" : string.Empty;
 
-            string? reason = Target?.SaveBlockedReason;
+            string? reason = session?.BlockedReason ?? Target?.SaveBlockedReason;
             if (status.Text.Length == 0 || status.Text == shownBlockedReason)
             {
                 if (reason != null)

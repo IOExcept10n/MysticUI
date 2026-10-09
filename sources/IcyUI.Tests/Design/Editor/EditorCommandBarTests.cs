@@ -58,6 +58,20 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void ABlockedSelection_ShowsWhyInTheStatus()
+        {
+            using var host = new EditorTestHost(Page);
+            var bar = new EditorCommandBar { Session = host.Session };
+            host.Session.Select(host.Named<Button>("b"));
+
+            host.Document.ApplyText(host.Document.Text[..^"</StackPanel>".Length]);
+            Assert.Equal(host.Session.BlockedReason, bar.StatusText);
+
+            host.Document.ApplyText(host.Document.Text + "</StackPanel>");
+            Assert.DoesNotContain("errors", bar.StatusText);
+        }
+
+        [Fact]
         public void SaveAll_ReportsHowManyWereSkipped()
         {
             using var host = new EditorTestHost(Page);
