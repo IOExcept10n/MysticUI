@@ -199,6 +199,46 @@ namespace Icy.Tests.Controls
             Assert.Equal("{Binding Name}", ((TextBox)FindEditor(grid, "Nickname")!).Text);
         }
 
+        private sealed class DefaultedTarget
+        {
+            [System.ComponentModel.DefaultValue(3)]
+            public int Lives { get; set; } = 3;
+
+            public int Plain { get; set; } = 1;
+        }
+
+        [Fact]
+        public void TheDefaultAdapter_OffersReset_OnlyForAChangedDefaultedValue()
+        {
+            var target = new DefaultedTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            Assert.Equal(2, FindRow(grid, "Lives")!.Children.Count);
+            Assert.Equal(2, FindRow(grid, "Plain")!.Children.Count);
+
+            ((TextBox)FindEditor(grid, "Lives")!).Text = "7";
+            grid.Refresh();
+
+            Assert.IsType<Button>(FindRow(grid, "Lives")!.Children[2]);
+            Assert.Equal(2, FindRow(grid, "Plain")!.Children.Count);
+        }
+
+        [Fact]
+        public void Reset_WritesTheDefault_AndRemovesItsButton()
+        {
+            var target = new DefaultedTarget { Lives = 9 };
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var reset = Assert.IsType<Button>(FindRow(grid, "Lives")!.Children[2]);
+            reset.Command!.Execute(null);
+
+            Assert.Equal(3, target.Lives);
+            Assert.Equal("3", ((TextBox)FindEditor(grid, "Lives")!).Text);
+            Assert.Equal(2, FindRow(grid, "Lives")!.Children.Count);
+        }
+
         private sealed class RefreshingAdapter(PropertyGrid grid) : PropertyGridValueAdapter
         {
             public override bool TrySetValue(PropertyGridEntry entry, object target, object? value)

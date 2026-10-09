@@ -355,7 +355,11 @@ namespace Icy.UI.Controls
                     Content = new TextBlock { Text = "Reset" },
                     Padding = new Thickness(6, 2),
                     Margin = new Thickness(4, 0, 0, 0),
-                    Command = new ActionCommand(() => adapter.Reset(entry, target)),
+                    Command = new ActionCommand(() =>
+                    {
+                        adapter.Reset(entry, target);
+                        Refresh();
+                    }),
                 };
                 Grid.SetColumn(reset, 2);
                 row.Children.Add(reset);

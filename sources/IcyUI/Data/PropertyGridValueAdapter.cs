@@ -16,6 +16,10 @@ namespace Icy.Data
     /// <para>
     /// Every member is virtual and has a working default, so an adapter overrides only what it changes.
     /// </para>
+    /// <para>
+    /// The default adapter offers Reset for a property that declares a
+    /// <see cref="System.ComponentModel.DefaultValueAttribute"/> and currently holds another value.
+    /// </para>
     /// </remarks>
     public class PropertyGridValueAdapter
     {
@@ -69,16 +73,36 @@ namespace Icy.Data
         /// </summary>
         /// <param name="entry">The row's property.</param>
         /// <param name="target">The object the grid shows.</param>
-        /// <returns><see langword="true"/> to show the button; the default returns <see langword="false"/>.</returns>
-        public virtual bool CanReset(PropertyGridEntry entry, object target) => false;
+        /// <returns>
+        /// The default: <see langword="true"/> when the property declares a
+        /// <see cref="System.ComponentModel.DefaultValueAttribute"/>, is writable, and currently holds another value.
+        /// </returns>
+        public virtual bool CanReset(PropertyGridEntry entry, object target)
+        {
+            if (!entry.HasDefaultValue || entry.IsReadOnly)
+                return false;
+
+            try
+            {
+                return !Equals(GetValue(entry, target), entry.DefaultValue);
+            }
+            catch (Exception)
+            {
+                // A getter that throws can't be compared; offering Reset would act on a value nobody can see.
+                return false;
+            }
+        }
 
         /// <summary>
         /// Resets the property when the user presses the row's Reset button.
         /// </summary>
         /// <param name="entry">The row's property.</param>
         /// <param name="target">The object the grid shows.</param>
+        /// <remarks>The default writes <see cref="PropertyGridEntry.DefaultValue"/> through <see cref="TrySetValue"/>.</remarks>
         public virtual void Reset(PropertyGridEntry entry, object target)
         {
+            if (entry.HasDefaultValue)
+                TrySetValue(entry, target, entry.DefaultValue);
         }
     }
 }
