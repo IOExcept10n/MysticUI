@@ -177,7 +177,7 @@ namespace Icy.Data.Bindings
             /// Gets the registered property reference to get the value from, when the target type has one.
             /// </summary>
             /// <remarks>
-            /// Set for properties registered through <see cref="PropertyRegistry"/> (see <see cref="Attributes.RegisterReferenceAttribute"/>),
+            /// Set for properties registered through <see cref="PropertyRegistry"/> (see <see cref="Markup.Attributes.RegisterReferenceAttribute"/>),
             /// so that binding through a path segment participates in the same value-precedence system as
             /// styles, visual states, and animations. Falls back to <see cref="Property"/> for everything else,
             /// including plain BCL types that were never registered.

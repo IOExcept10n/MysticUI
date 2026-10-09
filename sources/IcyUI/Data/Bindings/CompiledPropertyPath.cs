@@ -106,7 +106,9 @@ namespace Icy.Data.Bindings
                 return Expression.MakeIndex(argument, segment.Property, segment.Params.Select(Expression.Constant));
             }
 
-            return Expression.Property(argument, segment.Property);
+            // PathSegment's factories set Property for every segment that isn't an array access or a registered
+            // reference (a missing property throws when the path is parsed), so it's set here.
+            return Expression.Property(argument, segment.Property!);
         }
     }
 }
