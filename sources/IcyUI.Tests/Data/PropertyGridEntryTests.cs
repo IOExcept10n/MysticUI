@@ -37,6 +37,28 @@ namespace Icy.Tests.Data
 
             [Range(100, 1)]
             public int InvertedRange { get; set; }
+
+            [Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]
+            public float Positive { get; set; } = 1;
+
+            [DefaultValue(float.NaN)]
+            [Range(0d, double.PositiveInfinity)]
+            public float Limit { get; set; } = float.NaN;
+
+            [DefaultValue(40)]
+            public float ConvertedDefault { get; set; } = 40;
+
+            [Description("How far the hero can see.")]
+            public int Sight { get; set; }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public int NeverShown { get; set; }
+
+            [EditorBrowsable(EditorBrowsableState.Advanced)]
+            public int AdvancedShown { get; set; }
+
+            [Range(1, 1, MinimumIsExclusive = true)]
+            public int EmptyRange { get; set; } = 1;
         }
 
         private sealed class RegisteredTarget : Icy.Data.Markup.DependencyObject
@@ -62,7 +84,7 @@ namespace Icy.Tests.Data
             Assert.Equal("Stats", health.Category);
 
             var armor = Assert.Single(entries, e => e.Name == nameof(PlainPoco.Armor));
-            Assert.Equal((0d, 100d), armor.Range);
+            Assert.Equal(new ValueRange(0, 100, false, false), armor.Range);
 
             var alive = Assert.Single(entries, e => e.Name == nameof(PlainPoco.Alive));
             Assert.Equal("Is Alive", alive.DisplayName);
@@ -235,6 +257,67 @@ namespace Icy.Tests.Data
 
             [DisplayName("Same Label")]
             public string Property2 { get; set; } = "second";
+        }
+
+        [Fact]
+        public void EnumerateFor_ReadsExclusiveAndOpenEndedRanges()
+        {
+            var positive = Assert.Single(PropertyGridEntry.EnumerateFor(new PlainPoco()), e => e.Name == nameof(PlainPoco.Positive));
+
+            Assert.Equal(new ValueRange(0, double.PositiveInfinity, true, false), positive.Range);
+        }
+
+        [Fact]
+        public void EnumerateFor_AnEmptyRange_IsTreatedAsNoRange()
+        {
+            var empty = Assert.Single(PropertyGridEntry.EnumerateFor(new PlainPoco()), e => e.Name == nameof(PlainPoco.EmptyRange));
+
+            Assert.Null(empty.Range);
+        }
+
+        [Fact]
+        public void EnumerateFor_ReadsDefaultValue_ConvertedToThePropertyType()
+        {
+            var entries = PropertyGridEntry.EnumerateFor(new PlainPoco());
+            var converted = Assert.Single(entries, e => e.Name == nameof(PlainPoco.ConvertedDefault));
+            var health = Assert.Single(entries, e => e.Name == nameof(PlainPoco.Health));
+
+            Assert.True(converted.HasDefaultValue);
+            Assert.Equal(40f, converted.DefaultValue);
+            Assert.False(health.HasDefaultValue);
+        }
+
+        [Fact]
+        public void EnumerateFor_ReadsDescription()
+        {
+            var sight = Assert.Single(PropertyGridEntry.EnumerateFor(new PlainPoco()), e => e.Name == nameof(PlainPoco.Sight));
+
+            Assert.Equal("How far the hero can see.", sight.Description);
+        }
+
+        [Fact]
+        public void EnumerateFor_HidesEditorBrowsableNever_ButShowsAdvanced()
+        {
+            var entries = PropertyGridEntry.EnumerateFor(new PlainPoco());
+
+            Assert.DoesNotContain(entries, e => e.Name == nameof(PlainPoco.NeverShown));
+            Assert.Contains(entries, e => e.Name == nameof(PlainPoco.AdvancedShown));
+        }
+
+        [Fact]
+        public void Validate_AcceptsTheDefault_AndRejectsOutOfRange()
+        {
+            var entries = PropertyGridEntry.EnumerateFor(new PlainPoco());
+            var limit = Assert.Single(entries, e => e.Name == nameof(PlainPoco.Limit));
+            var positive = Assert.Single(entries, e => e.Name == nameof(PlainPoco.Positive));
+
+            Assert.True(limit.Validate(float.NaN, out _));
+            Assert.True(limit.Validate(0f, out _));
+            Assert.False(limit.Validate(-1f, out string? reason));
+            Assert.Equal("Must be at least 0.", reason);
+            Assert.False(positive.Validate(0f, out reason));
+            Assert.Equal("Must be greater than 0.", reason);
+            Assert.False(positive.Validate(float.PositiveInfinity, out _));
         }
     }
 }

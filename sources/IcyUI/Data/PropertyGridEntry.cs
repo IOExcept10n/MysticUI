@@ -34,6 +34,8 @@ namespace Icy.Data
             // through the encapsulation its author deliberately chose.
             IsReadOnly = property.GetCustomAttribute<ReadOnlyAttribute>()?.IsReadOnly ?? (property.SetMethod?.IsPublic != true);
             Range = TryReadRange(property);
+            Description = property.GetCustomAttribute<DescriptionAttribute>()?.Description;
+            (HasDefaultValue, DefaultValue) = TryReadDefault(property);
         }
 
         /// <summary>
@@ -65,17 +67,28 @@ namespace Icy.Data
         public bool IsReadOnly { get; }
 
         /// <summary>
-        /// Gets the numeric range a <see cref="RangeAttribute"/> declares for this property, converted to
-        /// <see langword="double"/>, or <see langword="null"/> when no valid range applies.
+        /// Gets the values this numeric property accepts, from
+        /// <see cref="System.ComponentModel.DataAnnotations.RangeAttribute"/>, or <see langword="null"/> when it declares
+        /// none, isn't numeric, or declares a range that contains no values.
         /// </summary>
-        /// <remarks>
-        /// "No valid range" covers a property with no <see cref="RangeAttribute"/> at all, a non-numeric property
-        /// carrying one, bounds that don't convert to <see langword="double"/>, and an inverted range whose minimum
-        /// exceeds its maximum - the last of which describes no values at all (<see cref="RangeAttribute"/> itself
-        /// rejects it when it validates), so a consumer can rely on
-        /// <c><see cref="Range"/>.Value.Min &lt;= <see cref="Range"/>.Value.Max</c>.
-        /// </remarks>
-        public (double Min, double Max)? Range { get; }
+        public ValueRange? Range { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the property declares a default through <see cref="DefaultValueAttribute"/>.
+        /// </summary>
+        public bool HasDefaultValue { get; }
+
+        /// <summary>
+        /// Gets the declared default, converted to <see cref="PropertyType"/> when the attribute stored another numeric
+        /// type (<c>[DefaultValue(40)]</c> on a <see cref="float"/>). Meaningful only when <see cref="HasDefaultValue"/>
+        /// is <see langword="true"/>.
+        /// </summary>
+        public object? DefaultValue { get; }
+
+        /// <summary>
+        /// Gets the property's description from <see cref="DescriptionAttribute"/>, or <see langword="null"/>.
+        /// </summary>
+        public string? Description { get; }
 
         /// <summary>
         /// Reads this property's current value from <paramref name="target"/>.
@@ -112,6 +125,44 @@ namespace Icy.Data
             {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Checks a value against the property's declared rules before it's written.
+        /// </summary>
+        /// <param name="value">The candidate value, already of <see cref="PropertyType"/>.</param>
+        /// <param name="reason">Why the value is rejected, when this method returns <see langword="false"/>.</param>
+        /// <returns>
+        /// <list type="bullet">
+        /// <item><description><see langword="true"/> for a value equal to <see cref="DefaultValue"/>, so a <see cref="float.NaN"/> default still means "unset".</description></item>
+        /// <item><description><see langword="true"/> when there's no <see cref="Range"/>.</description></item>
+        /// <item><description>Otherwise whether the numeric value is inside <see cref="Range"/>.</description></item>
+        /// </list>
+        /// </returns>
+        public bool Validate(object? value, [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? reason)
+        {
+            reason = null;
+            if (HasDefaultValue && Equals(value, DefaultValue))
+                return true;
+            if (Range is not { } range)
+                return true;
+
+            double number;
+            try
+            {
+                number = Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+            {
+                reason = range.Describe();
+                return false;
+            }
+
+            if (range.Contains(number))
+                return true;
+
+            reason = range.Describe();
+            return false;
         }
 
         /// <summary>
@@ -177,7 +228,7 @@ namespace Icy.Data
         /// <param name="entry">The created entry, when this method returns <see langword="true"/>.</param>
         /// <returns>
         /// <see langword="true"/> when an entry was created; <see langword="false"/> when
-        /// <paramref name="info"/> carries <c>[Browsable(false)]</c>.
+        /// <paramref name="info"/> carries <c>[Browsable(false)]</c> or <c>[EditorBrowsable(EditorBrowsableState.Never)]</c>.
         /// </returns>
         private static bool TryCreate(PropertyInfo info, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out PropertyGridEntry? entry)
         {
@@ -185,34 +236,62 @@ namespace Icy.Data
             var browsable = info.GetCustomAttribute<BrowsableAttribute>();
             if (browsable != null && !browsable.Browsable)
                 return false;
+            if (info.GetCustomAttribute<EditorBrowsableAttribute>()?.State == EditorBrowsableState.Never)
+                return false;
 
             entry = new PropertyGridEntry(info);
             return true;
         }
 
-        private static (double Min, double Max)? TryReadRange(PropertyInfo property)
+        private static ValueRange? TryReadRange(PropertyInfo property)
         {
             var range = property.GetCustomAttribute<RangeAttribute>();
-            if (range == null)
-                return null;
-
-            // Only apply Range to numeric types
-            if (!IsNumericType(property.PropertyType))
+            if (range == null || !IsNumericType(property.PropertyType))
                 return null;
 
             try
             {
-                double min = Convert.ToDouble(range.Minimum);
-                double max = Convert.ToDouble(range.Maximum);
+                var result = new ValueRange(
+                    Convert.ToDouble(range.Minimum, System.Globalization.CultureInfo.InvariantCulture),
+                    Convert.ToDouble(range.Maximum, System.Globalization.CultureInfo.InvariantCulture),
+                    range.MinimumIsExclusive,
+                    range.MaximumIsExclusive);
 
-                // An inverted range describes no values at all - treat it as no range rather than handing a
-                // consumer bounds it can't satisfy (Slider.Minimum/Maximum, for one, throw on min > max).
-                return min <= max ? (min, max) : null;
+                // A range that contains no values gives a consumer bounds it can't satisfy (Slider.Minimum/Maximum, for
+                // one, throw on min > max) - treat it as no range.
+                bool empty = result.Min > result.Max || (result.Min == result.Max && (result.MinIsExclusive || result.MaxIsExclusive));
+                return empty ? null : result;
             }
             catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
             {
                 return null;
             }
+        }
+
+        private static (bool HasDefault, object? Value) TryReadDefault(PropertyInfo property)
+        {
+            if (property.GetCustomAttribute<DefaultValueAttribute>() is not { } attribute)
+                return (false, null);
+
+            object? value = attribute.Value;
+            Type type = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+            if (value == null)
+                return (!type.IsValueType || type != property.PropertyType, null);
+            if (type.IsInstanceOfType(value))
+                return (true, value);
+            if (IsNumericType(type) && value is IConvertible)
+            {
+                try
+                {
+                    return (true, Convert.ChangeType(value, type, System.Globalization.CultureInfo.InvariantCulture));
+                }
+                catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+                {
+                    return (false, null);
+                }
+            }
+
+            return (false, null);
         }
 
         private static bool IsNumericType(Type type)

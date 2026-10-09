@@ -42,7 +42,8 @@ A new public `readonly record struct ValueRange(double Min, double Max, bool Min
 `Icy.Data`:
 
 - `IsBounded`: both ends finite.
-- `Contains(double value)`: honours the exclusive flags; `false` for NaN.
+- `Contains(double value)`: honours the exclusive flags; `false` for NaN and for infinite values, even with an infinite
+  inclusive bound.
 - `Describe()`: the English reason text, by case:
   - "Must be greater than 0."
   - "Must be at least 0."
@@ -75,10 +76,10 @@ A new public `readonly record struct ValueRange(double Min, double Max, bool Min
     - writes nothing.
   - Valid text clears the state and writes as today. Empty text writes the default when that's NaN, so a layout limit
     can be cleared by deleting its text; otherwise empty text is just invalid.
+  - Invalid text reverts to the current value when the box loses focus. Text that parses to an infinite value is invalid
+    in every numeric row.
   - The ranged pair keeps clamping slider drags, but a typed out-of-range value is now marked Invalid instead of being
     clamped silently.
-- **Vector rows:** validated per composed value when the entry has a range. Vectors carry no `[Range]` in core today, so
-  this only covers games' own properties.
 - **Reset:** `PropertyGridValueAdapter.Default` now offers Reset when `HasDefaultValue` and the current value differs
   (`Equals`, with NaN equal to NaN). `Reset` writes `DefaultValue` through `TrySetValue`. Custom adapters keep their own
   rules.
@@ -101,7 +102,7 @@ A new public `readonly record struct ValueRange(double Min, double Max, bool Min
 | `Selector.MaxDropDownHeight` | `[Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]` |
 | `WrapGrid.ItemWidth`, `ItemHeight` | `[Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]` |
 | `TreeView.Indent` | `[Range(0d, double.PositiveInfinity)]` |
-| `SelectingItemsControl.SelectedIndex` | `[Range(-1, int.MaxValue)]`; the upper bound (`< ItemCount`) stays a setter guard |
+| `SelectingItemsControl.SelectedIndex` | `[Range(-1d, double.PositiveInfinity)]`; the upper bound (`< ItemCount`) stays a setter guard |
 
 Not covered: `ItemsControl.ScrollIntoView` (a method), and `SelectedIndex`'s dynamic upper bound.
 
@@ -148,4 +149,4 @@ Not covered: `ItemsControl.ScrollIntoView` (a method), and `SelectedIndex`'s dyn
 - Validation rules that depend on other state (`SelectedIndex < ItemCount`); they stay setter guards.
 - Localised reason text.
 - A built-in help pane; tooltips.
-- `[Range]` on vectors and matrices in core.
+- `[Range]` on vectors and matrices (the grid reads ranges for numeric types only).

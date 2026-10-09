@@ -574,7 +574,7 @@ namespace Icy.UI.Controls
         /// <returns>The freshly built editor widget.</returns>
         private UIElement BuildNumericEditor(PropertyGridEntry entry, object target, object? value)
         {
-            if (entry.Range is { } range)
+            if (entry.Range is { IsBounded: true } range)
                 return BuildRangedNumericEditor(entry, target, value, range);
 
             var textBox = new TextBox
@@ -637,7 +637,7 @@ namespace Icy.UI.Controls
         /// <param name="value">The property's current value.</param>
         /// <param name="range">The inclusive range <see cref="PropertyGridEntry.Range"/> declares.</param>
         /// <returns>A <see cref="StackPanel"/> containing the freshly built <see cref="Slider"/> and <see cref="TextBox"/>.</returns>
-        private UIElement BuildRangedNumericEditor(PropertyGridEntry entry, object target, object? value, (double Min, double Max) range)
+        private UIElement BuildRangedNumericEditor(PropertyGridEntry entry, object target, object? value, ValueRange range)
         {
             var slider = new Slider { IsEnabled = !entry.IsReadOnly };
 
