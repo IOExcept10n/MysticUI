@@ -74,6 +74,25 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void Enter_CommitsAnExpressionRow()
+        {
+            (EditorTestHost host, PropertiesPanel panel) = Create();
+            using (host)
+            {
+                host.Session.Select(host.Named<TextBlock>("bound"));
+                host.Render();
+                var box = (TextBox)FindEditor(panel.Grid, "Text")!;
+                host.Canvas.Focus(box);
+                box.Text = "{Binding Other}";
+                Assert.DoesNotContain("{Binding Other}", host.Document.Text);
+
+                host.Input.Keyboard.RaiseKeyDown(Icy.Input.Devices.Keys.Enter);
+
+                Assert.Contains("Text=\"{Binding Other}\"", host.Document.Text);
+            }
+        }
+
+        [Fact]
         public void Reset_RemovesTheAttribute()
         {
             (EditorTestHost host, PropertiesPanel panel) = Create();
@@ -173,6 +192,20 @@ namespace Icy.Tests.Design.Editor
                 host.Canvas.AddOverlay(panel);
                 Assert.Same(host.Named<Button>("b"), panel.Grid.Target);
             }
+        }
+
+        private static Icy.UI.UIElement? FindEditor(PropertyGrid grid, string name)
+        {
+            var containers = (Dictionary<int, ItemContainer>)typeof(ItemsControl)
+                .GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(grid)!;
+            foreach (ItemContainer container in containers.Values)
+            {
+                if (container.Content is Grid row && row.Children[0] is TextBlock label && label.Text == name)
+                    return row.Children[1];
+            }
+
+            return null;
         }
 
         private static string? FindEditorText(PropertyGrid grid, string name)

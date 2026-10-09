@@ -48,7 +48,7 @@ namespace Icy.Data
         /// <param name="target">The object the grid shows.</param>
         /// <returns>
         /// The text, or <see langword="null"/> (the default) for a typed editor. A non-<see langword="null"/> text turns
-        /// the row into a text box that commits through <see cref="TrySetExpression"/> when it loses focus.
+        /// the row into a text box that commits through <see cref="TrySetExpression"/> on Enter or when it loses focus.
         /// </returns>
         public virtual string? GetExpression(PropertyGridEntry entry, object target) => null;
 

@@ -406,7 +406,7 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Builds a <see cref="TextBox"/> showing an attribute expression, committed through
-        /// <see cref="PropertyGridValueAdapter.TrySetExpression"/> when it loses focus.
+        /// <see cref="PropertyGridValueAdapter.TrySetExpression"/> on Enter or when it loses focus.
         /// </summary>
         /// <param name="entry">The row's property.</param>
         /// <param name="target">The object the row's entry belongs to.</param>
@@ -415,11 +415,37 @@ namespace Icy.UI.Controls
         private TextBox BuildExpressionEditor(PropertyGridEntry entry, object target, string expression)
         {
             var box = new TextBox { Text = expression, IsEnabled = !entry.IsReadOnly };
+
+            // The box listens for Enter only while it has the focus, so idle rows cost nothing.
+            Input.Devices.IKeyboardInput? keyboard = null;
+            void OnKeyDown(object? sender, GenericEventArgs<Input.Devices.Keys> e)
+            {
+                if (e.Data == Input.Devices.Keys.Enter && box.IsFocused)
+                    CommitExpression(box, entry, target);
+            }
+
+            void StopListening()
+            {
+                if (keyboard != null)
+                    keyboard.KeyDown -= OnKeyDown;
+                keyboard = null;
+            }
+
             box.FocusChanged += (_, _) =>
             {
-                if (!box.IsFocused)
-                    CommitExpression(box, entry, target);
+                if (box.IsFocused)
+                {
+                    StopListening();
+                    keyboard = box.Canvas?.Configuration.Input.Keyboard;
+                    if (keyboard != null)
+                        keyboard.KeyDown += OnKeyDown;
+                    return;
+                }
+
+                StopListening();
+                CommitExpression(box, entry, target);
             };
+            box.Detached += (_, _) => StopListening();
             expressionCommits.AddOrUpdate(box, () => CommitExpression(box, entry, target));
             return box;
         }
