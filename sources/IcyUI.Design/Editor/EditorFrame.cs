@@ -79,6 +79,12 @@ namespace Icy.Design.Editor
         }
 
         /// <summary>
+        /// Occurs during rendering when the editor's region (see <see cref="EditorSession.Region"/>) changed, so companion
+        /// layers can follow it. Empty when the scope is hidden or off the canvas.
+        /// </summary>
+        internal event Action<Rectangle>? RegionChanged;
+
+        /// <summary>
         /// Gets the session the frame shows; share it with other tools to share the selection.
         /// </summary>
         public EditorSession Session { get; }
@@ -123,12 +129,6 @@ namespace Icy.Design.Editor
         /// top of the canvas's overlays (docks around the page, say). Their clicks never reach the capture layer.
         /// </summary>
         internal List<UIElement> CompanionLayers { get; } = [];
-
-        /// <summary>
-        /// Occurs during rendering when the editor's region (see <see cref="EditorSession.Region"/>) changed, so companion
-        /// layers can follow it. Empty when the scope is hidden or off the canvas.
-        /// </summary>
-        internal event Action<Rectangle>? RegionChanged;
 
         /// <summary>
         /// Gets or sets a value indicating whether the frame's own toolbar is on the canvas. A host that shows the mode and

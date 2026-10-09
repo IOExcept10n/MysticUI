@@ -73,6 +73,24 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void SeveralEditsInOneFrame_RebuildTheOutlineOnce()
+        {
+            (EditorTestHost host, OutlinePanel panel) = Create();
+            using (host)
+            {
+                panel.Document = host.Document;
+                host.Render();
+                int before = panel.RebuildCount;
+
+                for (int i = 0; i < 5; i++)
+                    host.Document.Editor.SetAttribute(host.IdOf(host.Named<Button>("first")), "Width", (50 + i).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                host.Render();
+
+                Assert.Equal(before + 1, panel.RebuildCount);
+            }
+        }
+
+        [Fact]
         public void AStructuralEdit_UpdatesTheTree_AndKeepsExpansion()
         {
             (EditorTestHost host, OutlinePanel panel) = Create();

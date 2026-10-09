@@ -138,6 +138,22 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
+        public void Refresh_KeepsTheEditorsOfUnchangedRows()
+        {
+            var target = new Target();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+            UIElement nicknameBefore = FindEditor(grid, "Nickname")!;
+            UIElement scoreBefore = FindEditor(grid, "Score")!;
+
+            target.Score = 99;
+            grid.Refresh();
+
+            Assert.Same(nicknameBefore, FindEditor(grid, "Nickname"));
+            Assert.NotSame(scoreBefore, FindEditor(grid, "Score"));
+        }
+
+        [Fact]
         public void Refresh_PicksUpANewlyResettableRow()
         {
             var adapter = new RecordingAdapter();

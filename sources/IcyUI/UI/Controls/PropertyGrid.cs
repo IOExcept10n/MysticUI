@@ -141,8 +141,14 @@ namespace Icy.UI.Controls
         /// <see cref="ValueAdapter"/>, keeping the rows themselves.
         /// </summary>
         /// <remarks>
-        /// Call it after something other than this grid changed the target, such as an undo. Two rows keep their editor:
-        /// the one being written right now, and the one holding the keyboard focus, so typing is never interrupted.
+        /// <para>
+        /// Call it after something other than this grid changed the target, such as an undo. Only rows whose value,
+        /// expression or Reset state changed get a new editor, so a refresh after a one-property edit is cheap.
+        /// </para>
+        /// <para>
+        /// Two rows keep their editor regardless: the one being written right now, and the one holding the keyboard
+        /// focus, so typing is never interrupted.
+        /// </para>
         /// </remarks>
         public void Refresh()
         {
@@ -156,7 +162,8 @@ namespace Icy.UI.Controls
                     continue;
                 if (focused != null && row.Children.Count > 1 && IsSelfOrAncestor(row.Children[1], focused))
                     continue;
-                FillRow(row, target);
+                if (!row.Shows(ReadState(row.Entry, target)))
+                    FillRow(row, target);
             }
         }
 
@@ -333,6 +340,7 @@ namespace Icy.UI.Controls
             while (row.Children.Count > 1)
                 row.Children.RemoveAt(row.Children.Count - 1);
 
+            row.Shown = ReadState(row.Entry, target);
             UIElement editor = BuildEditor(row.Entry, target);
             Grid.SetColumn(editor, 1);
             row.Children.Add(editor);
@@ -350,6 +358,25 @@ namespace Icy.UI.Controls
                 };
                 Grid.SetColumn(reset, 2);
                 row.Children.Add(reset);
+            }
+        }
+
+        /// <summary>
+        /// Reads what a row for <paramref name="entry"/> shows, so <see cref="Refresh"/> can tell whether it changed.
+        /// </summary>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="target">The object the row's entry belongs to.</param>
+        /// <returns>The state, or <see langword="null"/> when reading it failed (such a row is always rebuilt).</returns>
+        private RowState? ReadState(PropertyGridEntry entry, object target)
+        {
+            try
+            {
+                return new RowState(valueAdapter.GetValue(entry, target), valueAdapter.GetExpression(entry, target), valueAdapter.CanReset(entry, target));
+            }
+            catch (Exception)
+            {
+                // The editor shows the failure itself (see BuildEditor); null makes the row rebuild on every refresh.
+                return null;
             }
         }
 
@@ -955,6 +982,14 @@ namespace Icy.UI.Controls
         private ItemContainer GetRealizedContainer(int index) => realizedContainers[index];
 
         /// <summary>
+        /// What a row's editor shows: the value, the expression text, and whether Reset is offered.
+        /// </summary>
+        /// <param name="Value">The value the adapter read.</param>
+        /// <param name="Expression">The expression text, or <see langword="null"/> for a typed editor.</param>
+        /// <param name="CanReset">Whether the row has a Reset button.</param>
+        private readonly record struct RowState(object? Value, string? Expression, bool CanReset);
+
+        /// <summary>
         /// A non-interactive divider row inserted before each new <see cref="PropertyGridEntry.Category"/> group.
         /// </summary>
         /// <param name="Name">The category name to display.</param>
@@ -971,6 +1006,18 @@ namespace Icy.UI.Controls
             /// Gets the property the row shows.
             /// </summary>
             public PropertyGridEntry Entry { get; } = entry;
+
+            /// <summary>
+            /// Gets or sets what the row's editor was built from, or <see langword="null"/> when that couldn't be read.
+            /// </summary>
+            public RowState? Shown { get; set; }
+
+            /// <summary>
+            /// Determines whether the row's editor already shows <paramref name="state"/>.
+            /// </summary>
+            /// <param name="state">The freshly read state.</param>
+            /// <returns><see langword="true"/> when both states were read and are equal.</returns>
+            public bool Shows(RowState? state) => Shown is { } shown && state is { } current && shown.Equals(current);
         }
 
         /// <summary>

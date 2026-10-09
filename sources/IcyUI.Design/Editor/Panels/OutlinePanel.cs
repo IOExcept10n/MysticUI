@@ -46,7 +46,8 @@ namespace Icy.Design.Editor.Panels
     /// Selecting a row selects its element in the session; selecting in the editor frame reveals and selects the row.
     /// </description></item>
     /// <item><description>
-    /// Every document change updates the tree in place: rows are kept per element, so expansion and selection survive
+    /// Every document change updates the tree in place, once per layout pass however many edits arrived (and not at
+    /// all while the panel is hidden): rows are kept per element, so expansion and selection survive
     /// edits. Switching to another document starts from fresh rows, so nothing of the previous document is reused;
     /// switching back restores which of its elements were expanded.
     /// </description></item>
@@ -71,6 +72,7 @@ namespace Icy.Design.Editor.Panels
         private DesignDocument? watched;
         private IKeyboardInput? keyboard;
         private bool syncing;
+        private bool dirty;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OutlinePanel"/> class.
@@ -96,7 +98,14 @@ namespace Icy.Design.Editor.Panels
         /// <summary>
         /// Gets the top-level rows: the document's root element, or nothing.
         /// </summary>
-        public IReadOnlyList<OutlineItem> Roots => roots;
+        public IReadOnlyList<OutlineItem> Roots
+        {
+            get
+            {
+                EnsureBuilt();
+                return roots;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the session whose selection the panel follows and changes, or <see langword="null"/>.
@@ -142,6 +151,8 @@ namespace Icy.Design.Editor.Panels
                 }
             }
         }
+
+        internal int RebuildCount { get; private set; }
 
         /// <summary>
         /// Inserts a copy of the selected element right after it. Names (<c>x:Name</c>) are left out of the copy, so the
@@ -212,6 +223,14 @@ namespace Icy.Design.Editor.Panels
             List<ElementSyntax> siblings = [.. parent.ContentElements.Where(x => !ReferenceEquals(x, element))];
             int index = siblings.IndexOf(destination) + (position == OutlineDropPosition.After ? 1 : 0);
             return document.Editor.MoveElement(item.Node, parentId, index);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>Brings the tree up to date with the document's edits since the last layout pass.</remarks>
+        protected override System.Drawing.Size MeasureContent()
+        {
+            EnsureBuilt();
+            return base.MeasureContent();
         }
 
         /// <inheritdoc/>
@@ -336,6 +355,7 @@ namespace Icy.Design.Editor.Panels
 
         private void SelectRow()
         {
+            EnsureBuilt();
             object? row = listening?.Selection is { } selection && ReferenceEquals(selection.Document, document)
                 ? items.GetValueOrDefault(selection.Node)
                 : null;
@@ -370,6 +390,17 @@ namespace Icy.Design.Editor.Panels
 
         private void OnDocumentChanged(object? sender, DocumentChangedEventArgs e)
         {
+            // Rebuilding walks the whole element tree, so a burst of edits (a drag, typing) waits for the next layout pass
+            // and is handled once.
+            dirty = true;
+            InvalidateMeasure();
+        }
+
+        private void EnsureBuilt()
+        {
+            if (!dirty)
+                return;
+
             Rebuild();
             SelectRow();
         }
@@ -389,6 +420,8 @@ namespace Icy.Design.Editor.Panels
 
         private void Rebuild()
         {
+            RebuildCount++;
+            dirty = false;
             if (document?.Syntax.Root is not { } root)
             {
                 roots.Clear();
