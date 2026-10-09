@@ -76,7 +76,11 @@ namespace Icy.UI.Controls
         /// </summary>
         private const int ComponentLabelSpacing = 4;
 
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextBox, Action> expressionCommits = new();
+
         private object? target;
+        private PropertyGridValueAdapter valueAdapter = PropertyGridValueAdapter.Default;
+        private PropertyGridEntry? writingEntry;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PropertyGrid"/> class.
@@ -113,6 +117,49 @@ namespace Icy.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Gets or sets how rows read and write <see cref="Target"/>'s properties. Defaults to
+        /// <see cref="PropertyGridValueAdapter.Default"/>, which reads and writes them directly.
+        /// </summary>
+        /// <remarks>Setting it rebuilds every row.</remarks>
+        /// <exception cref="ArgumentNullException">The value is <see langword="null"/>.</exception>
+        public PropertyGridValueAdapter ValueAdapter
+        {
+            get => valueAdapter;
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+                if (ReferenceEquals(valueAdapter, value))
+                    return;
+                valueAdapter = value;
+                ItemsSource = BuildRows(target);
+            }
+        }
+
+        /// <summary>
+        /// Re-reads every row's value, expression and Reset state from <see cref="Target"/> through
+        /// <see cref="ValueAdapter"/>, keeping the rows themselves.
+        /// </summary>
+        /// <remarks>
+        /// Call it after something other than this grid changed the target, such as an undo. Two rows keep their editor:
+        /// the one being written right now, and the one holding the keyboard focus, so typing is never interrupted.
+        /// </remarks>
+        public void Refresh()
+        {
+            if (target == null)
+                return;
+
+            UIElement? focused = Canvas?.FocusedElement;
+            foreach (ItemContainer container in realizedContainers.Values)
+            {
+                if (container.Content is not PropertyRow row || ReferenceEquals(row.Entry, writingEntry))
+                    continue;
+                if (focused != null && row.Children.Count > 1 && IsSelfOrAncestor(row.Children[1], focused))
+                    continue;
+                FillRow(row, target);
+            }
+        }
+
         /// <inheritdoc/>
         /// <remarks>
         /// <para>
@@ -144,6 +191,25 @@ namespace Icy.UI.Controls
             viewportHeight = newViewportHeight;
 
             InvalidateArrange();
+        }
+
+        /// <summary>
+        /// Commits an expression row's text the way losing focus does. For tests.
+        /// </summary>
+        /// <param name="box">An expression row's text box.</param>
+        /// <exception cref="InvalidOperationException"><paramref name="box"/> isn't an expression row of a grid.</exception>
+        internal static void CommitExpressionForTest(TextBox box)
+        {
+            for (UIElement? element = box; element != null; element = element.Parent)
+            {
+                if (element is PropertyGrid grid && grid.expressionCommits.TryGetValue(box, out Action? commit))
+                {
+                    commit();
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException("The box isn't an expression row of a PropertyGrid.");
         }
 
         /// <inheritdoc/>
@@ -221,9 +287,10 @@ namespace Icy.UI.Controls
             object currentTarget = target ?? throw new InvalidOperationException(
                 $"'{nameof(PropertyGrid)}' realized a row with no '{nameof(Target)}' set.");
 
-            var row = new Grid();
+            var row = new PropertyRow(entry);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             // A Grid with no RowDefinitions falls back to a single implicit Star track (Grid.ResolveTracks), which
             // measures to 0 height with no available-space constraint - exactly the case at this row's own
@@ -233,14 +300,114 @@ namespace Icy.UI.Controls
             row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var label = new TextBlock { Text = entry.DisplayName, VerticalAlignment = VerticalAlignment.Center };
-            UIElement editor = BuildEditor(entry, currentTarget);
-
             Grid.SetColumn(label, 0);
-            Grid.SetColumn(editor, 1);
             row.Children.Add(label);
-            row.Children.Add(editor);
+            FillRow(row, currentTarget);
 
             return new ItemContainer { Content = row };
+        }
+
+        /// <summary>
+        /// Determines whether <paramref name="ancestor"/> is <paramref name="element"/> or one of its ancestors.
+        /// </summary>
+        /// <param name="ancestor">The candidate ancestor.</param>
+        /// <param name="element">The element to walk up from.</param>
+        private static bool IsSelfOrAncestor(UIElement ancestor, UIElement element)
+        {
+            for (UIElement? current = element; current != null; current = current.Parent)
+            {
+                if (ReferenceEquals(current, ancestor))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Replaces <paramref name="row"/>'s editor and Reset button with fresh ones reading the current value.
+        /// </summary>
+        /// <param name="row">The row to fill; its label stays.</param>
+        /// <param name="target">The object the row's entry belongs to.</param>
+        private void FillRow(PropertyRow row, object target)
+        {
+            while (row.Children.Count > 1)
+                row.Children.RemoveAt(row.Children.Count - 1);
+
+            UIElement editor = BuildEditor(row.Entry, target);
+            Grid.SetColumn(editor, 1);
+            row.Children.Add(editor);
+
+            if (valueAdapter.CanReset(row.Entry, target))
+            {
+                PropertyGridEntry entry = row.Entry;
+                PropertyGridValueAdapter adapter = valueAdapter;
+                var reset = new Button
+                {
+                    Content = new TextBlock { Text = "Reset" },
+                    Padding = new Thickness(6, 2),
+                    Margin = new Thickness(4, 0, 0, 0),
+                    Command = new ActionCommand(() => adapter.Reset(entry, target)),
+                };
+                Grid.SetColumn(reset, 2);
+                row.Children.Add(reset);
+            }
+        }
+
+        /// <summary>
+        /// Writes <paramref name="value"/> through <see cref="ValueAdapter"/>, marking <paramref name="entry"/> as the
+        /// row being written so a synchronous <see cref="Refresh"/> keeps its editor.
+        /// </summary>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="target">The object the row's entry belongs to.</param>
+        /// <param name="value">The new value.</param>
+        /// <returns><see langword="true"/> when the adapter accepted the value.</returns>
+        private bool Write(PropertyGridEntry entry, object target, object? value)
+        {
+            // A write may refresh this grid synchronously (an adapter whose document raises Changed); the row being
+            // written keeps its editor so an open popup or a slider drag survives.
+            PropertyGridEntry? previous = writingEntry;
+            writingEntry = entry;
+            try
+            {
+                return valueAdapter.TrySetValue(entry, target, value);
+            }
+            finally
+            {
+                writingEntry = previous;
+            }
+        }
+
+        /// <summary>
+        /// Builds a <see cref="TextBox"/> showing an attribute expression, committed through
+        /// <see cref="PropertyGridValueAdapter.TrySetExpression"/> when it loses focus.
+        /// </summary>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="target">The object the row's entry belongs to.</param>
+        /// <param name="expression">The expression text to show.</param>
+        /// <returns>The freshly built text box.</returns>
+        private TextBox BuildExpressionEditor(PropertyGridEntry entry, object target, string expression)
+        {
+            var box = new TextBox { Text = expression, IsEnabled = !entry.IsReadOnly };
+            box.FocusChanged += (_, _) =>
+            {
+                if (!box.IsFocused)
+                    CommitExpression(box, entry, target);
+            };
+            expressionCommits.AddOrUpdate(box, () => CommitExpression(box, entry, target));
+            return box;
+        }
+
+        /// <summary>
+        /// Commits <paramref name="box"/>'s text through the adapter and marks it
+        /// <see cref="ControlState.Invalid"/> when the adapter rejects it.
+        /// </summary>
+        /// <param name="box">The expression row's text box.</param>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="target">The object the row's entry belongs to.</param>
+        private void CommitExpression(TextBox box, PropertyGridEntry entry, object target)
+        {
+            bool accepted = valueAdapter.TrySetExpression(entry, target, box.Text);
+            box.ControlState = accepted ? box.ControlState & ~ControlState.Invalid : box.ControlState | ControlState.Invalid;
         }
 
         /// <summary>
@@ -282,7 +449,7 @@ namespace Icy.UI.Controls
             object? value;
             try
             {
-                value = entry.GetValue(target);
+                value = valueAdapter.GetValue(entry, target);
             }
             catch (Exception ex)
             {
@@ -293,17 +460,20 @@ namespace Icy.UI.Controls
                 return new TextBlock { Text = $"(error: {ex.Message})", VerticalAlignment = VerticalAlignment.Center };
             }
 
+            if (valueAdapter.GetExpression(entry, target) is { } expression)
+                return BuildExpressionEditor(entry, target, expression);
+
             if (entry.PropertyType == typeof(string))
             {
                 var textBox = new TextBox { Text = (string?)value ?? string.Empty, IsEnabled = !entry.IsReadOnly };
-                textBox.TextChanged += (_, _) => entry.TrySetValue(target, textBox.Text);
+                textBox.TextChanged += (_, _) => Write(entry, target, textBox.Text);
                 return textBox;
             }
 
             if (entry.PropertyType == typeof(bool))
             {
                 var checkBox = new CheckBox { IsChecked = value is true, IsEnabled = !entry.IsReadOnly };
-                checkBox.IsCheckedChanged += (_, _) => entry.TrySetValue(target, checkBox.IsChecked);
+                checkBox.IsCheckedChanged += (_, _) => Write(entry, target, checkBox.IsChecked);
                 return checkBox;
             }
 
@@ -362,7 +532,7 @@ namespace Icy.UI.Controls
             textBox.TextChanged += (_, _) =>
             {
                 if (TryConvertNumeric(textBox.Text, entry.PropertyType, out object? converted))
-                    entry.TrySetValue(target, converted);
+                    Write(entry, target, converted);
             };
             return textBox;
         }
@@ -461,7 +631,7 @@ namespace Icy.UI.Controls
                     if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? converted))
                     {
                         textBox.Text = Convert.ToString(converted, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
-                        entry.TrySetValue(target, converted);
+                        Write(entry, target, converted);
                     }
                 }
                 finally
@@ -491,7 +661,7 @@ namespace Icy.UI.Controls
                             // immediately; the display catches up on focus loss, below. See this method's remarks.
                             if (!textBox.IsFocused)
                                 textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
-                            entry.TrySetValue(target, clamped);
+                            Write(entry, target, clamped);
                         }
                     }
                 }
@@ -542,7 +712,7 @@ namespace Icy.UI.Controls
                 SelectedItem = value,
                 IsEnabled = !entry.IsReadOnly,
             };
-            comboBox.SelectionChanged += (_, _) => entry.TrySetValue(target, comboBox.SelectedItem);
+            comboBox.SelectionChanged += (_, _) => Write(entry, target, comboBox.SelectedItem);
             return comboBox;
         }
 
@@ -560,7 +730,7 @@ namespace Icy.UI.Controls
                 SelectedColor = value is Color color ? color : Color.White,
                 IsEnabled = !entry.IsReadOnly,
             };
-            button.ColorChanged += (_, _) => entry.TrySetValue(target, button.SelectedColor);
+            button.ColorChanged += (_, _) => Write(entry, target, button.SelectedColor);
             return button;
         }
 
@@ -630,7 +800,7 @@ namespace Icy.UI.Controls
                             return;
                     }
 
-                    entry.TrySetValue(target, compose(values));
+                    Write(entry, target, compose(values));
                 };
                 panel.Children.Add(label);
                 panel.Children.Add(box);
@@ -789,5 +959,38 @@ namespace Icy.UI.Controls
         /// </summary>
         /// <param name="Name">The category name to display.</param>
         private sealed record CategoryHeader(string Name);
+
+        /// <summary>
+        /// A property row: label, editor and an optional Reset button, remembering the entry it shows so
+        /// <see cref="Refresh"/> can refill it in place.
+        /// </summary>
+        /// <param name="entry">The property the row shows.</param>
+        private sealed class PropertyRow(PropertyGridEntry entry) : Grid
+        {
+            /// <summary>
+            /// Gets the property the row shows.
+            /// </summary>
+            public PropertyGridEntry Entry { get; } = entry;
+        }
+
+        /// <summary>
+        /// A command that runs an action and can always execute; used by the Reset buttons.
+        /// </summary>
+        /// <param name="execute">The action to run.</param>
+        private sealed class ActionCommand(Action execute) : System.Windows.Input.ICommand
+        {
+            /// <inheritdoc/>
+            public event EventHandler? CanExecuteChanged
+            {
+                add { }
+                remove { }
+            }
+
+            /// <inheritdoc/>
+            public bool CanExecute(object? parameter) => true;
+
+            /// <inheritdoc/>
+            public void Execute(object? parameter) => execute();
+        }
     }
 }

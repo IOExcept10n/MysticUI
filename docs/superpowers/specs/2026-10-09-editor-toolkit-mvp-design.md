@@ -95,11 +95,12 @@ public class PropertyGridValueAdapter
   - `Color`
   - solid brushes
   - `Vector2`/`Vector3`/`Vector4`
-  - `Point`, `Size`, `Thickness`, `CornerRadius`
+  - `Point`, `Size`, `Thickness`
   - any type whose `TypeConverter` converts to and from `string`
 - Anything else returns `false`. That row is read-only in the markup adapter, and the panel's status line says why when it is selected (core has no tooltips).
-- **The invariant:** every formatted value loads back to an equal value through `MarkupLoader`. Tests check this per
-  type.
+- **The invariant:** every formatted value loads back to an equal value through `MarkupLoader`. The formatter verifies
+  it by converting the text back through the configuration's type converter, and returns `false` when the result
+  isn't equal. Tests check this per type.
 
 ### `IcyUI.Design`: `MarkupPropertyAdapter`
 
@@ -114,8 +115,7 @@ A `PropertyGridValueAdapter` for one selected element (`DesignDocument` + `NodeI
 | `CanReset` / `Reset` | The attribute exists / `MarkupEditor.ClearAttribute`. |
 
 A property set only by a style shows the style's value. Editing it writes a *local* attribute, as in XAML designers.
-Attached properties written as `Owner.Property` attributes are listed when they're present in the markup. Adding a
-new attached property is out of scope.
+Attached properties (`Grid.Row`, …) aren't listed in the MVP; drags and the text edit them.
 
 ### Panels
 
@@ -164,7 +164,8 @@ All three are public controls in a new `Icy.Design.Editor.Panels` namespace. Eac
 
 - **`DesignDocument` additions:**
   - `IsModified` is `true` after any edit since the last load or Save, and `false` again after Save.
-  - Undoing back to the saved state also clears it. It's tracked by undo-stack position.
+  - Undoing back to the saved text also clears it: it compares the text with the last saved or loaded text, because
+    coalesced undo entries make the undo position unreliable.
   - `ModifiedChanged` reports the change.
 - `DesignDocument.CanSave` / `SaveBlockedReason` report whether `SourcePathResolver` resolves the document. The
   reasons are "no source path" and "doesn't resolve under the source root".
@@ -202,6 +203,8 @@ public sealed class EditorOverlay : IDisposable
 - **`Hide()`:** detaches all of it. The `DesignSession` keeps tracking, and undo history stays with the documents.
 - **Collapsing:** the docks collapse to a thin strip, so the game stays visible.
 - **Input:** the docks are overlays above the frame's capture layer, so clicks on them never select game elements.
+- **Keyboard:** editor key bindings stand down while a `TextBox` has focus, so typing in a panel never nudges or
+  deletes the selection.
 
 ### `EditorWorkspace`
 
@@ -305,5 +308,6 @@ placed against the region explicitly, as the toolbar already is, and set a minim
   clipboard.
 - Standalone designer app, SDK/NuGet packaging.
 - Adding new attached properties from the panel; nested-object editors.
+- Attached-property rows in PropertiesPanel.
 - Open placement questions: I5, I6, I7 and I2-Grid. The I-1 Esc/Dialog question too, unless it bites in the game.
 - MonoGame backend consistency, MonoGame touch, the WoA DesktopGL deadlock, FNA.
