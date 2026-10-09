@@ -340,6 +340,7 @@ namespace Icy.UI.Controls
             while (row.Children.Count > 1)
                 row.Children.RemoveAt(row.Children.Count - 1);
 
+            row.InvalidReason = null;
             row.Shown = ReadState(row.Entry, target);
             UIElement editor = BuildEditor(row.Entry, target);
             Grid.SetColumn(editor, 1);
@@ -376,6 +377,44 @@ namespace Icy.UI.Controls
             catch (Exception)
             {
                 // The editor shows the failure itself (see BuildEditor); null makes the row rebuild on every refresh.
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Marks <paramref name="box"/> <see cref="ControlState.Invalid"/> with <paramref name="reason"/>, or clears the mark
+        /// when <paramref name="reason"/> is <see langword="null"/>, and records the reason on the box's row.
+        /// </summary>
+        /// <param name="box">A row editor's text box.</param>
+        /// <param name="reason">Why its text is rejected, or <see langword="null"/>.</param>
+        private void SetInvalid(TextBox box, string? reason)
+        {
+            box.ControlState = reason != null ? box.ControlState | ControlState.Invalid : box.ControlState & ~ControlState.Invalid;
+            for (UIElement? element = box; element != null; element = element.Parent)
+            {
+                if (element is PropertyRow row)
+                {
+                    row.InvalidReason = reason;
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reads a row's current value through <see cref="ValueAdapter"/>, for reverting rejected text.
+        /// </summary>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="target">The object the row's entry belongs to.</param>
+        /// <returns>The value, or <see langword="null"/> when the getter throws.</returns>
+        private object? SafeGetValue(PropertyGridEntry entry, object target)
+        {
+            try
+            {
+                return valueAdapter.GetValue(entry, target);
+            }
+            catch (Exception)
+            {
+                // A getter that throws is shown by BuildEditor already; reverting to empty text is the best left to do.
                 return null;
             }
         }
@@ -564,10 +603,15 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Builds a numeric editor for <paramref name="entry"/> - a plain <see cref="TextBox"/> when no
-        /// <see cref="PropertyGridEntry.Range"/> is present, or a <see cref="Slider"/>+<see cref="TextBox"/>
-        /// pair (see <see cref="BuildRangedNumericEditor"/>) when one is.
+        /// Builds a numeric editor for <paramref name="entry"/> - a plain, validated <see cref="TextBox"/> when
+        /// <see cref="PropertyGridEntry.Range"/> is absent or open-ended, or a <see cref="Slider"/>+<see cref="TextBox"/>
+        /// pair (see <see cref="BuildRangedNumericEditor"/>) when it's bounded.
         /// </summary>
+        /// <remarks>
+        /// Typed text is parsed and checked with <see cref="PropertyGridEntry.Validate"/> before anything is written. Rejected
+        /// text stays in the box, marked <see cref="ControlState.Invalid"/>, and reverts to the current value when the box
+        /// loses focus. Empty text means "unset" for a property whose default is <see cref="float.NaN"/>.
+        /// </remarks>
         /// <param name="entry">The numeric property this row edits.</param>
         /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
         /// <param name="value">The property's current value.</param>
@@ -577,15 +621,38 @@ namespace Icy.UI.Controls
             if (entry.Range is { IsBounded: true } range)
                 return BuildRangedNumericEditor(entry, target, value, range);
 
-            var textBox = new TextBox
-            {
-                Text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "0",
-                IsEnabled = !entry.IsReadOnly,
-            };
+            var textBox = new TextBox { Text = FormatNumber(value), IsEnabled = !entry.IsReadOnly };
+            bool reverting = false;
             textBox.TextChanged += (_, _) =>
             {
-                if (TryConvertNumeric(textBox.Text, entry.PropertyType, out object? converted))
-                    Write(entry, target, converted);
+                if (reverting)
+                    return;
+                if (TryParseInput(entry, textBox.Text, out object? parsed, out string? reason))
+                {
+                    SetInvalid(textBox, null);
+                    Write(entry, target, parsed);
+                }
+                else
+                {
+                    SetInvalid(textBox, reason);
+                }
+            };
+            textBox.FocusChanged += (_, _) =>
+            {
+                // Leaving the box with rejected text shows the current value again (nothing was written).
+                if (textBox.IsFocused || !textBox.ControlState.HasFlag(ControlState.Invalid))
+                    return;
+                reverting = true;
+                try
+                {
+                    textBox.Text = FormatNumber(SafeGetValue(entry, target));
+                }
+                finally
+                {
+                    reverting = false;
+                }
+
+                SetInvalid(textBox, null);
             };
             return textBox;
         }
@@ -601,41 +668,21 @@ namespace Icy.UI.Controls
         /// </summary>
         /// <remarks>
         /// <para>
-        /// <see cref="Slider.Value"/>'s setter clamps to <see cref="Slider.Minimum"/>/<see cref="Slider.Maximum"/>
-        /// internally, but a value typed into <see cref="TextBox.Text"/> is not otherwise bounded by
-        /// <paramref name="range"/> at all. Both the initial <see cref="TextBox.Text"/> assignment and the
-        /// <see cref="TextBox.TextChanged"/> handler below therefore always route the value through
-        /// <c>slider.Value</c> first and re-read it back out afterwards, using that already-clamped result - never
-        /// the raw incoming value - as the single source of truth for what actually reaches
-        /// <paramref name="target"/> (via <see cref="PropertyGridEntry.TrySetValue"/>) and what's redisplayed in
-        /// <see cref="TextBox.Text"/>. Without this, typing an out-of-range value (e.g. <c>150</c> on a
-        /// <c>[Range(0, 100)]</c> property) would write the unclamped value straight through
-        /// <see cref="PropertyGridEntry.TrySetValue"/> while the <see cref="Slider"/> silently clamped its own
-        /// display to <c>100</c> - the pair would permanently disagree, and <paramref name="range"/> would never
-        /// actually be enforced through this path.
+        /// Typed text is validated against <paramref name="range"/> (including exclusive ends) instead of being clamped.
+        /// Text outside it - including every prefix on the way to a valid value, such as the <c>2</c> of <c>2500</c> in
+        /// <c>[Range(1000, 5000)]</c> - stays in the box as typed, is marked <see cref="ControlState.Invalid"/>, and writes
+        /// nothing. The text is never rewritten while the box is focused; when it loses focus with rejected text, it shows
+        /// the current value again.
         /// </para>
         /// <para>
-        /// The one thing that clamping must not do is rewrite <see cref="TextBox.Text"/> out from under someone
-        /// mid-edit. Every keystroke raises <see cref="TextBox.TextChanged"/> against the partial text typed so far,
-        /// so writing the clamped result back on each one makes any range whose minimum needs more than one digit
-        /// untypable: on a <c>[Range(1000, 5000)]</c> property, the <c>2</c> of an intended <c>2500</c> clamps to
-        /// <c>1000</c> and replaces the text before a second digit can be typed (and a negative range like
-        /// <c>[Range(-10, -1)]</c> breaks the same way on the leading <c>-</c>). The clamped value is therefore still
-        /// pushed to <c>slider.Value</c> and <paramref name="target"/> on every keystroke, but
-        /// <see cref="TextBox.Text"/> itself is only rewritten while the box does not have focus - a
-        /// <see cref="UIElement.FocusChanged"/> handler performs that one rewrite on focus loss, settling the display
-        /// on the clamped value once the user is done typing.
-        /// </para>
-        /// <para>
-        /// That focus-loss rewrite goes through the same <c>isSyncing</c> guard as everything else here: assigning
-        /// <see cref="TextBox.Text"/> re-raises <see cref="TextBox.TextChanged"/>, which would otherwise re-run the
-        /// whole parse/clamp/write path a second time for a value that just came out of it.
+        /// The slider can only produce values inside its own bounds; a slider value that the range's exclusive ends reject
+        /// isn't written.
         /// </para>
         /// </remarks>
         /// <param name="entry">The numeric property this row edits.</param>
         /// <param name="target">The object <paramref name="entry"/> belongs to.</param>
         /// <param name="value">The property's current value.</param>
-        /// <param name="range">The inclusive range <see cref="PropertyGridEntry.Range"/> declares.</param>
+        /// <param name="range">The bounded range <see cref="PropertyGridEntry.Range"/> declares.</param>
         /// <returns>A <see cref="StackPanel"/> containing the freshly built <see cref="Slider"/> and <see cref="TextBox"/>.</returns>
         private UIElement BuildRangedNumericEditor(PropertyGridEntry entry, object target, object? value, ValueRange range)
         {
@@ -681,9 +728,10 @@ namespace Icy.UI.Controls
                 isSyncing = true;
                 try
                 {
-                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? converted))
+                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? converted) && entry.Validate(converted, out _))
                     {
-                        textBox.Text = Convert.ToString(converted, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
+                        textBox.Text = FormatNumber(converted);
+                        SetInvalid(textBox, null);
                         Write(entry, target, converted);
                     }
                 }
@@ -697,26 +745,19 @@ namespace Icy.UI.Controls
             {
                 if (isSyncing)
                     return;
+                if (!TryParseInput(entry, textBox.Text, out object? typed, out string? reason))
+                {
+                    // Mid-edit text ("2" on the way to "2500" in [1000, 5000]) stays as typed and writes nothing.
+                    SetInvalid(textBox, reason);
+                    return;
+                }
+
+                SetInvalid(textBox, null);
                 isSyncing = true;
                 try
                 {
-                    if (TryConvertNumeric(textBox.Text, entry.PropertyType, out object? typed))
-                    {
-                        // slider.Value's setter clamps to [Minimum, Maximum] - re-read it afterwards as the
-                        // clamped result, rather than trusting `typed` (the raw, possibly out-of-range parse),
-                        // for both what gets written to the target and what's redisplayed in the TextBox - see
-                        // the class remarks.
-                        slider.Value = (float)Convert.ToDouble(typed, System.Globalization.CultureInfo.InvariantCulture);
-                        if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? clamped))
-                        {
-                            // Never rewrite the text the user is still typing into - that's what made a range
-                            // like [Range(1000, 5000)] untypable. The clamped value still reaches the target
-                            // immediately; the display catches up on focus loss, below. See this method's remarks.
-                            if (!textBox.IsFocused)
-                                textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
-                            Write(entry, target, clamped);
-                        }
-                    }
+                    slider.Value = (float)Convert.ToDouble(typed, System.Globalization.CultureInfo.InvariantCulture);
+                    Write(entry, target, typed);
                 }
                 finally
                 {
@@ -726,21 +767,20 @@ namespace Icy.UI.Controls
 
             textBox.FocusChanged += (_, _) =>
             {
-                // Only on focus LOSS, and only the display: slider.Value already holds the clamped value every
-                // keystroke wrote, so this just settles the text on it. Goes through isSyncing because assigning
-                // Text re-raises TextChanged - see this method's remarks.
-                if (textBox.IsFocused || isSyncing)
+                if (textBox.IsFocused || isSyncing || !textBox.ControlState.HasFlag(ControlState.Invalid))
                     return;
                 isSyncing = true;
                 try
                 {
-                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? clamped))
-                        textBox.Text = Convert.ToString(clamped, System.Globalization.CultureInfo.InvariantCulture) ?? textBox.Text;
+                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? current))
+                        textBox.Text = FormatNumber(current);
                 }
                 finally
                 {
                     isSyncing = false;
                 }
+
+                SetInvalid(textBox, null);
             };
 
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
@@ -926,6 +966,56 @@ namespace Icy.UI.Controls
             type == typeof(float) || type == typeof(double) || type == typeof(decimal);
 
         /// <summary>
+        /// Parses and validates text typed into a numeric row.
+        /// </summary>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="text">The typed text.</param>
+        /// <param name="value">The value to write, when this method returns <see langword="true"/>.</param>
+        /// <param name="reason">Why the text is rejected, when this method returns <see langword="false"/>.</param>
+        /// <returns>
+        /// <see langword="true"/> for a finite number that passes <see cref="PropertyGridEntry.Validate"/>, or for empty
+        /// text when the property's default is <see cref="float.NaN"/>/<see cref="double.NaN"/> ("unset").
+        /// </returns>
+        private static bool TryParseInput(PropertyGridEntry entry, string text, out object? value, [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? reason)
+        {
+            reason = null;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                if (entry.HasDefaultValue && entry.DefaultValue is float.NaN or double.NaN)
+                {
+                    value = entry.DefaultValue;
+                    return true;
+                }
+
+                value = null;
+                reason = "Enter a number.";
+                return false;
+            }
+
+            if (!TryConvertNumeric(text, entry.PropertyType, out value))
+            {
+                reason = "Enter a number.";
+                return false;
+            }
+
+            if ((value is float f && float.IsInfinity(f)) || (value is double d && double.IsInfinity(d)))
+            {
+                reason = "Must be a finite number.";
+                return false;
+            }
+
+            return entry.Validate(value, out reason);
+        }
+
+        /// <summary>
+        /// Formats a numeric value for a row's text box, in the invariant culture.
+        /// </summary>
+        /// <param name="value">The value, or <see langword="null"/>.</param>
+        /// <returns>The text; empty for <see langword="null"/>.</returns>
+        private static string FormatNumber(object? value) =>
+            Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+
+        /// <summary>
         /// Attempts to parse <paramref name="text"/> into <paramref name="targetType"/>, one of the numeric
         /// types <see cref="IsNumericType"/> recognizes.
         /// </summary>
@@ -1037,6 +1127,11 @@ namespace Icy.UI.Controls
             /// Gets or sets what the row's editor was built from, or <see langword="null"/> when that couldn't be read.
             /// </summary>
             public RowState? Shown { get; set; }
+
+            /// <summary>
+            /// Gets or sets why the text in the row's editor is rejected, or <see langword="null"/> while it's valid.
+            /// </summary>
+            public string? InvalidReason { get; set; }
 
             /// <summary>
             /// Determines whether the row's editor already shows <paramref name="state"/>.

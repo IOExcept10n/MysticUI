@@ -1,9 +1,11 @@
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Icy.Configuration;
 using Icy.Tests.Input;
 using Icy.Tests.Rendering;
 using Icy.UI;
 using Icy.UI.Controls;
+using Icy.UI.Styles;
 using Xunit;
 
 namespace Icy.Tests.Controls
@@ -43,6 +45,18 @@ namespace Icy.Tests.Controls
         {
             [Range(0, 100)]
             public int Volume { get; set; } = 50;
+        }
+
+        private sealed class LimitTarget
+        {
+            [DefaultValue(float.NaN)]
+            [Range(0d, double.PositiveInfinity)]
+            public float MaxSize { get; set; } = 10;
+
+            [Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]
+            public float Estimate { get; set; } = 40;
+
+            public float Free { get; set; } = 1;
         }
 
         /// <summary>
@@ -230,24 +244,28 @@ namespace Icy.Tests.Controls
         }
 
         [Fact]
-        public void Target_OutOfRangeTextBoxEdit_ClampsTargetSliderAndTextBoxToRangeConsistently()
+        public void Target_OutOfRangeTextBoxEdit_IsMarkedInvalid_WritesNothing_AndRevertsOnFocusLoss()
         {
             var target = new RangedTarget();
             var grid = new PropertyGrid { Target = target };
             grid.Measure();
 
-            var editor = FindEditor(grid, nameof(RangedTarget.Volume));
-            var panel = Assert.IsType<StackPanel>(editor);
+            var panel = Assert.IsType<StackPanel>(FindEditor(grid, nameof(RangedTarget.Volume)));
             var slider = Assert.IsType<Slider>(panel.Children.ElementAtOrDefault(0));
             var textBox = Assert.IsType<TextBox>(panel.Children.ElementAtOrDefault(1));
 
+            textBox.SetFocused(true);
             textBox.Text = "150";
 
-            // All three must agree on the clamped value (100, the declared Maximum) - not 150, and not a
-            // Slider/TextBox/target that each disagree with each other.
-            Assert.Equal(100, target.Volume);
-            Assert.Equal(100f, slider.Value);
-            Assert.Equal("100", textBox.Text);
+            Assert.Equal(50, target.Volume);
+            Assert.Equal(50f, slider.Value);
+            Assert.Equal("150", textBox.Text);
+            Assert.True(textBox.ControlState.HasFlag(ControlState.Invalid));
+
+            textBox.SetFocused(false);
+
+            Assert.Equal("50", textBox.Text);
+            Assert.False(textBox.ControlState.HasFlag(ControlState.Invalid));
         }
 
         [Fact]
@@ -388,10 +406,8 @@ namespace Icy.Tests.Controls
         [Fact]
         public void Target_RangeMinimumWiderThanOneDigit_DoesNotRewriteTheTextBoxWhileItIsFocused()
         {
-            // Regression: the TextChanged handler clamped and rewrote textBox.Text on every keystroke, so typing
-            // "2500" into a [Range(1000, 5000)] property replaced the "2" with "1000" before a second digit could
-            // be typed - the field was untypable. The clamped value must still reach the target immediately; only
-            // the displayed text waits for focus loss.
+            // Typing "2500" into a [Range(1000, 5000)] property passes through "2" and "25", both below the minimum: they
+            // must stay in the box untouched (marked Invalid), write nothing, and the valid "2500" must land exactly.
             var target = new HighRangedTarget();
             var grid = new PropertyGrid { Target = target };
             grid.Measure();
@@ -402,26 +418,25 @@ namespace Icy.Tests.Controls
 
             textBox.SetFocused(true);
             textBox.Text = "2";
-
             Assert.Equal("2", textBox.Text);
-            Assert.Equal(1000, target.Bitrate);
-            Assert.Equal(1000f, slider.Value);
+            Assert.Equal(2000, target.Bitrate);
+            Assert.True(textBox.ControlState.HasFlag(ControlState.Invalid));
 
-            // Mid-edit progress must survive too: "25" is still below the minimum, still not rewritten.
             textBox.Text = "25";
             Assert.Equal("25", textBox.Text);
+            Assert.Equal(2000, target.Bitrate);
 
-            // ... and typing on to a valid value lands exactly there.
             textBox.Text = "2500";
-            Assert.Equal("2500", textBox.Text);
             Assert.Equal(2500, target.Bitrate);
+            Assert.Equal(2500f, slider.Value);
+            Assert.False(textBox.ControlState.HasFlag(ControlState.Invalid));
 
-            // Focus loss settles the display on the clamped value.
+            // Focus loss with invalid text shows the current value again.
             textBox.Text = "10";
             textBox.SetFocused(false);
 
-            Assert.Equal("1000", textBox.Text);
-            Assert.Equal(1000, target.Bitrate);
+            Assert.Equal("2500", textBox.Text);
+            Assert.Equal(2500, target.Bitrate);
         }
 
         [Fact]
@@ -545,6 +560,78 @@ namespace Icy.Tests.Controls
         /// (first child, a <see cref="TextBlock"/>) matches <paramref name="propertyDisplayName"/> - none of
         /// this file's sample types use <c>[DisplayName]</c>, so the label always equals the property name.
         /// </summary>
+        [Fact]
+        public void AnOpenEndedRange_BuildsAPlainTextBox()
+        {
+            var grid = new PropertyGrid { Target = new LimitTarget() };
+            grid.Measure();
+
+            Assert.IsType<TextBox>(FindEditor(grid, nameof(LimitTarget.Estimate)));
+        }
+
+        [Fact]
+        public void InvalidTyping_IsMarked_AndNotWritten_ThenValidTypingClearsIt()
+        {
+            var target = new LimitTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+            var box = Assert.IsType<TextBox>(FindEditor(grid, nameof(LimitTarget.Estimate)));
+
+            box.Text = "0";
+            Assert.Equal(40f, target.Estimate);
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+
+            box.Text = "abc";
+            Assert.Equal(40f, target.Estimate);
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+
+            box.Text = "12";
+            Assert.Equal(12f, target.Estimate);
+            Assert.False(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void TextParsingToInfinity_IsInvalid_EvenWithoutARange()
+        {
+            var target = new LimitTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+            var box = Assert.IsType<TextBox>(FindEditor(grid, nameof(LimitTarget.Free)));
+
+            box.Text = "1e40";
+
+            Assert.Equal(1f, target.Free);
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void ClearingANaNDefaultLimit_WritesUnset()
+        {
+            var target = new LimitTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+            var box = Assert.IsType<TextBox>(FindEditor(grid, nameof(LimitTarget.MaxSize)));
+
+            box.Text = string.Empty;
+
+            Assert.True(float.IsNaN(target.MaxSize));
+            Assert.False(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
+        [Fact]
+        public void ClearingANumberWithoutANaNDefault_IsInvalid()
+        {
+            var target = new LimitTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+            var box = Assert.IsType<TextBox>(FindEditor(grid, nameof(LimitTarget.Estimate)));
+
+            box.Text = string.Empty;
+
+            Assert.Equal(40f, target.Estimate);
+            Assert.True(box.ControlState.HasFlag(ControlState.Invalid));
+        }
+
         private static UIElement? FindEditor(PropertyGrid grid, string propertyDisplayName)
         {
             foreach (ItemContainer container in GetRealizedContainers(grid).Values)
