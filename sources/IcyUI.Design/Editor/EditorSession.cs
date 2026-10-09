@@ -214,7 +214,7 @@ namespace Icy.Design.Editor
                 throw new InvalidOperationException("Another editor session is attached to this canvas; dispose it first.");
 
             session.EnterEdit();
-            session.Bindings.Register(design.Configuration.Input.Events);
+            session.Bindings.Register(design.Configuration.Input.Events, () => canvas.FocusedElement is Icy.UI.Controls.TextBox);
             return session;
         }
 

@@ -29,11 +29,17 @@ namespace Icy.Design.Editor
     /// <item><term>Arrows / Shift+Arrows</term><description>The nudges, by 1 and by <see cref="EditorSession.LargeNudge"/>.</description></item>
     /// </list>
     /// <para>Changes made while the session is attached take effect immediately.</para>
+    /// <para>
+    /// While a <see cref="Icy.UI.Controls.TextBox"/> on the canvas has focus, the bindings stand down, so typing in a panel
+    /// never moves or deletes the selection. The keys then reach the text box and the game as usual.
+    /// </para>
     /// </remarks>
     public sealed class EditorBindings : IEnumerable<KeyValuePair<KeyGesture, ICommand>>
     {
         private readonly Dictionary<KeyGesture, ICommand> bindings = [];
+        private readonly Dictionary<ICommand, ICommand> gates = new(ReferenceEqualityComparer.Instance);
         private IInputEventSystem? registered;
+        private Func<bool> textInputFocused = static () => false;
 
         internal EditorBindings(EditorCommands commands)
         {
@@ -75,7 +81,7 @@ namespace Icy.Design.Editor
             ArgumentNullException.ThrowIfNull(command);
             Unbind(gesture);
             bindings[gesture] = command;
-            registered?.RegisterCommand(command, gesture, null, handlesGesture: true);
+            registered?.RegisterCommand(Gate(command), gesture, null, handlesGesture: true);
         }
 
         /// <summary>
@@ -88,7 +94,7 @@ namespace Icy.Design.Editor
             if (!bindings.Remove(gesture, out ICommand? old))
                 return false;
 
-            registered?.UnregisterCommand(old, gesture);
+            registered?.UnregisterCommand(Gate(old), gesture);
             return true;
         }
 
@@ -98,11 +104,12 @@ namespace Icy.Design.Editor
         /// <inheritdoc/>
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        internal void Register(IInputEventSystem events)
+        internal void Register(IInputEventSystem events, Func<bool> isTextInputFocused)
         {
             registered = events;
+            textInputFocused = isTextInputFocused;
             foreach ((KeyGesture gesture, ICommand command) in bindings)
-                events.RegisterCommand(command, gesture, null, handlesGesture: true);
+                events.RegisterCommand(Gate(command), gesture, null, handlesGesture: true);
         }
 
         internal void Unregister()
@@ -111,8 +118,50 @@ namespace Icy.Design.Editor
                 return;
 
             foreach ((KeyGesture gesture, ICommand command) in bindings)
-                registered.UnregisterCommand(command, gesture);
+                registered.UnregisterCommand(Gate(command), gesture);
             registered = null;
+            textInputFocused = static () => false;
+        }
+
+        /// <summary>
+        /// Gets the wrapper registered in place of <paramref name="command"/>, which stands down while text input has focus.
+        /// </summary>
+        /// <param name="command">The bound command.</param>
+        /// <returns>The same wrapper every time for the same command, so it can be unregistered.</returns>
+        private ICommand Gate(ICommand command)
+        {
+            if (!gates.TryGetValue(command, out ICommand? gate))
+            {
+                gate = new KeyGate(command, () => textInputFocused());
+                gates[command] = gate;
+            }
+
+            return gate;
+        }
+
+        /// <summary>
+        /// A command that forwards to <paramref name="inner"/> unless <paramref name="blocked"/> says text input has focus.
+        /// </summary>
+        /// <param name="inner">The bound command.</param>
+        /// <param name="blocked">Whether the keys belong to a text box right now.</param>
+        private sealed class KeyGate(ICommand inner, Func<bool> blocked) : ICommand
+        {
+            /// <inheritdoc/>
+            public event EventHandler? CanExecuteChanged
+            {
+                add => inner.CanExecuteChanged += value;
+                remove => inner.CanExecuteChanged -= value;
+            }
+
+            /// <inheritdoc/>
+            public bool CanExecute(object? parameter) => !blocked() && inner.CanExecute(parameter);
+
+            /// <inheritdoc/>
+            public void Execute(object? parameter)
+            {
+                if (CanExecute(parameter))
+                    inner.Execute(parameter);
+            }
         }
     }
 }
