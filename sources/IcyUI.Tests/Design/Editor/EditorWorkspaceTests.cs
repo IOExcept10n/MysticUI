@@ -166,5 +166,29 @@ namespace Icy.Tests.Design.Editor
                 }
             }
         }
+
+        [Fact]
+        public void AFailedOpen_LetsThePreviousDocumentBeReopened()
+        {
+            (EditorTestHost host, EditorWorkspace workspace) = Create();
+            using (host)
+            {
+                var other = new Icy.Markup.MarkupLoader(host.Configuration).Load("<Border x:Name=\"solo\" Width=\"10\" Height=\"10\"/>", "other.xml");
+                var otherDocument = host.Design.FindDocument(other, out _)!;
+                otherDocument.ApplyText("<NoSuchElement/>");
+
+                workspace.Open(host.Document);
+                workspace.Open(otherDocument);
+
+                Assert.Null(workspace.Preview);
+                Assert.Null(workspace.CurrentDocument);
+                Assert.NotEmpty(workspace.StatusText);
+
+                workspace.Open(host.Document);
+                Assert.NotNull(workspace.Preview);
+                Assert.Same(host.Document, workspace.CurrentDocument);
+                GC.KeepAlive(other);
+            }
+        }
     }
 }

@@ -656,5 +656,42 @@ namespace Icy.Tests.Controls
             (Dictionary<int, ItemContainer>)typeof(ItemsControl)
                 .GetProperty("RealizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(control)!;
+
+        private sealed class FractionTarget
+        {
+            [Range(-0.1, 0.1)]
+            public double Ratio { get; set; }
+        }
+
+        [Fact]
+        public void Target_SliderAtEitherEnd_WritesTheDeclaredBound()
+        {
+            var target = new FractionTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var panel = Assert.IsType<StackPanel>(FindEditor(grid, nameof(FractionTarget.Ratio)));
+            var slider = Assert.IsType<Slider>(panel.Children.ElementAtOrDefault(0));
+
+            slider.Value = slider.Maximum;
+            Assert.Equal(0.1, target.Ratio);
+
+            slider.Value = slider.Minimum;
+            Assert.Equal(-0.1, target.Ratio);
+        }
+
+        [Fact]
+        public void Target_NaNText_IsInvalid_ForAPlainNumber()
+        {
+            var target = new LimitTarget();
+            var grid = new PropertyGrid { Target = target };
+            grid.Measure();
+
+            var textBox = Assert.IsType<TextBox>(FindEditor(grid, nameof(LimitTarget.Free)));
+            textBox.Text = "NaN";
+
+            Assert.Equal(1, target.Free);
+            Assert.True(textBox.ControlState.HasFlag(ControlState.Invalid));
+        }
     }
 }

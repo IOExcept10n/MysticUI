@@ -214,7 +214,13 @@ namespace Icy.Design.Editor
                 throw new InvalidOperationException("Another editor session is attached to this canvas; dispose it first.");
 
             session.EnterEdit();
-            session.Bindings.Register(design.Configuration.Input.Events, () => canvas.FocusedElement is Icy.UI.Controls.TextBox);
+
+            // Only a focused element still on the canvas counts: a panel row rebuilt under a focused text box leaves
+            // FocusedElement pointing at the detached box.
+            session.Bindings.Register(
+                design.Configuration.Input.Events,
+                () => canvas.FocusedElement is Icy.UI.Controls.TextBox { Canvas: var textCanvas } && ReferenceEquals(textCanvas, canvas),
+                () => canvas.FocusedElement is { Canvas: var focusCanvas } && ReferenceEquals(focusCanvas, canvas));
             return session;
         }
 

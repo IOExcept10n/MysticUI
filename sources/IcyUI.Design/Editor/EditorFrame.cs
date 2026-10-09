@@ -212,6 +212,7 @@ namespace Icy.Design.Editor
                 return;
 
             lastFailure = null;
+            canvas.Focus(null);
             if (Session.Selection is { } selection && !Session.IsBlocked)
             {
                 RectangleF bounds = AdornerGeometry.SurfaceBounds(selection.Instance);
@@ -407,6 +408,8 @@ namespace Icy.Design.Editor
             if (!ReferenceEquals(canvas.HitTest(point), CaptureLayer))
                 return;
 
+            // The page takes the keys back from a focused panel control, so the arrows nudge again.
+            canvas.Focus(null);
             if (Session.ResolveSelectable(Session.HitTest(point)) is { } target)
                 Session.Select(target);
             else
@@ -579,11 +582,12 @@ namespace Icy.Design.Editor
             if (disposed || IsOnTop())
                 return;
 
-            List<UIElement> top = [.. TopLayers()];
-            foreach (UIElement layer in top)
-                canvas.RemoveOverlay(layer);
-            foreach (UIElement layer in top)
-                canvas.AddOverlay(layer);
+            // Reordering rather than removing and re-adding keeps the docks attached, so their popups and focus survive.
+            foreach (UIElement layer in TopLayers().ToList())
+            {
+                if (!canvas.BringOverlayToFront(layer))
+                    canvas.AddOverlay(layer);
+            }
         }
     }
 }

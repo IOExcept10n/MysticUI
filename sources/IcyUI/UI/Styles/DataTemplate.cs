@@ -52,7 +52,9 @@ namespace Icy.UI.Styles
         /// </summary>
         /// <remarks>
         /// The text follows <see cref="UIElement.DataContext"/> through <see cref="UIElement.DataContextChanged"/>, so a
-        /// pooled container reused for another item shows that item's text rather than the previous one's.
+        /// pooled container reused for another item shows that item's text rather than the previous one's. When the item
+        /// implements <see cref="System.ComponentModel.INotifyPropertyChanged"/>, any of its property changes re-reads the
+        /// text too, since <see cref="object.ToString"/> commonly depends on them.
         /// </remarks>
         internal static DataTemplate Default { get; } = new(CreateDefaultContent);
 
@@ -105,7 +107,18 @@ namespace Icy.UI.Styles
         private static UIElement CreateDefaultContent()
         {
             var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
-            text.DataContextChanged += (_, _) => text.Text = text.DataContext?.ToString() ?? string.Empty;
+            System.ComponentModel.INotifyPropertyChanged? observed = null;
+            void Refresh(object? sender, System.ComponentModel.PropertyChangedEventArgs? e) =>
+                text.Text = text.DataContext?.ToString() ?? string.Empty;
+
+            text.DataContextChanged += (_, _) =>
+            {
+                // An item whose ToString depends on its own properties (a renamed node) re-reads on every change.
+                observed?.PropertyChanged -= Refresh;
+                observed = text.DataContext as System.ComponentModel.INotifyPropertyChanged;
+                observed?.PropertyChanged += Refresh;
+                Refresh(null, null);
+            };
             return text;
         }
     }

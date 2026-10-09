@@ -176,7 +176,10 @@ namespace Icy.Design.Editor
             }
             catch (MarkupException ex)
             {
+                // Nothing is shown now, so no document is current: picking the previous one again has to reopen it.
                 ReleasePreview();
+                CurrentDocument = null;
+                RefreshDocuments();
                 status.Text = ex.Message;
                 return;
             }

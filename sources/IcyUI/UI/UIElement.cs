@@ -2108,8 +2108,8 @@ namespace Icy.UI
         /// unset limit into <see cref="float.NaN"/> (and <c>0</c> once cast to <see cref="int"/>).
         /// </para>
         /// <para>
-        /// When both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>, the minimum wins,
-        /// as in WPF. Throwing instead would fail every layout pass from then on, so a conflicting pair set by a
+        /// When both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>, the minimum wins and
+        /// the result is exactly <paramref name="min"/>, as in WPF. Throwing instead would fail every layout pass from then on, so a conflicting pair set by a
         /// style, a binding or a design-time edit would stop the whole UI.
         /// </para>
         /// </remarks>
@@ -2121,8 +2121,10 @@ namespace Icy.UI
         {
             if (float.IsNaN(min))
                 return float.IsNaN(max) ? value : float.Min(value, max);
-            if (float.IsNaN(max) || min > max)
+            if (float.IsNaN(max))
                 return float.Max(value, min);
+            if (min > max)
+                return min;
             return float.Clamp(value, min, max);
         }
 

@@ -52,5 +52,11 @@ namespace Icy.Tests.Data
             Assert.True(new ValueRange(0, 1, false, false).IsBounded);
             Assert.False(new ValueRange(0, double.PositiveInfinity, false, false).IsBounded);
         }
+
+        [Theory]
+        [InlineData(0, double.MaxValue)]
+        [InlineData(-float.MaxValue, float.MaxValue)]
+        public void IsBounded_IsFalse_WhenTheSpanOverflowsAFloat(double min, double max) =>
+            Assert.False(new ValueRange(min, max, false, false).IsBounded);
     }
 }

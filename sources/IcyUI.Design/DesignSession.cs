@@ -167,7 +167,7 @@ namespace Icy.Design
         /// </summary>
         /// <returns>
         /// The modified documents that weren't saved, with the reason: <see cref="DesignDocument.SaveBlockedReason"/>,
-        /// or the message of the I/O error that stopped the write. Never throws for one document's failure.
+        /// or the message of the error that stopped the write. Never throws for one document's failure.
         /// </returns>
         /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
         public IReadOnlyList<(DesignDocument Document, string Reason)> SaveAll()
@@ -188,8 +188,9 @@ namespace Icy.Design
                 {
                     document.Save();
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
                 {
+                    // InvalidOperationException: the source file vanished between the SaveBlockedReason check and the write.
                     skipped.Add((document, ex.Message));
                 }
             }

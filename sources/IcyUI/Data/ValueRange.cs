@@ -19,9 +19,14 @@ namespace Icy.Data
     public readonly record struct ValueRange(double Min, double Max, bool MinIsExclusive, bool MaxIsExclusive)
     {
         /// <summary>
-        /// Gets a value indicating whether both bounds are finite, so the range can drive a slider.
+        /// Gets a value indicating whether the range can drive a slider: both bounds are finite, and the span between them
+        /// stays finite in <see cref="float"/>, which <see cref="UI.Controls.Slider"/> works in.
         /// </summary>
-        public bool IsBounded => double.IsFinite(Min) && double.IsFinite(Max);
+        /// <remarks>
+        /// A range such as <c>[Range(0, double.MaxValue)]</c> has finite bounds but isn't bounded in this sense: its maximum
+        /// becomes <see cref="float.PositiveInfinity"/> as a <see cref="float"/>.
+        /// </remarks>
+        public bool IsBounded => double.IsFinite(Min) && double.IsFinite(Max) && float.IsFinite((float)Max - (float)Min);
 
         /// <summary>
         /// Determines whether <paramref name="value"/> is inside the range.

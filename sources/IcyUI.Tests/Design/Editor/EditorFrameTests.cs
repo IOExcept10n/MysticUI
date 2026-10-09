@@ -125,5 +125,33 @@ namespace Icy.Tests.Design.Editor
             Assert.Equal(HorizontalAlignment.Right, frame.Toolbar.HorizontalAlignment);
             Assert.Equal(VerticalAlignment.Bottom, frame.Toolbar.VerticalAlignment);
         }
+
+        private sealed class DetachCounter : Border
+        {
+            public int Detaches { get; private set; }
+
+            protected override void OnDetached()
+            {
+                Detaches++;
+                base.OnDetached();
+            }
+        }
+
+        [Fact]
+        public void ReturningOnTop_KeepsTheCompanionLayersAttached()
+        {
+            using var host = new EditorTestHost(Page, attachSession: false);
+            using EditorFrame frame = EditorFrame.Attach(host.Canvas, host.Design);
+            var dock = new DetachCounter { Width = 50, Height = 50 };
+            host.Canvas.AddOverlay(dock);
+            frame.CompanionLayers.Add(dock);
+            host.Render();
+
+            host.Canvas.AddOverlay(new Border { Width = 50, Height = 50 });
+            host.Render();
+
+            Assert.Same(dock, host.Canvas.Overlays[^1]);
+            Assert.Equal(0, dock.Detaches);
+        }
     }
 }

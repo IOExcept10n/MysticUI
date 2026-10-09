@@ -110,5 +110,39 @@ namespace Icy.Tests.Styles
 
             Assert.Throws<MarkupException>(() => template.Build(new object()));
         }
+
+        private sealed class Renamable : System.ComponentModel.INotifyPropertyChanged
+        {
+            private string name = "a";
+
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+            public string Name
+            {
+                get => name;
+                set
+                {
+                    name = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Name)));
+                }
+            }
+
+            public override string ToString() => name;
+        }
+
+        [Fact]
+        public void Default_RereadsTheText_WhenTheItemRaisesPropertyChanged()
+        {
+            var first = new Renamable();
+            var text = Assert.IsType<TextBlock>(DataTemplate.Default.Build(first));
+
+            first.Name = "b";
+            Assert.Equal("b", text.Text);
+
+            // A reused container stops following the previous item.
+            text.DataContext = new Renamable { Name = "c" };
+            first.Name = "d";
+            Assert.Equal("c", text.Text);
+        }
     }
 }

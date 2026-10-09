@@ -76,5 +76,17 @@ namespace Icy.Tests.Design
             Assert.True(Formatter.TryFormat(null, typeof(string), out string? text));
             Assert.Equal(string.Empty, text);
         }
+
+        [Theory]
+        [InlineData(255, 255, 255, 255)]
+        [InlineData(255, 0, 0, 0)]
+        [InlineData(255, 255, 0, 0)]
+        public void AColorMatchingANamedColor_StillRoundTrips(int a, int r, int g, int b)
+        {
+            Color color = Color.FromArgb(a, r, g, b);
+
+            Assert.True(Formatter.TryFormat(color, typeof(Color), out _));
+            Assert.True(Formatter.TryFormat(new SolidColorBrush(color), typeof(IBrush), out _));
+        }
     }
 }

@@ -346,5 +346,14 @@ namespace Icy.Tests.UI
             Assert.Null(parent.HitTest(new Vector2(10, 10)));
         }
 
+        [Fact]
+        public void Measure_WithMinAboveMax_CapsLargeContentAtMin()
+        {
+            var element = new TestElement { ContentSize = new Size(300, 200), MinWidth = 100, MaxWidth = 50, MinHeight = 40, MaxHeight = 20 };
+
+            var size = element.Measure();
+
+            Assert.Equal(new Size(100, 40), size);
+        }
     }
-} 
+}

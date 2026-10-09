@@ -33,13 +33,18 @@ namespace Icy.Design.Editor
     /// While a <see cref="Icy.UI.Controls.TextBox"/> on the canvas has focus, the bindings stand down, so typing in a panel
     /// never moves or deletes the selection. The keys then reach the text box and the game as usual.
     /// </para>
+    /// <para>
+    /// Arrow gestures stand down while any control on the canvas has focus, so arrows in a focused list or tree move its
+    /// highlight instead of also nudging the selection. Pressing on the page in Edit mode clears the focus again.
+    /// </para>
     /// </remarks>
     public sealed class EditorBindings : IEnumerable<KeyValuePair<KeyGesture, ICommand>>
     {
         private readonly Dictionary<KeyGesture, ICommand> bindings = [];
-        private readonly Dictionary<ICommand, ICommand> gates = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<KeyGesture, KeyGate> gates = [];
         private IInputEventSystem? registered;
         private Func<bool> textInputFocused = static () => false;
+        private Func<bool> controlFocused = static () => false;
 
         internal EditorBindings(EditorCommands commands)
         {
@@ -81,7 +86,7 @@ namespace Icy.Design.Editor
             ArgumentNullException.ThrowIfNull(command);
             Unbind(gesture);
             bindings[gesture] = command;
-            registered?.RegisterCommand(Gate(command), gesture, null, handlesGesture: true);
+            registered?.RegisterCommand(Gate(gesture, command), gesture, null, handlesGesture: true);
         }
 
         /// <summary>
@@ -94,7 +99,8 @@ namespace Icy.Design.Editor
             if (!bindings.Remove(gesture, out ICommand? old))
                 return false;
 
-            registered?.UnregisterCommand(Gate(old), gesture);
+            registered?.UnregisterCommand(Gate(gesture, old), gesture);
+            gates.Remove(gesture);
             return true;
         }
 
@@ -104,12 +110,13 @@ namespace Icy.Design.Editor
         /// <inheritdoc/>
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        internal void Register(IInputEventSystem events, Func<bool> isTextInputFocused)
+        internal void Register(IInputEventSystem events, Func<bool> isTextInputFocused, Func<bool> isControlFocused)
         {
             registered = events;
             textInputFocused = isTextInputFocused;
+            controlFocused = isControlFocused;
             foreach ((KeyGesture gesture, ICommand command) in bindings)
-                events.RegisterCommand(Gate(command), gesture, null, handlesGesture: true);
+                events.RegisterCommand(Gate(gesture, command), gesture, null, handlesGesture: true);
         }
 
         internal void Unregister()
@@ -118,32 +125,37 @@ namespace Icy.Design.Editor
                 return;
 
             foreach ((KeyGesture gesture, ICommand command) in bindings)
-                registered.UnregisterCommand(Gate(command), gesture);
+                registered.UnregisterCommand(Gate(gesture, command), gesture);
             registered = null;
             textInputFocused = static () => false;
+            controlFocused = static () => false;
         }
 
         /// <summary>
-        /// Gets the wrapper registered in place of <paramref name="command"/>, which stands down while text input has focus.
+        /// Gets the wrapper registered in place of <paramref name="command"/> for <paramref name="gesture"/>, which stands
+        /// down while text input has focus, or for an arrow gesture, while any control has focus.
         /// </summary>
+        /// <param name="gesture">The key gesture the command is bound to.</param>
         /// <param name="command">The bound command.</param>
-        /// <returns>The same wrapper every time for the same command, so it can be unregistered.</returns>
-        private ICommand Gate(ICommand command)
+        /// <returns>The same wrapper every time for the same binding, so it can be unregistered.</returns>
+        private KeyGate Gate(KeyGesture gesture, ICommand command)
         {
-            if (!gates.TryGetValue(command, out ICommand? gate))
+            if (!gates.TryGetValue(gesture, out KeyGate? gate) || !ReferenceEquals(gate.Inner, command))
             {
-                gate = new KeyGate(command, () => textInputFocused());
-                gates[command] = gate;
+                gate = gesture.Key is Keys.Left or Keys.Right or Keys.Up or Keys.Down
+                    ? new KeyGate(command, () => controlFocused())
+                    : new KeyGate(command, () => textInputFocused());
+                gates[gesture] = gate;
             }
 
             return gate;
         }
 
         /// <summary>
-        /// A command that forwards to <paramref name="inner"/> unless <paramref name="blocked"/> says text input has focus.
+        /// A command that forwards to <paramref name="inner"/> unless <paramref name="blocked"/> says a focused control owns the keys.
         /// </summary>
         /// <param name="inner">The bound command.</param>
-        /// <param name="blocked">Whether the keys belong to a text box right now.</param>
+        /// <param name="blocked">Whether the keys belong to a focused text box or control right now.</param>
         private sealed class KeyGate(ICommand inner, Func<bool> blocked) : ICommand
         {
             /// <inheritdoc/>
@@ -152,6 +164,11 @@ namespace Icy.Design.Editor
                 add => inner.CanExecuteChanged += value;
                 remove => inner.CanExecuteChanged -= value;
             }
+
+            /// <summary>
+            /// Gets the bound command.
+            /// </summary>
+            public ICommand Inner => inner;
 
             /// <inheritdoc/>
             public bool CanExecute(object? parameter) => !blocked() && inner.CanExecute(parameter);

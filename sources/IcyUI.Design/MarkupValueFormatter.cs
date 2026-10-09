@@ -94,8 +94,10 @@ namespace Icy.Design
             {
                 object? back = converter.Convert(candidate, type);
                 return back is SolidColorBrush loaded && value is SolidColorBrush original
-                    ? loaded.Color == original.Color
-                    : Equals(back, value);
+                    ? loaded.Color.ToArgb() == original.Color.ToArgb()
+                    : back is Color loadedColor && value is Color originalColor
+                        ? loadedColor.ToArgb() == originalColor.ToArgb()
+                        : Equals(back, value);
             }
             catch (Exception ex) when (ex is InvalidCastException or FormatException or ArgumentException or OverflowException or NotSupportedException)
             {

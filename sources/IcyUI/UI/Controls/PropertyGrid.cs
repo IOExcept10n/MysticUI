@@ -462,7 +462,7 @@ namespace Icy.UI.Controls
                 return false;
             }
 
-            if ((value is float f && float.IsInfinity(f)) || (value is double d && double.IsInfinity(d)))
+            if ((value is float f && !float.IsFinite(f)) || (value is double d && !double.IsFinite(d)))
             {
                 reason = "Must be a finite number.";
                 return false;
@@ -975,7 +975,12 @@ namespace Icy.UI.Controls
                 isSyncing = true;
                 try
                 {
-                    if (TryConvertNumeric(slider.Value, entry.PropertyType, out object? converted) && entry.Validate(converted, out _))
+                    // At either end, write the declared bound itself: the slider's float ends widen back to a
+                    // double slightly past it ((float)0.1 > 0.1), which Validate would reject.
+                    double sliderValue = slider.Value >= slider.Maximum ? range.Max
+                        : slider.Value <= slider.Minimum ? range.Min
+                        : slider.Value;
+                    if (TryConvertNumeric(sliderValue, entry.PropertyType, out object? converted) && entry.Validate(converted, out _))
                     {
                         textBox.Text = FormatNumber(converted);
                         SetInvalid(textBox, null);

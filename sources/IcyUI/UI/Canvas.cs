@@ -407,6 +407,27 @@ namespace Icy.UI
         }
 
         /// <summary>
+        /// Moves an element of <see cref="Overlays"/> to the end of the list, above every other overlay.
+        /// </summary>
+        /// <param name="element">The overlay to raise.</param>
+        /// <returns><see langword="true"/> if the element is an overlay of this canvas; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// Unlike <see cref="RemoveOverlay"/> followed by <see cref="AddOverlay(UIElement, UIElement?)"/>, the element stays
+        /// attached and keeps its owner, so its subtree isn't detached and reattached: open popups stay open and the focus
+        /// stays where it is.
+        /// </remarks>
+        public bool BringOverlayToFront(UIElement element)
+        {
+            int index = overlayElements.IndexOf(element);
+            if (index < 0)
+                return false;
+
+            overlayElements.RemoveAt(index);
+            overlayElements.Add(element);
+            return true;
+        }
+
+        /// <summary>
         /// Gets the element an overlay was added on behalf of.
         /// </summary>
         /// <param name="overlay">An element of <see cref="Overlays"/>.</param>

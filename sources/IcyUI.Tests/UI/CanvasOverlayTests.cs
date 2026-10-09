@@ -73,5 +73,23 @@ namespace Icy.Tests.UI
 
             Assert.False(overlay.ActualBounds.IsEmpty);
         }
+
+        [Fact]
+        public void BringOverlayToFront_ReordersWithoutDetaching()
+        {
+            var canvas = CreateCanvas();
+            var low = new Border();
+            var high = new Border();
+            var owner = new Border();
+            canvas.AddOverlay(low, owner);
+            canvas.AddOverlay(high);
+
+            Assert.True(canvas.BringOverlayToFront(low));
+
+            Assert.Equal([high, low], canvas.Overlays);
+            Assert.Same(canvas, low.Canvas);
+            Assert.Same(owner, canvas.GetOverlayOwner(low));
+            Assert.False(canvas.BringOverlayToFront(new Border()));
+        }
     }
 }
