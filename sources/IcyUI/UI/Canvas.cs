@@ -1,4 +1,4 @@
-﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.Diagnostics;
@@ -351,6 +351,24 @@ namespace Icy.UI
         private UIElement? LiveDragOwner => dragOwner is { } owner && ReferenceEquals(owner.Canvas, this) ? owner : null;
 
         /// <summary>
+        /// Finds the nearest enclosing <see cref="UIElement.IsFocusScope"/> ancestor of the specified element
+        /// (walking up through <see cref="UIElement.Parent"/>), or <see langword="null"/> if none of its ancestors
+        /// (or itself) are a focus scope.
+        /// </summary>
+        /// <param name="element">The element to find the enclosing focus scope of.</param>
+        /// <returns>The nearest enclosing focus scope, or <see langword="null"/> if there isn't one.</returns>
+        public static UIElement? FindEnclosingFocusScope(UIElement? element)
+        {
+            for (UIElement? current = element; current != null; current = current.Parent)
+            {
+                if (current.IsFocusScope)
+                    return current;
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Adds a UI element to the canvas.
         /// </summary>
         /// <param name="element">The UI element to add.</param>
@@ -533,24 +551,6 @@ namespace Icy.UI
                 UIElement? hit = element.HitTest(canvasLocalPoint);
                 if (hit != null)
                     return hit;
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Finds the nearest enclosing <see cref="UIElement.IsFocusScope"/> ancestor of the specified element
-        /// (walking up through <see cref="UIElement.Parent"/>), or <see langword="null"/> if none of its ancestors
-        /// (or itself) are a focus scope.
-        /// </summary>
-        /// <param name="element">The element to find the enclosing focus scope of.</param>
-        /// <returns>The nearest enclosing focus scope, or <see langword="null"/> if there isn't one.</returns>
-        public static UIElement? FindEnclosingFocusScope(UIElement? element)
-        {
-            for (UIElement? current = element; current != null; current = current.Parent)
-            {
-                if (current.IsFocusScope)
-                    return current;
             }
 
             return null;

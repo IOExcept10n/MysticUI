@@ -99,6 +99,19 @@ namespace Icy.UI.Controls
         }
 
         /// <inheritdoc/>
+        /// <remarks>Skipped once right after a tap on the chevron, which bubbles here as well.</remarks>
+        protected internal override void OnTap()
+        {
+            if (expanderTapped)
+            {
+                expanderTapped = false;
+                return;
+            }
+
+            base.OnTap();
+        }
+
+        /// <inheritdoc/>
         protected override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
@@ -110,19 +123,6 @@ namespace Icy.UI.Controls
             if (expander != null)
                 expander.Tapped += Expander_Tapped;
             UpdateParts();
-        }
-
-        /// <inheritdoc/>
-        /// <remarks>Skipped once right after a tap on the chevron, which bubbles here as well.</remarks>
-        protected internal override void OnTap()
-        {
-            if (expanderTapped)
-            {
-                expanderTapped = false;
-                return;
-            }
-
-            base.OnTap();
         }
 
         private void Expander_Tapped(object? sender, EventArgs e)

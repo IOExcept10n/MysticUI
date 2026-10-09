@@ -99,6 +99,39 @@ namespace Icy.Rendering.Brushes
             context.Draw(cachedTexture!, options);
         }
 
+        /// <summary>
+        /// Maps a pixel index to <c>[0,1]</c> across the axis, anchored to pixel centers at the edges - <c>0</c> and
+        /// <c>1</c> are reached exactly at the first/last pixel, rather than the (unreachable) outer edge of the
+        /// texture - so the outermost pixels reproduce their nearest gradient stop's color exactly.
+        /// </summary>
+        private static float NormalizedPosition(int index, int size) => size > 1 ? index / (float)(size - 1) : 0.5f;
+
+        private static Color Interpolate(List<GradientStop> sortedStops, float t)
+        {
+            if (t <= sortedStops[0].Offset)
+                return sortedStops[0].Color;
+            if (t >= sortedStops[^1].Offset)
+                return sortedStops[^1].Color;
+
+            for (int i = 0; i < sortedStops.Count - 1; i++)
+            {
+                GradientStop left = sortedStops[i];
+                GradientStop right = sortedStops[i + 1];
+                if (t < left.Offset || t > right.Offset)
+                    continue;
+
+                float span = right.Offset - left.Offset;
+                float localT = span > 0 ? (t - left.Offset) / span : 0f;
+                return Color.FromArgb(
+                    (int)float.Lerp(left.Color.A, right.Color.A, localT),
+                    (int)float.Lerp(left.Color.R, right.Color.R, localT),
+                    (int)float.Lerp(left.Color.G, right.Color.G, localT),
+                    (int)float.Lerp(left.Color.B, right.Color.B, localT));
+            }
+
+            return sortedStops[^1].Color;
+        }
+
         private IEffect? TryGetGradientEffect(IRenderContext context)
         {
             if (!effectProbed)
@@ -192,39 +225,6 @@ namespace Icy.Rendering.Brushes
             float distance = MathF.Sqrt((dx * dx) + (dy * dy));
             const float MaxNormalizedDistance = 0.70710678f; // sqrt(0.5^2 + 0.5^2), the unit rect's half-diagonal
             return float.Clamp(distance / MaxNormalizedDistance, 0f, 1f);
-        }
-
-        /// <summary>
-        /// Maps a pixel index to <c>[0,1]</c> across the axis, anchored to pixel centers at the edges - <c>0</c> and
-        /// <c>1</c> are reached exactly at the first/last pixel, rather than the (unreachable) outer edge of the
-        /// texture - so the outermost pixels reproduce their nearest gradient stop's color exactly.
-        /// </summary>
-        private static float NormalizedPosition(int index, int size) => size > 1 ? index / (float)(size - 1) : 0.5f;
-
-        private static Color Interpolate(List<GradientStop> sortedStops, float t)
-        {
-            if (t <= sortedStops[0].Offset)
-                return sortedStops[0].Color;
-            if (t >= sortedStops[^1].Offset)
-                return sortedStops[^1].Color;
-
-            for (int i = 0; i < sortedStops.Count - 1; i++)
-            {
-                GradientStop left = sortedStops[i];
-                GradientStop right = sortedStops[i + 1];
-                if (t < left.Offset || t > right.Offset)
-                    continue;
-
-                float span = right.Offset - left.Offset;
-                float localT = span > 0 ? (t - left.Offset) / span : 0f;
-                return Color.FromArgb(
-                    (int)float.Lerp(left.Color.A, right.Color.A, localT),
-                    (int)float.Lerp(left.Color.R, right.Color.R, localT),
-                    (int)float.Lerp(left.Color.G, right.Color.G, localT),
-                    (int)float.Lerp(left.Color.B, right.Color.B, localT));
-            }
-
-            return sortedStops[^1].Color;
         }
 
         private int ComputeStopsHash()

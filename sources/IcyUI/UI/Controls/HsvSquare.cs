@@ -120,30 +120,6 @@ namespace Icy.UI.Controls
             context.DrawCircle(markerCenter, MarkerSize / 2f, 12, Color.White, 1.5f);
         }
 
-        private void EnsureTexture(IRenderContext context, int width, int height)
-        {
-            if (cachedTexture != null && cachedHue == Hue && cachedWidth == width && cachedHeight == height)
-                return;
-
-            var pixels = new Rgba32[width * height];
-            Color hueColor = HueToColor(Hue);
-            for (int y = 0; y < height; y++)
-            {
-                float rowValue = 1f - ((float)y / (height - 1 <= 0 ? 1 : height - 1));
-                for (int x = 0; x < width; x++)
-                {
-                    float columnSaturation = (float)x / (width - 1 <= 0 ? 1 : width - 1);
-                    pixels[(y * width) + x] = (Rgba32)BlendHsv(hueColor, columnSaturation, rowValue);
-                }
-            }
-
-            cachedTexture?.Dispose();
-            cachedTexture = context.CreateTexture(width, height, pixels);
-            cachedHue = Hue;
-            cachedWidth = width;
-            cachedHeight = height;
-        }
-
         /// <inheritdoc/>
         /// <remarks>
         /// Releases the cached <see cref="ITexture"/> when this element leaves the tree, rather than leaving it to
@@ -188,6 +164,30 @@ namespace Icy.UI.Controls
                 4 => Color.FromArgb(255, t, p, 255),
                 _ => Color.FromArgb(255, 255, p, q),
             };
+        }
+
+        private void EnsureTexture(IRenderContext context, int width, int height)
+        {
+            if (cachedTexture != null && cachedHue == Hue && cachedWidth == width && cachedHeight == height)
+                return;
+
+            var pixels = new Rgba32[width * height];
+            Color hueColor = HueToColor(Hue);
+            for (int y = 0; y < height; y++)
+            {
+                float rowValue = 1f - ((float)y / (height - 1 <= 0 ? 1 : height - 1));
+                for (int x = 0; x < width; x++)
+                {
+                    float columnSaturation = (float)x / (width - 1 <= 0 ? 1 : width - 1);
+                    pixels[(y * width) + x] = (Rgba32)BlendHsv(hueColor, columnSaturation, rowValue);
+                }
+            }
+
+            cachedTexture?.Dispose();
+            cachedTexture = context.CreateTexture(width, height, pixels);
+            cachedHue = Hue;
+            cachedWidth = width;
+            cachedHeight = height;
         }
 
         private void UpdateFromPoint(Point screenPoint)

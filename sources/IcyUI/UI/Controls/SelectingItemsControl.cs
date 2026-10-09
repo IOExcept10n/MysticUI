@@ -27,17 +27,6 @@ namespace Icy.UI.Controls
         private object? selectedItem;
 
         /// <summary>
-        /// Gets the reverse lookup from a realized <see cref="SelectorItem"/> back to the item index it's currently
-        /// showing, so <see cref="Container_Tapped"/> can turn a tap on the container into a
-        /// <see cref="SelectedIndex"/> assignment. Kept in sync by <see cref="AttachContainer(ItemContainer, int)"/>/
-        /// <see cref="DetachContainer(ItemContainer)"/>. Exposed to derived controls so
-        /// <see cref="Selector"/> - whose own <c>AttachContainer</c>/<c>DetachContainer</c> override never calls
-        /// this base implementation - can reuse the same map for its own (differently-triggered) tap handling
-        /// instead of keeping a second, identically-shaped duplicate.
-        /// </summary>
-        protected Dictionary<SelectorItem, int> ContainerIndices => containerIndices;
-
-        /// <summary>
         /// Occurs when <see cref="SelectedIndex"/>/<see cref="SelectedItem"/> changes.
         /// </summary>
         public event EventHandler? SelectionChanged;
@@ -89,6 +78,17 @@ namespace Icy.UI.Controls
             get => selectedItem;
             set => SelectedIndex = IndexOfItem(value);
         }
+
+        /// <summary>
+        /// Gets the reverse lookup from a realized <see cref="SelectorItem"/> back to the item index it's currently
+        /// showing, so <see cref="Container_Tapped"/> can turn a tap on the container into a
+        /// <see cref="SelectedIndex"/> assignment. Kept in sync by <see cref="AttachContainer(ItemContainer, int)"/>/
+        /// <see cref="DetachContainer(ItemContainer)"/>. Exposed to derived controls so
+        /// <see cref="Selector"/> - whose own <c>AttachContainer</c>/<c>DetachContainer</c> override never calls
+        /// this base implementation - can reuse the same map for its own (differently-triggered) tap handling
+        /// instead of keeping a second, identically-shaped duplicate.
+        /// </summary>
+        protected Dictionary<SelectorItem, int> ContainerIndices => containerIndices;
 
         /// <inheritdoc/>
         protected override ItemContainer CreateContainer(DataTemplate template, object item)

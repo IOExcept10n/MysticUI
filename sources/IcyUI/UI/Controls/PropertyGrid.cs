@@ -355,6 +355,181 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
+        /// Builds a <see cref="Matrix3x2"/> from <paramref name="v"/>'s six components, in
+        /// <see cref="Matrix3x2.M11"/>/<see cref="Matrix3x2.M12"/>/<see cref="Matrix3x2.M21"/>/<see cref="Matrix3x2.M22"/>/
+        /// <see cref="Matrix3x2.M31"/>/<see cref="Matrix3x2.M32"/> order - the <c>compose</c> delegate
+        /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix3x2"/>-typed property.
+        /// </summary>
+        /// <param name="v">The parsed component values, in the order above.</param>
+        /// <returns>The composed <see cref="Matrix3x2"/>.</returns>
+        private static Matrix3x2 BuildMatrix3x2(double[] v) => new((float)v[0], (float)v[1], (float)v[2], (float)v[3], (float)v[4], (float)v[5]);
+
+        /// <summary>
+        /// Reads a <see cref="Matrix3x2"/>'s six components back out, in the same order
+        /// <see cref="BuildMatrix3x2"/> expects - the <c>decompose</c> delegate <see cref="BuildVectorEditor"/>
+        /// uses for a <see cref="Matrix3x2"/>-typed property. Falls back to <see cref="Matrix3x2.Identity"/> when
+        /// <paramref name="value"/> is <see langword="null"/>.
+        /// </summary>
+        /// <param name="value">The property's current value.</param>
+        /// <returns>The six component values, in the order above.</returns>
+        private static double[] DecomposeMatrix3x2(object? value)
+        {
+            var m = (Matrix3x2)(value ?? Matrix3x2.Identity);
+            return [m.M11, m.M12, m.M21, m.M22, m.M31, m.M32];
+        }
+
+        /// <summary>
+        /// Builds a <see cref="Matrix4x4"/> from <paramref name="v"/>'s sixteen components, in row-major
+        /// <see cref="Matrix4x4.M11"/>.. <see cref="Matrix4x4.M44"/> order - the <c>compose</c> delegate
+        /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix4x4"/>-typed property.
+        /// </summary>
+        /// <param name="v">The parsed component values, in the order above.</param>
+        /// <returns>The composed <see cref="Matrix4x4"/>.</returns>
+        private static Matrix4x4 BuildMatrix4x4(double[] v) => new(
+            (float)v[0], (float)v[1], (float)v[2], (float)v[3],
+            (float)v[4], (float)v[5], (float)v[6], (float)v[7],
+            (float)v[8], (float)v[9], (float)v[10], (float)v[11],
+            (float)v[12], (float)v[13], (float)v[14], (float)v[15]);
+
+        /// <summary>
+        /// Reads a <see cref="Matrix4x4"/>'s sixteen components back out, in the same order
+        /// <see cref="BuildMatrix4x4"/> expects - the <c>decompose</c> delegate <see cref="BuildVectorEditor"/>
+        /// uses for a <see cref="Matrix4x4"/>-typed property. Falls back to <see cref="Matrix4x4.Identity"/> when
+        /// <paramref name="value"/> is <see langword="null"/>.
+        /// </summary>
+        /// <param name="value">The property's current value.</param>
+        /// <returns>The sixteen component values, in the order above.</returns>
+        private static double[] DecomposeMatrix4x4(object? value)
+        {
+            var m = (Matrix4x4)(value ?? Matrix4x4.Identity);
+            return [m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44];
+        }
+
+        /// <summary>
+        /// Determines whether <paramref name="type"/> is one of the numeric primitive types this control
+        /// recognizes for its numeric editor branch.
+        /// </summary>
+        /// <param name="type">The type to check.</param>
+        private static bool IsNumericType(Type type) =>
+            type == typeof(sbyte) || type == typeof(byte) ||
+            type == typeof(short) || type == typeof(ushort) ||
+            type == typeof(int) || type == typeof(uint) ||
+            type == typeof(long) || type == typeof(ulong) ||
+            type == typeof(float) || type == typeof(double) || type == typeof(decimal);
+
+        /// <summary>
+        /// Parses and validates text typed into a numeric row.
+        /// </summary>
+        /// <param name="entry">The row's property.</param>
+        /// <param name="text">The typed text.</param>
+        /// <param name="value">The value to write, when this method returns <see langword="true"/>.</param>
+        /// <param name="reason">Why the text is rejected, when this method returns <see langword="false"/>.</param>
+        /// <returns>
+        /// <see langword="true"/> for a finite number that passes <see cref="PropertyGridEntry.Validate"/>, or for empty
+        /// text when the property's default is <see cref="float.NaN"/>/<see cref="double.NaN"/> ("unset").
+        /// </returns>
+        private static bool TryParseInput(PropertyGridEntry entry, string text, out object? value, [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? reason)
+        {
+            reason = null;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                if (entry.HasDefaultValue && entry.DefaultValue is float.NaN or double.NaN)
+                {
+                    value = entry.DefaultValue;
+                    return true;
+                }
+
+                value = null;
+                reason = "Enter a number.";
+                return false;
+            }
+
+            if (!TryConvertNumeric(text, entry.PropertyType, out value))
+            {
+                reason = "Enter a number.";
+                return false;
+            }
+
+            if ((value is float f && float.IsInfinity(f)) || (value is double d && double.IsInfinity(d)))
+            {
+                reason = "Must be a finite number.";
+                return false;
+            }
+
+            return entry.Validate(value, out reason);
+        }
+
+        /// <summary>
+        /// Formats a numeric value for a row's text box, in the invariant culture.
+        /// </summary>
+        /// <param name="value">The value, or <see langword="null"/>.</param>
+        /// <returns>The text; empty for <see langword="null"/>.</returns>
+        private static string FormatNumber(object? value) =>
+            Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+
+        /// <summary>
+        /// Attempts to parse <paramref name="text"/> into <paramref name="targetType"/>, one of the numeric
+        /// types <see cref="IsNumericType"/> recognizes.
+        /// </summary>
+        /// <param name="text">The text to parse.</param>
+        /// <param name="targetType">The numeric type to parse into.</param>
+        /// <param name="value">The parsed value, when this method returns <see langword="true"/>.</param>
+        private static bool TryConvertNumeric(string text, Type targetType, out object? value)
+        {
+            value = null;
+            return double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed)
+                && TryConvertNumeric(parsed, targetType, out value);
+        }
+
+        /// <summary>
+        /// Converts <paramref name="parsed"/> into <paramref name="targetType"/>, one of the numeric types
+        /// <see cref="IsNumericType"/> recognizes - the shared conversion step both <see cref="TryConvertNumeric(string, Type, out object?)"/>
+        /// (parsing a <see cref="TextBox"/> edit) and <see cref="BuildRangedNumericEditor"/> (converting a
+        /// <see cref="Slider.Value"/> change) funnel through.
+        /// </summary>
+        /// <param name="parsed">The numeric value to convert.</param>
+        /// <param name="targetType">The numeric type to convert into.</param>
+        /// <param name="value">The converted value, when this method returns <see langword="true"/>.</param>
+        private static bool TryConvertNumeric(double parsed, Type targetType, out object? value)
+        {
+            value = null;
+            try
+            {
+                value = Convert.ChangeType(parsed, targetType, System.Globalization.CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception ex) when (ex is InvalidCastException or OverflowException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Builds the flat, category-grouped row sequence <see cref="ItemsControl.ItemsSource"/> is assigned from - a
+        /// <see cref="CategoryHeader"/> before the first row of each newly encountered
+        /// <see cref="PropertyGridEntry.Category"/>, in the order <see cref="PropertyGridEntry.EnumerateFor(object)"/>
+        /// already groups them in.
+        /// </summary>
+        /// <param name="target">The object to build rows for, or <see langword="null"/> to produce no rows.</param>
+        private static IEnumerable<object> BuildRows(object? target)
+        {
+            if (target == null)
+                yield break;
+
+            string? currentCategory = null;
+            foreach (PropertyGridEntry entry in PropertyGridEntry.EnumerateFor(target))
+            {
+                if (entry.Category != currentCategory)
+                {
+                    currentCategory = entry.Category;
+                    yield return new CategoryHeader(currentCategory);
+                }
+
+                yield return entry;
+            }
+        }
+
+        /// <summary>
         /// Replaces <paramref name="row"/>'s editor and Reset button with fresh ones reading the current value.
         /// </summary>
         /// <param name="row">The row to fill; its label stays.</param>
@@ -960,181 +1135,6 @@ namespace Icy.UI.Controls
             }
 
             return panel;
-        }
-
-        /// <summary>
-        /// Builds a <see cref="Matrix3x2"/> from <paramref name="v"/>'s six components, in
-        /// <see cref="Matrix3x2.M11"/>/<see cref="Matrix3x2.M12"/>/<see cref="Matrix3x2.M21"/>/<see cref="Matrix3x2.M22"/>/
-        /// <see cref="Matrix3x2.M31"/>/<see cref="Matrix3x2.M32"/> order - the <c>compose</c> delegate
-        /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix3x2"/>-typed property.
-        /// </summary>
-        /// <param name="v">The parsed component values, in the order above.</param>
-        /// <returns>The composed <see cref="Matrix3x2"/>.</returns>
-        private static Matrix3x2 BuildMatrix3x2(double[] v) => new((float)v[0], (float)v[1], (float)v[2], (float)v[3], (float)v[4], (float)v[5]);
-
-        /// <summary>
-        /// Reads a <see cref="Matrix3x2"/>'s six components back out, in the same order
-        /// <see cref="BuildMatrix3x2"/> expects - the <c>decompose</c> delegate <see cref="BuildVectorEditor"/>
-        /// uses for a <see cref="Matrix3x2"/>-typed property. Falls back to <see cref="Matrix3x2.Identity"/> when
-        /// <paramref name="value"/> is <see langword="null"/>.
-        /// </summary>
-        /// <param name="value">The property's current value.</param>
-        /// <returns>The six component values, in the order above.</returns>
-        private static double[] DecomposeMatrix3x2(object? value)
-        {
-            var m = (Matrix3x2)(value ?? Matrix3x2.Identity);
-            return [m.M11, m.M12, m.M21, m.M22, m.M31, m.M32];
-        }
-
-        /// <summary>
-        /// Builds a <see cref="Matrix4x4"/> from <paramref name="v"/>'s sixteen components, in row-major
-        /// <see cref="Matrix4x4.M11"/>.. <see cref="Matrix4x4.M44"/> order - the <c>compose</c> delegate
-        /// <see cref="BuildVectorEditor"/> uses for a <see cref="Matrix4x4"/>-typed property.
-        /// </summary>
-        /// <param name="v">The parsed component values, in the order above.</param>
-        /// <returns>The composed <see cref="Matrix4x4"/>.</returns>
-        private static Matrix4x4 BuildMatrix4x4(double[] v) => new(
-            (float)v[0], (float)v[1], (float)v[2], (float)v[3],
-            (float)v[4], (float)v[5], (float)v[6], (float)v[7],
-            (float)v[8], (float)v[9], (float)v[10], (float)v[11],
-            (float)v[12], (float)v[13], (float)v[14], (float)v[15]);
-
-        /// <summary>
-        /// Reads a <see cref="Matrix4x4"/>'s sixteen components back out, in the same order
-        /// <see cref="BuildMatrix4x4"/> expects - the <c>decompose</c> delegate <see cref="BuildVectorEditor"/>
-        /// uses for a <see cref="Matrix4x4"/>-typed property. Falls back to <see cref="Matrix4x4.Identity"/> when
-        /// <paramref name="value"/> is <see langword="null"/>.
-        /// </summary>
-        /// <param name="value">The property's current value.</param>
-        /// <returns>The sixteen component values, in the order above.</returns>
-        private static double[] DecomposeMatrix4x4(object? value)
-        {
-            var m = (Matrix4x4)(value ?? Matrix4x4.Identity);
-            return [m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44];
-        }
-
-        /// <summary>
-        /// Determines whether <paramref name="type"/> is one of the numeric primitive types this control
-        /// recognizes for its numeric editor branch.
-        /// </summary>
-        /// <param name="type">The type to check.</param>
-        private static bool IsNumericType(Type type) =>
-            type == typeof(sbyte) || type == typeof(byte) ||
-            type == typeof(short) || type == typeof(ushort) ||
-            type == typeof(int) || type == typeof(uint) ||
-            type == typeof(long) || type == typeof(ulong) ||
-            type == typeof(float) || type == typeof(double) || type == typeof(decimal);
-
-        /// <summary>
-        /// Parses and validates text typed into a numeric row.
-        /// </summary>
-        /// <param name="entry">The row's property.</param>
-        /// <param name="text">The typed text.</param>
-        /// <param name="value">The value to write, when this method returns <see langword="true"/>.</param>
-        /// <param name="reason">Why the text is rejected, when this method returns <see langword="false"/>.</param>
-        /// <returns>
-        /// <see langword="true"/> for a finite number that passes <see cref="PropertyGridEntry.Validate"/>, or for empty
-        /// text when the property's default is <see cref="float.NaN"/>/<see cref="double.NaN"/> ("unset").
-        /// </returns>
-        private static bool TryParseInput(PropertyGridEntry entry, string text, out object? value, [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? reason)
-        {
-            reason = null;
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                if (entry.HasDefaultValue && entry.DefaultValue is float.NaN or double.NaN)
-                {
-                    value = entry.DefaultValue;
-                    return true;
-                }
-
-                value = null;
-                reason = "Enter a number.";
-                return false;
-            }
-
-            if (!TryConvertNumeric(text, entry.PropertyType, out value))
-            {
-                reason = "Enter a number.";
-                return false;
-            }
-
-            if ((value is float f && float.IsInfinity(f)) || (value is double d && double.IsInfinity(d)))
-            {
-                reason = "Must be a finite number.";
-                return false;
-            }
-
-            return entry.Validate(value, out reason);
-        }
-
-        /// <summary>
-        /// Formats a numeric value for a row's text box, in the invariant culture.
-        /// </summary>
-        /// <param name="value">The value, or <see langword="null"/>.</param>
-        /// <returns>The text; empty for <see langword="null"/>.</returns>
-        private static string FormatNumber(object? value) =>
-            Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
-
-        /// <summary>
-        /// Attempts to parse <paramref name="text"/> into <paramref name="targetType"/>, one of the numeric
-        /// types <see cref="IsNumericType"/> recognizes.
-        /// </summary>
-        /// <param name="text">The text to parse.</param>
-        /// <param name="targetType">The numeric type to parse into.</param>
-        /// <param name="value">The parsed value, when this method returns <see langword="true"/>.</param>
-        private static bool TryConvertNumeric(string text, Type targetType, out object? value)
-        {
-            value = null;
-            return double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed)
-                && TryConvertNumeric(parsed, targetType, out value);
-        }
-
-        /// <summary>
-        /// Converts <paramref name="parsed"/> into <paramref name="targetType"/>, one of the numeric types
-        /// <see cref="IsNumericType"/> recognizes - the shared conversion step both <see cref="TryConvertNumeric(string, Type, out object?)"/>
-        /// (parsing a <see cref="TextBox"/> edit) and <see cref="BuildRangedNumericEditor"/> (converting a
-        /// <see cref="Slider.Value"/> change) funnel through.
-        /// </summary>
-        /// <param name="parsed">The numeric value to convert.</param>
-        /// <param name="targetType">The numeric type to convert into.</param>
-        /// <param name="value">The converted value, when this method returns <see langword="true"/>.</param>
-        private static bool TryConvertNumeric(double parsed, Type targetType, out object? value)
-        {
-            value = null;
-            try
-            {
-                value = Convert.ChangeType(parsed, targetType, System.Globalization.CultureInfo.InvariantCulture);
-                return true;
-            }
-            catch (Exception ex) when (ex is InvalidCastException or OverflowException)
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Builds the flat, category-grouped row sequence <see cref="ItemsControl.ItemsSource"/> is assigned from - a
-        /// <see cref="CategoryHeader"/> before the first row of each newly encountered
-        /// <see cref="PropertyGridEntry.Category"/>, in the order <see cref="PropertyGridEntry.EnumerateFor(object)"/>
-        /// already groups them in.
-        /// </summary>
-        /// <param name="target">The object to build rows for, or <see langword="null"/> to produce no rows.</param>
-        private static IEnumerable<object> BuildRows(object? target)
-        {
-            if (target == null)
-                yield break;
-
-            string? currentCategory = null;
-            foreach (PropertyGridEntry entry in PropertyGridEntry.EnumerateFor(target))
-            {
-                if (entry.Category != currentCategory)
-                {
-                    currentCategory = entry.Category;
-                    yield return new CategoryHeader(currentCategory);
-                }
-
-                yield return entry;
-            }
         }
 
         /// <summary>

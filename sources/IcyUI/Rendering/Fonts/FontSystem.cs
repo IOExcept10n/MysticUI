@@ -200,26 +200,6 @@ namespace Icy.Rendering.Fonts
         }
 
         /// <summary>
-        /// Looks up shared rasterization data (a rasterizer + atlas) for <paramref name="info"/>.
-        /// </summary>
-        /// <remarks>
-        /// Vector (dynamic) fonts are registered under a wildcard <see cref="FontInfo"/> with <see cref="FontInfo.Size"/>
-        /// set to <c>0</c> (see <see cref="Assets.Importers.DynamicFonts.DynamicFontImporter"/>/
-        /// <see cref="DynamicFontsHelper"/>) - a font file has no inherent pixel size, it can rasterize at any size
-        /// requested. A caller asking for a specific size should still find that template rather than missing
-        /// entirely just because the exact (family, size, style) triple was never registered.
-        /// </remarks>
-        /// <param name="info">The requested font info (typically with a real, non-zero size).</param>
-        /// <param name="data">The found rasterization data, if any.</param>
-        /// <returns><see langword="true"/> if matching rasterization data was found; otherwise <see langword="false"/>.</returns>
-        private bool TryGetRasterizationData(FontInfo info, out SharedDynamicFontData data)
-        {
-            if (rasterizationData.TryGetValue(info, out data))
-                return true;
-            return !info.IsDynamic && rasterizationData.TryGetValue(info with { Size = 0 }, out data);
-        }
-
-        /// <summary>
         /// Enables support for importing system installed fonts by their family names and styles.
         /// </summary>
         /// <remarks>
@@ -259,6 +239,26 @@ namespace Icy.Rendering.Fonts
 
                 yield return ((VectorFontInfo)infos[0], fileName);
             }
+        }
+
+        /// <summary>
+        /// Looks up shared rasterization data (a rasterizer + atlas) for <paramref name="info"/>.
+        /// </summary>
+        /// <remarks>
+        /// Vector (dynamic) fonts are registered under a wildcard <see cref="FontInfo"/> with <see cref="FontInfo.Size"/>
+        /// set to <c>0</c> (see <see cref="Assets.Importers.DynamicFonts.DynamicFontImporter"/>/
+        /// <see cref="DynamicFontsHelper"/>) - a font file has no inherent pixel size, it can rasterize at any size
+        /// requested. A caller asking for a specific size should still find that template rather than missing
+        /// entirely just because the exact (family, size, style) triple was never registered.
+        /// </remarks>
+        /// <param name="info">The requested font info (typically with a real, non-zero size).</param>
+        /// <param name="data">The found rasterization data, if any.</param>
+        /// <returns><see langword="true"/> if matching rasterization data was found; otherwise <see langword="false"/>.</returns>
+        private bool TryGetRasterizationData(FontInfo info, out SharedDynamicFontData data)
+        {
+            if (rasterizationData.TryGetValue(info, out data))
+                return true;
+            return !info.IsDynamic && rasterizationData.TryGetValue(info with { Size = 0 }, out data);
         }
 
         private DynamicSpriteFont ReuseFont(FontInfo info, SharedDynamicFontData data)

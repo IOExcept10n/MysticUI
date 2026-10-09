@@ -462,14 +462,6 @@ namespace Icy.UI.Controls
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected virtual void OnNavigationCloseModal(object? sender, EventArgs e) => IsOpen = false;
 
-        private void FocusGate_FocusChanged(object? sender, EventArgs e)
-        {
-            if (focusGate!.IsFocused)
-                SubscribeNavigation();
-            else
-                UnsubscribeNavigation();
-        }
-
         /// <summary>
         /// Resolves <see cref="DisplayMemberPath"/> against <paramref name="item"/>, falling back to
         /// <see cref="object.ToString"/> when unset or unresolvable.
@@ -482,13 +474,21 @@ namespace Icy.UI.Controls
             return resolved?.ToString() ?? item.ToString() ?? string.Empty;
         }
 
+        /// <inheritdoc/>
+        protected override void OnSelectionChanged() => UpdateSelectedValue();
+
+        private void FocusGate_FocusChanged(object? sender, EventArgs e)
+        {
+            if (focusGate!.IsFocused)
+                SubscribeNavigation();
+            else
+                UnsubscribeNavigation();
+        }
+
         private void UpdateSelectedValue()
         {
             selectedValue = SelectedItem == null || selectedValuePath == null ? null : selectedValuePath.GetValue(SelectedItem);
         }
-
-        /// <inheritdoc/>
-        protected override void OnSelectionChanged() => UpdateSelectedValue();
 
         private void Toggle_IsCheckedChanged(object? sender, EventArgs e) => IsOpen = toggle.IsChecked;
 

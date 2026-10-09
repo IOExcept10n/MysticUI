@@ -39,6 +39,13 @@ namespace Icy.UI.Controls
     /// </remarks>
     public class ItemsControl : Control, IVirtualizingScrollInfo
     {
+        /// <summary>
+        /// Scroll-ahead buffer, in pixels, added past the visible viewport before an item that's scrolled out is
+        /// de-realized - shared by this class's own <see cref="RealizeRange(int, float)"/> and any subclass that
+        /// overrides it with different geometry (e.g. a uniform grid), so the same forward-scroll headroom applies
+        /// everywhere without needing to be tuned in more than one place.
+        /// </summary>
+        protected const float ScrollAheadBuffer = 100f;
         private readonly List<object> items = [];
         private readonly List<float?> knownHeights = [];
         private readonly Dictionary<int, ItemContainer> realizedContainers = [];
@@ -87,69 +94,11 @@ namespace Icy.UI.Controls
         // OnViewportChanged's own remarks for why the nested call must not re-enter the realize/de-realize logic.
         private bool isRealizingViewport;
 
-        /// <summary>
-        /// Scroll-ahead buffer, in pixels, added past the visible viewport before an item that's scrolled out is
-        /// de-realized - shared by this class's own <see cref="RealizeRange(int, float)"/> and any subclass that
-        /// overrides it with different geometry (e.g. a uniform grid), so the same forward-scroll headroom applies
-        /// everywhere without needing to be tuned in more than one place.
-        /// </summary>
-        protected const float ScrollAheadBuffer = 100f;
-
         /// <inheritdoc/>
         public event EventHandler<float>? VerticalOffsetCorrectionRequested;
 
         /// <inheritdoc/>
         public event EventHandler<float>? ScrollToVerticalOffsetRequested;
-
-        /// <summary>
-        /// Gets the containers currently realized, by item index.
-        /// </summary>
-        /// <remarks>
-        /// Derived controls that lay out their own containers (<see cref="TabControl"/>, <see cref="PropertyGrid"/>, ...)
-        /// read and index it; realize and de-realize containers through the base methods rather than editing it directly.
-        /// It's the concrete type, so enumerating it in a layout pass doesn't allocate.
-        /// </remarks>
-        protected Dictionary<int, ItemContainer> RealizedContainers => realizedContainers;
-
-        /// <summary>
-        /// Gets or sets the horizontal scroll offset, in pixels, most recently reported via
-        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
-        /// </summary>
-        protected float HorizontalOffset
-        {
-            get => horizontalOffset;
-            set => horizontalOffset = value;
-        }
-
-        /// <summary>
-        /// Gets or sets the vertical scroll offset, in pixels, most recently reported via
-        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
-        /// </summary>
-        protected float VerticalOffset
-        {
-            get => verticalOffset;
-            set => verticalOffset = value;
-        }
-
-        /// <summary>
-        /// Gets or sets the visible viewport width, in pixels, most recently reported via
-        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
-        /// </summary>
-        protected float ViewportWidth
-        {
-            get => viewportWidth;
-            set => viewportWidth = value;
-        }
-
-        /// <summary>
-        /// Gets or sets the visible viewport height, in pixels, most recently reported via
-        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
-        /// </summary>
-        protected float ViewportHeight
-        {
-            get => viewportHeight;
-            set => viewportHeight = value;
-        }
 
         /// <summary>
         /// Gets or sets the estimated height given to an item that hasn't been realized/measured yet - used only
@@ -182,13 +131,6 @@ namespace Icy.UI.Controls
 
         /// <inheritdoc/>
         public float ExtentHeight => ComputeExtentHeight();
-
-        /// <summary>
-        /// Computes <see cref="ExtentHeight"/> - the running-average single-column estimate by default. A subclass
-        /// with different virtualization geometry (e.g. a uniform grid) overrides this with its own formula instead.
-        /// </summary>
-        /// <returns>The total height of all items in the collection, estimated via a running average of known heights.</returns>
-        protected virtual float ComputeExtentHeight() => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
 
         /// <summary>
         /// Gets or sets the template used to build each item's visual tree, when <see cref="ItemTemplateSelector"/>
@@ -268,22 +210,59 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
+        /// Gets the containers currently realized, by item index.
+        /// </summary>
+        /// <remarks>
+        /// Derived controls that lay out their own containers (<see cref="TabControl"/>, <see cref="PropertyGrid"/>, ...)
+        /// read and index it; realize and de-realize containers through the base methods rather than editing it directly.
+        /// It's the concrete type, so enumerating it in a layout pass doesn't allocate.
+        /// </remarks>
+        protected Dictionary<int, ItemContainer> RealizedContainers => realizedContainers;
+
+        /// <summary>
+        /// Gets or sets the horizontal scroll offset, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float HorizontalOffset
+        {
+            get => horizontalOffset;
+            set => horizontalOffset = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the vertical scroll offset, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float VerticalOffset
+        {
+            get => verticalOffset;
+            set => verticalOffset = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the visible viewport width, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float ViewportWidth
+        {
+            get => viewportWidth;
+            set => viewportWidth = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the visible viewport height, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float ViewportHeight
+        {
+            get => viewportHeight;
+            set => viewportHeight = value;
+        }
+
+        /// <summary>
         /// Gets the number of items currently in <see cref="ItemsSource"/>.
         /// </summary>
         protected int ItemCount => items.Count;
-
-        /// <summary>
-        /// Gets the item at <paramref name="index"/> in <see cref="ItemsSource"/>.
-        /// </summary>
-        /// <param name="index">A zero-based index within <c>[0, <see cref="ItemCount"/>)</c>.</param>
-        protected object GetItemAt(int index) => items[index];
-
-        /// <summary>
-        /// Gets the index of <paramref name="item"/> within <see cref="ItemsSource"/>.
-        /// </summary>
-        /// <param name="item">The item to search for.</param>
-        /// <returns>The zero-based index of <paramref name="item"/>, or <c>-1</c> if it isn't in the collection (including when <paramref name="item"/> is <see langword="null"/>).</returns>
-        protected int IndexOfItem(object? item) => item == null ? -1 : items.IndexOf(item);
 
         /// <summary>
         /// Gets the rectangle realized containers are positioned within - <see cref="Control.ContentBounds"/> by
@@ -373,6 +352,26 @@ namespace Icy.UI.Controls
 
             ScrollToVerticalOffsetRequested?.Invoke(this, target);
         }
+
+        /// <summary>
+        /// Computes <see cref="ExtentHeight"/> - the running-average single-column estimate by default. A subclass
+        /// with different virtualization geometry (e.g. a uniform grid) overrides this with its own formula instead.
+        /// </summary>
+        /// <returns>The total height of all items in the collection, estimated via a running average of known heights.</returns>
+        protected virtual float ComputeExtentHeight() => sumOfKnownHeights + ((items.Count - knownCount) * AverageHeight);
+
+        /// <summary>
+        /// Gets the item at <paramref name="index"/> in <see cref="ItemsSource"/>.
+        /// </summary>
+        /// <param name="index">A zero-based index within <c>[0, <see cref="ItemCount"/>)</c>.</param>
+        protected object GetItemAt(int index) => items[index];
+
+        /// <summary>
+        /// Gets the index of <paramref name="item"/> within <see cref="ItemsSource"/>.
+        /// </summary>
+        /// <param name="item">The item to search for.</param>
+        /// <returns>The zero-based index of <paramref name="item"/>, or <c>-1</c> if it isn't in the collection (including when <paramref name="item"/> is <see langword="null"/>).</returns>
+        protected int IndexOfItem(object? item) => item == null ? -1 : items.IndexOf(item);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -473,8 +472,6 @@ namespace Icy.UI.Controls
             return (top, Math.Max(HeightOrEstimate(index), 1f));
         }
 
-        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
-
         /// <summary>
         /// Finds the item whose slot contains the current <c>verticalOffset</c> - via a short walk from the last
         /// anchor for a small scroll delta, or a direct estimate for a big jump (spec §5).
@@ -569,40 +566,6 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
-        /// Records <paramref name="newHeight"/> as <paramref name="index"/>'s real measured height, folding the
-        /// change into <see cref="ExtentHeight"/>'s running totals - see the Phase 2 design spec §5/§6.
-        /// </summary>
-        private void RecordHeight(int index, float newHeight)
-        {
-            float? previous = knownHeights[index];
-            if (previous == null)
-            {
-                sumOfKnownHeights += newHeight;
-                knownCount++;
-                knownHeights[index] = newHeight;
-                return;
-            }
-
-            float delta = newHeight - previous.Value;
-            if (delta == 0)
-                return;
-
-            sumOfKnownHeights += delta;
-            knownHeights[index] = newHeight;
-
-            // §6: an already-realized item resizing above the current top-visible index (anchorIndex) would
-            // otherwise visibly shift everything on screen, since nothing above the viewport is supposed to move
-            // it. Correct by shifting the offset itself by the same exact delta, and tell the host ScrollViewer -
-            // this control's own `verticalOffset` field is a private mirror of what ScrollViewer last reported;
-            // the event is what actually moves ScrollViewer.VerticalOffset (the value the scrollbar/user see).
-            if (index < anchorIndex)
-            {
-                verticalOffset += delta;
-                VerticalOffsetCorrectionRequested?.Invoke(this, delta);
-            }
-        }
-
-        /// <summary>
         /// Folds a freshly measured (<see cref="EnsureRealized(int)"/>) or finally-measured
         /// (<see cref="Derealize(int)"/>) item's height into the height cache via <see cref="RecordHeight(int, float)"/>
         /// by default. A subclass whose virtualization geometry doesn't depend on measured content height (e.g. a
@@ -615,14 +578,6 @@ namespace Icy.UI.Controls
         protected virtual void RecordRealizedHeight(int index, float height) => RecordHeight(index, height);
 
         /// <summary>
-        /// Resolves the <see cref="DataTemplate"/> to use for <paramref name="item"/> -
-        /// <see cref="ItemTemplateSelector"/> first, then <see cref="ItemTemplate"/>, then the built-in
-        /// <see cref="DataTemplate.Default"/> (the item's text).
-        /// </summary>
-        private DataTemplate ResolveTemplate(object item) =>
-            ItemTemplateSelector?.Invoke(item) ?? ItemTemplate ?? DataTemplate.Default;
-
-        /// <summary>
         /// Builds a fresh <see cref="ItemContainer"/> to host <paramref name="item"/>'s built visual tree - the
         /// default body <see cref="RentContainer(DataTemplate, object)"/> falls back to whenever pooling can't supply
         /// one. A <c>Selector</c> overrides this to realize <c>SelectorItem</c>s instead.
@@ -632,28 +587,6 @@ namespace Icy.UI.Controls
         /// <returns>The freshly built container.</returns>
         protected virtual ItemContainer CreateContainer(DataTemplate template, object item)
             => new() { Content = template.Build(item) };
-
-        /// <summary>
-        /// Gets a container for <paramref name="item"/> built with <paramref name="template"/> - popped from
-        /// <paramref name="template"/>'s pool and rebound when <see cref="PoolingEnabled"/> and one's available,
-        /// otherwise built fresh via <see cref="DataTemplate.Build(object)"/>.
-        /// </summary>
-        private ItemContainer RentContainer(DataTemplate template, object item)
-        {
-            if (PoolingEnabled && pools.TryGetValue(template, out Stack<ItemContainer>? pool) && pool.Count > 0)
-            {
-                ItemContainer pooled = pool.Pop();
-                if (pooled.Content != null)
-                    pooled.Content.DataContext = item;
-                pooled.InvalidateMeasure();
-                containerTemplates[pooled] = template;
-                return pooled;
-            }
-
-            ItemContainer container = CreateContainer(template, item);
-            containerTemplates[container] = template;
-            return container;
-        }
 
         /// <summary>
         /// Wires a freshly realized <paramref name="container"/> into the visual tree - <see cref="UIElement.Parent"/>/
@@ -736,6 +669,72 @@ namespace Icy.UI.Controls
         /// </summary>
         protected virtual void OnItemsChanged()
         {
+        }
+
+        private float HeightOrEstimate(int index) => knownHeights[index] ?? AverageHeight;
+
+        /// <summary>
+        /// Records <paramref name="newHeight"/> as <paramref name="index"/>'s real measured height, folding the
+        /// change into <see cref="ExtentHeight"/>'s running totals - see the Phase 2 design spec §5/§6.
+        /// </summary>
+        private void RecordHeight(int index, float newHeight)
+        {
+            float? previous = knownHeights[index];
+            if (previous == null)
+            {
+                sumOfKnownHeights += newHeight;
+                knownCount++;
+                knownHeights[index] = newHeight;
+                return;
+            }
+
+            float delta = newHeight - previous.Value;
+            if (delta == 0)
+                return;
+
+            sumOfKnownHeights += delta;
+            knownHeights[index] = newHeight;
+
+            // §6: an already-realized item resizing above the current top-visible index (anchorIndex) would
+            // otherwise visibly shift everything on screen, since nothing above the viewport is supposed to move
+            // it. Correct by shifting the offset itself by the same exact delta, and tell the host ScrollViewer -
+            // this control's own `verticalOffset` field is a private mirror of what ScrollViewer last reported;
+            // the event is what actually moves ScrollViewer.VerticalOffset (the value the scrollbar/user see).
+            if (index < anchorIndex)
+            {
+                verticalOffset += delta;
+                VerticalOffsetCorrectionRequested?.Invoke(this, delta);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the <see cref="DataTemplate"/> to use for <paramref name="item"/> -
+        /// <see cref="ItemTemplateSelector"/> first, then <see cref="ItemTemplate"/>, then the built-in
+        /// <see cref="DataTemplate.Default"/> (the item's text).
+        /// </summary>
+        private DataTemplate ResolveTemplate(object item) =>
+            ItemTemplateSelector?.Invoke(item) ?? ItemTemplate ?? DataTemplate.Default;
+
+        /// <summary>
+        /// Gets a container for <paramref name="item"/> built with <paramref name="template"/> - popped from
+        /// <paramref name="template"/>'s pool and rebound when <see cref="PoolingEnabled"/> and one's available,
+        /// otherwise built fresh via <see cref="DataTemplate.Build(object)"/>.
+        /// </summary>
+        private ItemContainer RentContainer(DataTemplate template, object item)
+        {
+            if (PoolingEnabled && pools.TryGetValue(template, out Stack<ItemContainer>? pool) && pool.Count > 0)
+            {
+                ItemContainer pooled = pool.Pop();
+                if (pooled.Content != null)
+                    pooled.Content.DataContext = item;
+                pooled.InvalidateMeasure();
+                containerTemplates[pooled] = template;
+                return pooled;
+            }
+
+            ItemContainer container = CreateContainer(template, item);
+            containerTemplates[container] = template;
+            return container;
         }
 
         private void ResetItems()

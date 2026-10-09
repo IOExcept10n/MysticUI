@@ -58,6 +58,20 @@ namespace Icy.Data.Markup
         public static PropertyRegistry Current => CurrentValue.Value ?? Default;
 
         /// <summary>
+        /// Gets or sets the type converter used to coerce values contributed to this registry's properties from a
+        /// possibly-mismatched source type (a markup attribute string, most commonly) into each property's real type.
+        /// </summary>
+        /// <remarks>
+        /// Kept alongside <see cref="Default"/>/<see cref="Current"/> rather than reached only through
+        /// <see cref="Configuration.ReflectionConfiguration.TypeConverter"/>, because <see cref="Icy.Animations.Animation"/>
+        /// only ever has a target <see langword="object"/> to work from - going through <see cref="For(object)"/> is the
+        /// same pattern <see cref="Icy.Animations.Animation"/>'s constructor already uses to reach the right registry, so
+        /// this reaches the right converter the same way, without adding a new ambient service or a new project reference
+        /// from <c>Icy.Animations</c>.
+        /// </remarks>
+        public ITypeConverter TypeConverter { get; set; } = new TypeConversionManager();
+
+        /// <summary>
         /// Makes <paramref name="registry"/> the <see cref="Current"/> registry until the returned scope is disposed.
         /// </summary>
         /// <param name="registry">The registry to use for the duration of the scope.</param>
@@ -93,20 +107,6 @@ namespace Icy.Data.Markup
             ArgumentNullException.ThrowIfNull(target);
             return target is DependencyObject dependencyObject ? dependencyObject.PropertyRegistry : Current;
         }
-
-        /// <summary>
-        /// Gets or sets the type converter used to coerce values contributed to this registry's properties from a
-        /// possibly-mismatched source type (a markup attribute string, most commonly) into each property's real type.
-        /// </summary>
-        /// <remarks>
-        /// Kept alongside <see cref="Default"/>/<see cref="Current"/> rather than reached only through
-        /// <see cref="Configuration.ReflectionConfiguration.TypeConverter"/>, because <see cref="Icy.Animations.Animation"/>
-        /// only ever has a target <see langword="object"/> to work from - going through <see cref="For(object)"/> is the
-        /// same pattern <see cref="Icy.Animations.Animation"/>'s constructor already uses to reach the right registry, so
-        /// this reaches the right converter the same way, without adding a new ambient service or a new project reference
-        /// from <c>Icy.Animations</c>.
-        /// </remarks>
-        public ITypeConverter TypeConverter { get; set; } = new TypeConversionManager();
 
         /// <summary>
         /// Registers a property store for a specific type.

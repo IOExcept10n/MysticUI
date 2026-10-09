@@ -148,11 +148,6 @@ namespace Icy.UI.Controls
             }
         }
 
-        private void SyncHexBoxText()
-        {
-            hexBox.Text = $"#{SelectedColor.A:X2}{SelectedColor.R:X2}{SelectedColor.G:X2}{SelectedColor.B:X2}";
-        }
-
         private static GradientBrush BuildHueGradient()
         {
             var brush = new GradientBrush { Kind = GradientKind.Linear, Angle = 0f };
@@ -164,6 +159,55 @@ namespace Icy.UI.Controls
             brush.GradientStops.Add(new GradientStop(5f / 6f, Color.Magenta));
             brush.GradientStops.Add(new GradientStop(1f, Color.Red));
             return brush;
+        }
+
+        private static (float H, float S, float V) ToHsv(Color color)
+        {
+            float r = color.R / 255f;
+            float g = color.G / 255f;
+            float b = color.B / 255f;
+            float max = Math.Max(r, Math.Max(g, b));
+            float min = Math.Min(r, Math.Min(g, b));
+            float delta = max - min;
+
+            float h = 0f;
+            if (delta > 0f)
+            {
+                if (max == r)
+                    h = 60f * (((g - b) / delta) % 6f);
+                else if (max == g)
+                    h = 60f * (((b - r) / delta) + 2f);
+                else
+                    h = 60f * (((r - g) / delta) + 4f);
+            }
+
+            if (h < 0f)
+                h += 360f;
+
+            float s = max <= 0f ? 0f : delta / max;
+            return (h, s, max);
+        }
+
+        private static Color FromHsv(float h, float s, float v, byte alpha)
+        {
+            float c = v * s;
+            float x = c * (1 - Math.Abs(((h / 60f) % 2f) - 1));
+            float m = v - c;
+            (float r, float g, float b) = (h / 60f) switch
+            {
+                float n when n < 1 => (c, x, 0f),
+                float n when n < 2 => (x, c, 0f),
+                float n when n < 3 => (0f, c, x),
+                float n when n < 4 => (0f, x, c),
+                float n when n < 5 => (x, 0f, c),
+                _ => (c, 0f, x),
+            };
+            return Color.FromArgb(alpha, (int)((r + m) * 255), (int)((g + m) * 255), (int)((b + m) * 255));
+        }
+
+        private void SyncHexBoxText()
+        {
+            hexBox.Text = $"#{SelectedColor.A:X2}{SelectedColor.R:X2}{SelectedColor.G:X2}{SelectedColor.B:X2}";
         }
 
         private void SyncSubWidgets()
@@ -264,50 +308,6 @@ namespace Icy.UI.Controls
             }
 
             return false;
-        }
-
-        private static (float H, float S, float V) ToHsv(Color color)
-        {
-            float r = color.R / 255f;
-            float g = color.G / 255f;
-            float b = color.B / 255f;
-            float max = Math.Max(r, Math.Max(g, b));
-            float min = Math.Min(r, Math.Min(g, b));
-            float delta = max - min;
-
-            float h = 0f;
-            if (delta > 0f)
-            {
-                if (max == r)
-                    h = 60f * (((g - b) / delta) % 6f);
-                else if (max == g)
-                    h = 60f * (((b - r) / delta) + 2f);
-                else
-                    h = 60f * (((r - g) / delta) + 4f);
-            }
-
-            if (h < 0f)
-                h += 360f;
-
-            float s = max <= 0f ? 0f : delta / max;
-            return (h, s, max);
-        }
-
-        private static Color FromHsv(float h, float s, float v, byte alpha)
-        {
-            float c = v * s;
-            float x = c * (1 - Math.Abs((h / 60f % 2f) - 1));
-            float m = v - c;
-            (float r, float g, float b) = (h / 60f) switch
-            {
-                float n when n < 1 => (c, x, 0f),
-                float n when n < 2 => (x, c, 0f),
-                float n when n < 3 => (0f, c, x),
-                float n when n < 4 => (0f, x, c),
-                float n when n < 5 => (x, 0f, c),
-                _ => (c, 0f, x),
-            };
-            return Color.FromArgb(alpha, (int)((r + m) * 255), (int)((g + m) * 255), (int)((b + m) * 255));
         }
 
         /// <summary>

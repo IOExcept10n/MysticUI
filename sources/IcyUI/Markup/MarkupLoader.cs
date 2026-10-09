@@ -266,101 +266,6 @@ namespace Icy.Markup
         }
 
         /// <summary>
-        /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
-        /// turns out to be - the two families only differ in how they react to that root.
-        /// </summary>
-        /// <param name="reader">The reader positioned at the start of the document.</param>
-        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
-        /// <param name="root">The document's root element, for callers that need it to build an error message.</param>
-        /// <returns>The root object the document declares.</returns>
-        private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
-        {
-            MarkupLoadScopeKind kind = pendingKind ?? MarkupLoadScopeKind.Document;
-            pendingKind = null;
-
-            var names = new MarkupNameScope();
-            MarkupLoadScope? scope = null;
-            if (ObserverFor(kind) is { } observer)
-            {
-                // Parse exactly the text the observer gets, so its positions and the tree always agree.
-                string text = reader.ReadToEnd();
-                reader = new StringReader(text);
-                scope = new MarkupLoadScope(kind, sourcePath, text, names, observer);
-                observer.DocumentStarted(scope);
-            }
-
-            var context = new MarkupLoadContext(sourcePath, names) { Scope = scope };
-
-            try
-            {
-                XDocument document = ParseDocument(reader, sourcePath);
-                root = document.Root
-                    ?? throw new MarkupException("The document is empty.", sourcePath);
-
-                // Construct the whole tree against the configuration's registry, so every element captures the same
-                // one the loader resolves properties through.
-                using (PropertyRegistry.UseScope(registry))
-                {
-                    object instance = CreateObject(root, context);
-                    if (instance is UIElement element)
-                        MarkupNameScope.SetScope(element, names);
-
-                    Complete(scope, instance);
-                    return instance;
-                }
-            }
-            catch (MarkupException ex) when (scope != null)
-            {
-                scope.Observer.DocumentFailed(scope, ex);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Returns the installed observer when it wants to hear about <paramref name="kind"/>, so an unobserved load
-        /// never creates a scope.
-        /// </summary>
-        private IMarkupLoadObserver? ObserverFor(MarkupLoadScopeKind kind) =>
-            markup.LoadObserver is { } observer && (observer.ObservedKinds & kind) != 0 ? observer : null;
-
-        private MarkupLoadScope? BeginTemplateScope(MarkupLoadScopeKind kind, string? sourcePath, MarkupNameScope names)
-        {
-            if (ObserverFor(kind) is not { } observer)
-                return null;
-
-            var scope = new MarkupLoadScope(kind, sourcePath, sourceText: null, names, observer);
-            observer.DocumentStarted(scope);
-            return scope;
-        }
-
-        private UIElement BuildTemplateRoot(XElement content, MarkupLoadContext context, MarkupLoadScope? scope, MarkupNameScope names, string? sourcePath)
-        {
-            try
-            {
-                using (PropertyRegistry.UseScope(registry))
-                {
-                    object instance = CreateObject(content, context);
-                    if (instance is not UIElement element)
-                    {
-                        throw MarkupException.At(
-                            $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
-                            content,
-                            sourcePath);
-                    }
-
-                    MarkupNameScope.SetScope(element, names);
-                    Complete(scope, element);
-                    return element;
-                }
-            }
-            catch (MarkupException ex) when (scope != null)
-            {
-                scope.Observer.DocumentFailed(scope, ex);
-                throw;
-            }
-        }
-
-        /// <summary>
         /// Parses the document text into an <see cref="XDocument"/> with position information.
         /// </summary>
         /// <param name="reader">The reader positioned at the start of the document.</param>
@@ -510,6 +415,108 @@ namespace Icy.Markup
             {
                 Exception cause = ex.InnerException ?? ex;
                 throw MarkupException.At($"'{memberLabel}' failed to add an item: {cause.Message}", node, context.SourcePath, cause);
+            }
+        }
+
+        /// <summary>
+        /// Recognizes a <c>&lt;Setter&gt;</c> child on an object marked <see cref="MarkupSetterCollectionAttribute"/> -
+        /// a markup-only convention with no runtime <c>Setter</c> type.
+        /// </summary>
+        private static bool IsSetterElement(XElement child, object instance) =>
+            child.Name.LocalName == "Setter" && MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType()) != null;
+
+        /// <summary>
+        /// Parses and builds the document behind every <c>Load</c>/<c>LoadObject</c> overload, whatever its root
+        /// turns out to be - the two families only differ in how they react to that root.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the start of the document.</param>
+        /// <param name="sourcePath">The document's path, used only to make error messages locatable.</param>
+        /// <param name="root">The document's root element, for callers that need it to build an error message.</param>
+        /// <returns>The root object the document declares.</returns>
+        private object LoadCore(TextReader reader, string? sourcePath, out XElement root)
+        {
+            MarkupLoadScopeKind kind = pendingKind ?? MarkupLoadScopeKind.Document;
+            pendingKind = null;
+
+            var names = new MarkupNameScope();
+            MarkupLoadScope? scope = null;
+            if (ObserverFor(kind) is { } observer)
+            {
+                // Parse exactly the text the observer gets, so its positions and the tree always agree.
+                string text = reader.ReadToEnd();
+                reader = new StringReader(text);
+                scope = new MarkupLoadScope(kind, sourcePath, text, names, observer);
+                observer.DocumentStarted(scope);
+            }
+
+            var context = new MarkupLoadContext(sourcePath, names) { Scope = scope };
+
+            try
+            {
+                XDocument document = ParseDocument(reader, sourcePath);
+                root = document.Root
+                    ?? throw new MarkupException("The document is empty.", sourcePath);
+
+                // Construct the whole tree against the configuration's registry, so every element captures the same
+                // one the loader resolves properties through.
+                using (PropertyRegistry.UseScope(registry))
+                {
+                    object instance = CreateObject(root, context);
+                    if (instance is UIElement element)
+                        MarkupNameScope.SetScope(element, names);
+
+                    Complete(scope, instance);
+                    return instance;
+                }
+            }
+            catch (MarkupException ex) when (scope != null)
+            {
+                scope.Observer.DocumentFailed(scope, ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Returns the installed observer when it wants to hear about <paramref name="kind"/>, so an unobserved load
+        /// never creates a scope.
+        /// </summary>
+        private IMarkupLoadObserver? ObserverFor(MarkupLoadScopeKind kind) =>
+            markup.LoadObserver is { } observer && (observer.ObservedKinds & kind) != 0 ? observer : null;
+
+        private MarkupLoadScope? BeginTemplateScope(MarkupLoadScopeKind kind, string? sourcePath, MarkupNameScope names)
+        {
+            if (ObserverFor(kind) is not { } observer)
+                return null;
+
+            var scope = new MarkupLoadScope(kind, sourcePath, sourceText: null, names, observer);
+            observer.DocumentStarted(scope);
+            return scope;
+        }
+
+        private UIElement BuildTemplateRoot(XElement content, MarkupLoadContext context, MarkupLoadScope? scope, MarkupNameScope names, string? sourcePath)
+        {
+            try
+            {
+                using (PropertyRegistry.UseScope(registry))
+                {
+                    object instance = CreateObject(content, context);
+                    if (instance is not UIElement element)
+                    {
+                        throw MarkupException.At(
+                            $"A template's root element must be a '{nameof(UIElement)}', but '{instance.GetType().Name}' isn't one.",
+                            content,
+                            sourcePath);
+                    }
+
+                    MarkupNameScope.SetScope(element, names);
+                    Complete(scope, element);
+                    return element;
+                }
+            }
+            catch (MarkupException ex) when (scope != null)
+            {
+                scope.Observer.DocumentFailed(scope, ex);
+                throw;
             }
         }
 
@@ -944,13 +951,6 @@ namespace Icy.Markup
             setters[name] = ConvertValue(value, property.PropertyType, attribute, context, instance, MarkupMember.FromReference(property));
             return true;
         }
-
-        /// <summary>
-        /// Recognizes a <c>&lt;Setter&gt;</c> child on an object marked <see cref="MarkupSetterCollectionAttribute"/> -
-        /// a markup-only convention with no runtime <c>Setter</c> type.
-        /// </summary>
-        private static bool IsSetterElement(XElement child, object instance) =>
-            child.Name.LocalName == "Setter" && MarkupSetterCollectionAttribute.GetSetterCollectionName(instance.GetType()) != null;
 
         private void ApplySetterElement(object instance, XElement setterElement, MarkupLoadContext context)
         {

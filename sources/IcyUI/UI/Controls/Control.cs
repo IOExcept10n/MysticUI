@@ -295,6 +295,7 @@ namespace Icy.UI.Controls
                     if (hosted?.Contains(element) != true)
                         element.UnbindAll();
                 }
+
                 oldChrome.Parent = null;
                 oldChrome.Canvas = null;
 

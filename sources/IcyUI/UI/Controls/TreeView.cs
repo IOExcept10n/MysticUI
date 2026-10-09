@@ -41,12 +41,13 @@ namespace Icy.UI.Controls
     [ContentProperty(nameof(Items))]
     public class TreeView : Control
     {
+        // Weak, keyed by reference: expanding an item never keeps it alive after the data drops it.
+        private static readonly object ExpandedMark = new();
         private readonly TreeViewList list;
         private readonly ScrollViewer scrollViewer;
         private readonly RangeObservableCollection<FlatRow> rows = [];
-        // Weak, keyed by reference: expanding an item never keeps it alive after the data drops it.
-        private static readonly object ExpandedMark = new();
         private readonly ConditionalWeakTable<object, object> expanded = [];
+        private readonly Dictionary<object, Subscription> subscriptions = new(ReferenceEqualityComparer.Instance);
         private IEnumerable? itemsSource;
         private Func<object, IEnumerable?>? childrenSelector;
         private Func<object, bool>? isItemSelectable;
@@ -55,7 +56,6 @@ namespace Icy.UI.Controls
         private float indent = 16;
         private bool settingNodeState;
         private bool detached;
-        private readonly Dictionary<object, Subscription> subscriptions = new(ReferenceEqualityComparer.Instance);
         private INotifyCollectionChanged? observedRoots;
         private object? selectedItem;
         private FlatRow? currentRow;
@@ -66,6 +66,7 @@ namespace Icy.UI.Controls
         public TreeView()
         {
             IsFocusable = true;
+
             // Assigned before ItemsSource: setting it calls back into OnRowsChanged, which uses the list.
             list = new TreeViewList(this);
             list.ItemsSource = rows;
@@ -467,6 +468,25 @@ namespace Icy.UI.Controls
             UnsubscribeAll();
         }
 
+        private static void Unsubscribe(Subscription subscription)
+        {
+            if (subscription.Children != null)
+                subscription.Children.CollectionChanged -= subscription.ChildrenHandler;
+            if (subscription.Node != null)
+                subscription.Node.PropertyChanged -= subscription.NodeHandler;
+        }
+
+        private static bool HasAncestor(FlatRow? row, object item)
+        {
+            for (; row != null; row = row.Parent)
+            {
+                if (ReferenceEquals(row.Item, item))
+                    return true;
+            }
+
+            return false;
+        }
+
         private void AddRef(object item)
         {
             if (subscriptions.TryGetValue(item, out Subscription? existing))
@@ -493,14 +513,6 @@ namespace Icy.UI.Controls
 
             Unsubscribe(subscription);
             subscriptions.Remove(item);
-        }
-
-        private static void Unsubscribe(Subscription subscription)
-        {
-            if (subscription.Children != null)
-                subscription.Children.CollectionChanged -= subscription.ChildrenHandler;
-            if (subscription.Node != null)
-                subscription.Node.PropertyChanged -= subscription.NodeHandler;
         }
 
         private void UnsubscribeAll()
@@ -553,17 +565,6 @@ namespace Icy.UI.Controls
             }
         }
 
-        private static bool HasAncestor(FlatRow? row, object item)
-        {
-            for (; row != null; row = row.Parent)
-            {
-                if (ReferenceEquals(row.Item, item))
-                    return true;
-            }
-
-            return false;
-        }
-
         private void InsertRows(int index, List<FlatRow> range)
         {
             foreach (FlatRow row in range)
@@ -591,6 +592,7 @@ namespace Icy.UI.Controls
                 int index = rows.IndexOf(parent);
                 if (index < 0)
                     continue;
+
                 // A row that repeats one of its ancestors (cyclic data) is shown but never expanded.
                 if (IsExpanded(parentItem) && !HasAncestor(parent.Parent, parentItem))
                     ApplyChildrenChange(parent, index, e);

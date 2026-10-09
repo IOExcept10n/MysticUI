@@ -1,4 +1,4 @@
-﻿// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
+// Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
@@ -1391,25 +1391,6 @@ namespace Icy.UI
         }
 
         /// <summary>
-        /// Gets a value indicating whether <see cref="HitTest(Vector2)"/> descends into this element's children.
-        /// </summary>
-        /// <returns><see langword="true"/> by default. Returning <see langword="false"/> makes the element itself the hit target
-        /// for every point inside it - e.g. a scrolling list during a fling, so the press that stops it doesn't reach an item.</returns>
-        protected virtual bool CanHitTestChildren() => true;
-
-        /// <summary>
-        /// Enumerates this element's immediate visual children, in paint order (back-to-front), for hit-testing
-        /// and tree traversal.
-        /// </summary>
-        /// <returns>The element's immediate children. The base implementation yields none (a leaf element).</returns>
-        /// <remarks>
-        /// Container elements (e.g. <see cref="Panel"/>, <see cref="Border"/>) override this to expose their
-        /// children, in the exact order they're drawn in — <see cref="HitTest(Vector2)"/> depends on this matching
-        /// actual paint order, or clicks will target the wrong, visually-obscured element.
-        /// </remarks>
-        protected virtual IEnumerable<UIElement> GetVisualChildren() => [];
-
-        /// <summary>
         /// Invalidates <see cref="UIElement"/> arrange to recalculate on next draw call.
         /// </summary>
         public void InvalidateArrange()
@@ -1518,304 +1499,6 @@ namespace Icy.UI
             RenderTransformOrigin = new(0.5f, 0.5f);
             RenderOffset = Vector2.Zero;
             InvalidateVisual();
-        }
-
-        /// <summary>
-        /// Handles custom arrange logic when overridden in any <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// This method is called during the arrange pass to position and size the element's content
-        /// within its final bounds. The element's position and size are already determined by the
-        /// layout system and available in the <see cref="ActualBounds"/> property.
-        /// </para>
-        /// <para>
-        /// When implementing this method:
-        /// <list type="bullet">
-        ///     <item>Position child elements within the available space;</item>
-        ///     <item>Respect the element's padding when positioning content;</item>
-        ///     <item>Handle any content-specific layout requirements;</item>
-        ///     <item>Call <see cref="Arrange()"/> on child elements if needed.</item>
-        /// </list>
-        /// </para>
-        /// </remarks>
-        protected virtual void ArrangeContent()
-        {
-            // Base implementation does nothing.
-        }
-
-        /// <summary>
-        /// Handles custom measure logic when overridden in any <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// This method is called during the measure pass to determine the desired size of the element.
-        /// The returned size should represent the natural size of the element's content, without considering
-        /// any constraints, margins, or padding.
-        /// </para>
-        /// <para>
-        /// When implementing this method:
-        /// <list type="bullet">
-        ///    <item>Return the natural size needed to display the content;</item>
-        ///    <item>Do not include padding, margins, or borders in the returned size;</item>
-        ///    <item>Consider the content's actual dimensions (e.g., text length, image size);</item>
-        ///    <item>Return <see cref="Size.Empty"/> if the element has no content.</item>
-        /// </list>
-        /// </para>
-        /// </remarks>
-        /// <returns>Size recommended to display the <see cref="UIElement"/>.</returns>
-        protected virtual Size MeasureContent()
-        {
-            // Base implementation returns (0,0)
-            return Size.Empty;
-        }
-
-        /// <summary>
-        /// Raises the <see cref="ArrangeUpdated"/> event.
-        /// </summary>
-        protected virtual void OnArrangeUpdated()
-        {
-            ArrangeUpdated?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Raises the <see cref="LocationChanged"/> event.
-        /// </summary>
-        protected virtual void OnLocationChanged()
-        {
-            LocationChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Raises the <see cref="OpacityChanged"/> event.
-        /// </summary>
-        protected virtual void OnOpacityChanged()
-        {
-            OpacityChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Handles custom render logic when overridden in any <see cref="UIElement"/> instance.
-        /// </summary>
-        /// <param name="context">The context to render with.</param>
-        protected virtual void OnRender(IRenderContext context)
-        {
-            // Base implementation does nothing
-        }
-
-        /// <summary>
-        /// Raises the <see cref="SizeChanged"/> event.
-        /// </summary>
-        protected virtual void OnSizeChanged()
-        {
-            SizeChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Raises the <see cref="TransformUpdated"/> event.
-        /// </summary>
-        protected virtual void OnTransformUpdated()
-        {
-            TransformUpdated?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Raises the <see cref="VisibilityChanged"/> event.
-        /// </summary>
-        protected virtual void OnVisibilityChanged()
-        {
-            VisibilityChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Raises <see cref="DataContextChanged"/>, then recurses into every element in
-        /// <see cref="GetVisualChildren"/> that has no <see cref="DataContext"/> of its own.
-        /// </summary>
-        /// <remarks>
-        /// Mirrors <see cref="OnAttached"/>'s cascade through the visual tree, but propagates a change
-        /// notification instead of the value itself - preferred over pushing the value down eagerly, since
-        /// <see cref="DataContext"/> is read lazily by walking <see cref="Parent"/> anyway (see its remarks). A
-        /// descendant that set its own <see cref="DataContext"/> keeps it and stops the cascade there: nothing
-        /// about its own effective value changed.
-        /// </remarks>
-        protected virtual void OnDataContextChanged()
-        {
-            DataContextChanged?.Invoke(this, EventArgs.Empty);
-            foreach (UIElement child in GetVisualChildren())
-            {
-                if (!child.hasDataContext)
-                    child.OnDataContextChanged();
-            }
-        }
-
-        /// <summary>
-        /// Raises the <see cref="Attached"/> event.
-        /// </summary>
-        /// <remarks>
-        /// Propagates <see cref="Canvas"/> to every element in <see cref="GetVisualChildren"/> - this is what makes
-        /// attaching a whole pre-built subtree (the common pattern: build children, then attach the root once via
-        /// <see cref="UI.Canvas.Add(UIElement)"/>) reach every descendant, not just the immediate root. Each child's
-        /// own <see cref="Canvas"/> setter recurses into <em>its</em> children the same way, so this walks the full
-        /// subtree regardless of depth. Container-specific child-add paths (e.g. <see cref="Panel.OnChildAdded"/>)
-        /// still assign <see cref="Canvas"/> directly for children added after the parent is already attached -
-        /// this cascade is what covers everything built beforehand.
-        /// </remarks>
-        protected virtual void OnAttached()
-        {
-            if (Style == null && ResolveImplicitStyle() is { } implicitStyle)
-                Style = implicitStyle;
-
-            foreach (UIElement child in GetVisualChildren())
-            {
-                child.Canvas = Canvas;
-            }
-
-            Attached?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Clamps a size to optional layout limits such as <see cref="MinWidth"/>/<see cref="MaxWidth"/>, where
-        /// <see cref="float.NaN"/> means "no limit".
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// <see cref="float.Clamp(float, float, float)"/> can't be used directly: since .NET 9 it propagates a
-        /// <see cref="float.NaN"/> bound into the result instead of ignoring it, which would turn every size with an
-        /// unset limit into <see cref="float.NaN"/> (and <c>0</c> once cast to <see cref="int"/>).
-        /// </para>
-        /// <para>
-        /// When both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>, the minimum wins,
-        /// as in WPF. Throwing instead would fail every layout pass from then on, so a conflicting pair set by a
-        /// style, a binding or a design-time edit would stop the whole UI.
-        /// </para>
-        /// </remarks>
-        /// <param name="value">The size to clamp.</param>
-        /// <param name="min">The lower limit, or <see cref="float.NaN"/> for none.</param>
-        /// <param name="max">The upper limit, or <see cref="float.NaN"/> for none.</param>
-        /// <returns><paramref name="value"/> constrained to whichever of the limits are set.</returns>
-        private static float ClampToLimits(float value, float min, float max)
-        {
-            if (float.IsNaN(min))
-                return float.IsNaN(max) ? value : float.Min(value, max);
-            if (float.IsNaN(max) || min > max)
-                return float.Max(value, min);
-            return float.Clamp(value, min, max);
-        }
-
-        /// <summary>
-        /// Looks up an implicit (keyless, exact-type-targeted) <see cref="Styles.Style"/> for this element's own
-        /// type, walking <see cref="Parent"/> the same way <c>{StaticResource}</c> does, then falling back to
-        /// <see cref="Canvas.Resources"/> once the ancestor chain is exhausted.
-        /// </summary>
-        /// <returns>
-        /// The implicit <see cref="Styles.Style"/> registered for this element's exact type in the nearest
-        /// ancestor's <see cref="Resources"/> (or this element's own), or in <see cref="Canvas.Resources"/> (e.g. a
-        /// theme configured via <see cref="Icy.Configuration.ThemeConfiguration"/>) when no ancestor has one -
-        /// <see langword="null"/> when none is registered anywhere along that chain either.
-        /// </returns>
-        private Style? ResolveImplicitStyle()
-        {
-            string key = ResourceDictionary.GetImplicitStyleKey(GetType());
-            for (UIElement? element = this; element != null; element = element.Parent)
-            {
-                if (element.HasResources && element.Resources.TryGetValue(key, out object? value) && value is Style style)
-                    return style;
-            }
-
-            if (Canvas != null && Canvas.Resources.TryGetValue(key, out object? canvasValue) && canvasValue is Style canvasStyle)
-                return canvasStyle;
-
-            return null;
-        }
-
-        /// <summary>
-        /// Raises the <see cref="Detached"/> event.
-        /// </summary>
-        /// <remarks>
-        /// Propagates <see langword="null"/> to every element in <see cref="GetVisualChildren"/>, mirroring
-        /// <see cref="OnAttached"/> - see its remarks.
-        /// </remarks>
-        protected virtual void OnDetached()
-        {
-            foreach (UIElement child in GetVisualChildren())
-            {
-                child.Canvas = null;
-            }
-
-            Detached?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Recalculates the render transform based on the current <see cref="RenderOffset"/>, <see cref="RenderRotation"/>,
-        /// <see cref="RenderTransformOrigin"/>, and <see cref="RenderScale"/> properties.
-        /// </summary>
-        protected void UpdateVisual()
-        {
-            renderTransform = Transform2D.Create(
-                RenderOffset,
-                float.DegreesToRadians(RenderRotation),
-                RenderTransformOrigin * new Vector2(ActualBounds.Width, ActualBounds.Height),
-                RenderScale);
-        }
-
-        /// <summary>
-        /// Computes the default local-space <see cref="TextureRenderingOptions"/> for this <see cref="UIElement"/>
-        /// instance, covering its full <see cref="ActualBounds"/> at full opacity/white tint, ready to hand to an <see cref="IBrush"/>.
-        /// </summary>
-        /// <returns>The default rendering options for this element's content area.</returns>
-        protected TextureRenderingOptions GetDefaultRenderOptions() => new(
-            Destination: new(Point.Empty, ActualBounds.Size),
-            Source: null,
-            Color: Color.White,
-            Rotation: 0,
-            Origin: Vector2.Zero,
-            Depth: ZIndex);
-
-        /// <summary>
-        /// Calculates transform matrix and inverse matrix based on the current transform properties.
-        /// </summary>
-        protected void UpdateTransformMatrix()
-        {
-            if (IsTransformInvalid)
-            {
-                // Re-arrange in the slot the parent last gave this element, not the parent's whole ContentBounds: parents such
-                // as ScrollViewer, StackPanel or Grid arrange children in their own rectangles, and a lazy re-arrange here
-                // (hit-testing, PointToLocal) runs before the parent's own layout pass - which it would otherwise pre-empt
-                // with the wrong bounds, since arranging clears the invalidation.
-                Arrange(lastContainerBounds ?? LogicalParent?.ContentBounds ?? default);
-
-                // ActualBounds.Location is computed cumulatively (Arrange() positions this element within
-                // LogicalParent.ContentBounds, which itself already carries the parent's own absolute position) -
-                // but the render transform chain (Draw() composes each ancestor's layoutTransform/renderTransform
-                // together) *also* accumulates translation hierarchically. Using the raw absolute ActualBounds.Location
-                // here would double (or further multiply, for deeper nesting) every ancestor's contribution once per
-                // level. Subtracting the parent's own origin leaves only this element's own relative offset, which is
-                // what the hierarchical transform chain expects to accumulate.
-                //
-                // That origin must be Parent.ActualBounds.Location, not Parent.ContentBounds.Location - Draw() never
-                // applies a separate translation for the parent's own Padding/BorderThickness before drawing its
-                // children (Panel.OnRender/Border.OnRender/Control.OnRender all call child.Draw(context) directly),
-                // so context.Transform already flowing into this element's Draw() call still equals the parent's raw
-                // ActualBounds-based transform. Subtracting ContentBounds.Location (which is ActualBounds inset by
-                // Padding) double-subtracted that inset, pulling every child of a padded/bordered container back by
-                // exactly its parent's Padding/BorderThickness - invisible whenever Padding was zero, which is why
-                // this went unnoticed until a container with real Padding was inspected against the box-model debug
-                // overlay (which reads ActualBounds directly and was never affected). LogicalParent's ContentBounds
-                // is still the right basis for a parentless root, since Canvas has no Padding concept - ContentBounds
-                // and this element's own effective origin coincide there.
-                Point parentContentOrigin = Parent?.ActualBounds.Location ?? LogicalParent?.ContentBounds.Location ?? Point.Empty;
-                Vector2 relativeLocation = new(ActualBounds.X - parentContentOrigin.X, ActualBounds.Y - parentContentOrigin.Y);
-
-                layoutTransform = Transform2D.Create(
-                    LayoutOffset + relativeLocation,
-                    float.DegreesToRadians(LayoutRotation),
-                    LayoutTransformOrigin * ActualBounds.Size.AsVector(),
-                    LayoutScale);
-                if (Matrix3x2.Invert(layoutTransform.Matrix, out var inverseMatrix))
-                    inverseLayoutTransform = Transform2D.Create(inverseMatrix);
-                OnTransformUpdated();
-                IsTransformInvalid = false;
-            }
         }
 
         /// <summary>
@@ -2150,6 +1833,323 @@ namespace Icy.UI
         /// </remarks>
         protected internal virtual void OnTap()
         {
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether <see cref="HitTest(Vector2)"/> descends into this element's children.
+        /// </summary>
+        /// <returns><see langword="true"/> by default. Returning <see langword="false"/> makes the element itself the hit target
+        /// for every point inside it - e.g. a scrolling list during a fling, so the press that stops it doesn't reach an item.</returns>
+        protected virtual bool CanHitTestChildren() => true;
+
+        /// <summary>
+        /// Enumerates this element's immediate visual children, in paint order (back-to-front), for hit-testing
+        /// and tree traversal.
+        /// </summary>
+        /// <returns>The element's immediate children. The base implementation yields none (a leaf element).</returns>
+        /// <remarks>
+        /// Container elements (e.g. <see cref="Panel"/>, <see cref="Border"/>) override this to expose their
+        /// children, in the exact order they're drawn in — <see cref="HitTest(Vector2)"/> depends on this matching
+        /// actual paint order, or clicks will target the wrong, visually-obscured element.
+        /// </remarks>
+        protected virtual IEnumerable<UIElement> GetVisualChildren() => [];
+
+        /// <summary>
+        /// Handles custom arrange logic when overridden in any <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This method is called during the arrange pass to position and size the element's content
+        /// within its final bounds. The element's position and size are already determined by the
+        /// layout system and available in the <see cref="ActualBounds"/> property.
+        /// </para>
+        /// <para>
+        /// When implementing this method:
+        /// <list type="bullet">
+        ///     <item>Position child elements within the available space;</item>
+        ///     <item>Respect the element's padding when positioning content;</item>
+        ///     <item>Handle any content-specific layout requirements;</item>
+        ///     <item>Call <see cref="Arrange()"/> on child elements if needed.</item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        protected virtual void ArrangeContent()
+        {
+            // Base implementation does nothing.
+        }
+
+        /// <summary>
+        /// Handles custom measure logic when overridden in any <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This method is called during the measure pass to determine the desired size of the element.
+        /// The returned size should represent the natural size of the element's content, without considering
+        /// any constraints, margins, or padding.
+        /// </para>
+        /// <para>
+        /// When implementing this method:
+        /// <list type="bullet">
+        ///    <item>Return the natural size needed to display the content;</item>
+        ///    <item>Do not include padding, margins, or borders in the returned size;</item>
+        ///    <item>Consider the content's actual dimensions (e.g., text length, image size);</item>
+        ///    <item>Return <see cref="Size.Empty"/> if the element has no content.</item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        /// <returns>Size recommended to display the <see cref="UIElement"/>.</returns>
+        protected virtual Size MeasureContent()
+        {
+            // Base implementation returns (0,0)
+            return Size.Empty;
+        }
+
+        /// <summary>
+        /// Raises the <see cref="ArrangeUpdated"/> event.
+        /// </summary>
+        protected virtual void OnArrangeUpdated()
+        {
+            ArrangeUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="LocationChanged"/> event.
+        /// </summary>
+        protected virtual void OnLocationChanged()
+        {
+            LocationChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="OpacityChanged"/> event.
+        /// </summary>
+        protected virtual void OnOpacityChanged()
+        {
+            OpacityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Handles custom render logic when overridden in any <see cref="UIElement"/> instance.
+        /// </summary>
+        /// <param name="context">The context to render with.</param>
+        protected virtual void OnRender(IRenderContext context)
+        {
+            // Base implementation does nothing
+        }
+
+        /// <summary>
+        /// Raises the <see cref="SizeChanged"/> event.
+        /// </summary>
+        protected virtual void OnSizeChanged()
+        {
+            SizeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="TransformUpdated"/> event.
+        /// </summary>
+        protected virtual void OnTransformUpdated()
+        {
+            TransformUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="VisibilityChanged"/> event.
+        /// </summary>
+        protected virtual void OnVisibilityChanged()
+        {
+            VisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises <see cref="DataContextChanged"/>, then recurses into every element in
+        /// <see cref="GetVisualChildren"/> that has no <see cref="DataContext"/> of its own.
+        /// </summary>
+        /// <remarks>
+        /// Mirrors <see cref="OnAttached"/>'s cascade through the visual tree, but propagates a change
+        /// notification instead of the value itself - preferred over pushing the value down eagerly, since
+        /// <see cref="DataContext"/> is read lazily by walking <see cref="Parent"/> anyway (see its remarks). A
+        /// descendant that set its own <see cref="DataContext"/> keeps it and stops the cascade there: nothing
+        /// about its own effective value changed.
+        /// </remarks>
+        protected virtual void OnDataContextChanged()
+        {
+            DataContextChanged?.Invoke(this, EventArgs.Empty);
+            foreach (UIElement child in GetVisualChildren())
+            {
+                if (!child.hasDataContext)
+                    child.OnDataContextChanged();
+            }
+        }
+
+        /// <summary>
+        /// Raises the <see cref="Attached"/> event.
+        /// </summary>
+        /// <remarks>
+        /// Propagates <see cref="Canvas"/> to every element in <see cref="GetVisualChildren"/> - this is what makes
+        /// attaching a whole pre-built subtree (the common pattern: build children, then attach the root once via
+        /// <see cref="UI.Canvas.Add(UIElement)"/>) reach every descendant, not just the immediate root. Each child's
+        /// own <see cref="Canvas"/> setter recurses into <em>its</em> children the same way, so this walks the full
+        /// subtree regardless of depth. Container-specific child-add paths (e.g. <see cref="Panel.OnChildAdded"/>)
+        /// still assign <see cref="Canvas"/> directly for children added after the parent is already attached -
+        /// this cascade is what covers everything built beforehand.
+        /// </remarks>
+        protected virtual void OnAttached()
+        {
+            if (Style == null && ResolveImplicitStyle() is { } implicitStyle)
+                Style = implicitStyle;
+
+            foreach (UIElement child in GetVisualChildren())
+            {
+                child.Canvas = Canvas;
+            }
+
+            Attached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="Detached"/> event.
+        /// </summary>
+        /// <remarks>
+        /// Propagates <see langword="null"/> to every element in <see cref="GetVisualChildren"/>, mirroring
+        /// <see cref="OnAttached"/> - see its remarks.
+        /// </remarks>
+        protected virtual void OnDetached()
+        {
+            foreach (UIElement child in GetVisualChildren())
+            {
+                child.Canvas = null;
+            }
+
+            Detached?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Recalculates the render transform based on the current <see cref="RenderOffset"/>, <see cref="RenderRotation"/>,
+        /// <see cref="RenderTransformOrigin"/>, and <see cref="RenderScale"/> properties.
+        /// </summary>
+        protected void UpdateVisual()
+        {
+            renderTransform = Transform2D.Create(
+                RenderOffset,
+                float.DegreesToRadians(RenderRotation),
+                RenderTransformOrigin * new Vector2(ActualBounds.Width, ActualBounds.Height),
+                RenderScale);
+        }
+
+        /// <summary>
+        /// Computes the default local-space <see cref="TextureRenderingOptions"/> for this <see cref="UIElement"/>
+        /// instance, covering its full <see cref="ActualBounds"/> at full opacity/white tint, ready to hand to an <see cref="IBrush"/>.
+        /// </summary>
+        /// <returns>The default rendering options for this element's content area.</returns>
+        protected TextureRenderingOptions GetDefaultRenderOptions() => new(
+            Destination: new(Point.Empty, ActualBounds.Size),
+            Source: null,
+            Color: Color.White,
+            Rotation: 0,
+            Origin: Vector2.Zero,
+            Depth: ZIndex);
+
+        /// <summary>
+        /// Calculates transform matrix and inverse matrix based on the current transform properties.
+        /// </summary>
+        protected void UpdateTransformMatrix()
+        {
+            if (IsTransformInvalid)
+            {
+                // Re-arrange in the slot the parent last gave this element, not the parent's whole ContentBounds: parents such
+                // as ScrollViewer, StackPanel or Grid arrange children in their own rectangles, and a lazy re-arrange here
+                // (hit-testing, PointToLocal) runs before the parent's own layout pass - which it would otherwise pre-empt
+                // with the wrong bounds, since arranging clears the invalidation.
+                Arrange(lastContainerBounds ?? LogicalParent?.ContentBounds ?? default);
+
+                // ActualBounds.Location is computed cumulatively (Arrange() positions this element within
+                // LogicalParent.ContentBounds, which itself already carries the parent's own absolute position) -
+                // but the render transform chain (Draw() composes each ancestor's layoutTransform/renderTransform
+                // together) *also* accumulates translation hierarchically. Using the raw absolute ActualBounds.Location
+                // here would double (or further multiply, for deeper nesting) every ancestor's contribution once per
+                // level. Subtracting the parent's own origin leaves only this element's own relative offset, which is
+                // what the hierarchical transform chain expects to accumulate.
+                //
+                // That origin must be Parent.ActualBounds.Location, not Parent.ContentBounds.Location - Draw() never
+                // applies a separate translation for the parent's own Padding/BorderThickness before drawing its
+                // children (Panel.OnRender/Border.OnRender/Control.OnRender all call child.Draw(context) directly),
+                // so context.Transform already flowing into this element's Draw() call still equals the parent's raw
+                // ActualBounds-based transform. Subtracting ContentBounds.Location (which is ActualBounds inset by
+                // Padding) double-subtracted that inset, pulling every child of a padded/bordered container back by
+                // exactly its parent's Padding/BorderThickness - invisible whenever Padding was zero, which is why
+                // this went unnoticed until a container with real Padding was inspected against the box-model debug
+                // overlay (which reads ActualBounds directly and was never affected). LogicalParent's ContentBounds
+                // is still the right basis for a parentless root, since Canvas has no Padding concept - ContentBounds
+                // and this element's own effective origin coincide there.
+                Point parentContentOrigin = Parent?.ActualBounds.Location ?? LogicalParent?.ContentBounds.Location ?? Point.Empty;
+                Vector2 relativeLocation = new(ActualBounds.X - parentContentOrigin.X, ActualBounds.Y - parentContentOrigin.Y);
+
+                layoutTransform = Transform2D.Create(
+                    LayoutOffset + relativeLocation,
+                    float.DegreesToRadians(LayoutRotation),
+                    LayoutTransformOrigin * ActualBounds.Size.AsVector(),
+                    LayoutScale);
+                if (Matrix3x2.Invert(layoutTransform.Matrix, out var inverseMatrix))
+                    inverseLayoutTransform = Transform2D.Create(inverseMatrix);
+                OnTransformUpdated();
+                IsTransformInvalid = false;
+            }
+        }
+
+        /// <summary>
+        /// Clamps a size to optional layout limits such as <see cref="MinWidth"/>/<see cref="MaxWidth"/>, where
+        /// <see cref="float.NaN"/> means "no limit".
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="float.Clamp(float, float, float)"/> can't be used directly: since .NET 9 it propagates a
+        /// <see cref="float.NaN"/> bound into the result instead of ignoring it, which would turn every size with an
+        /// unset limit into <see cref="float.NaN"/> (and <c>0</c> once cast to <see cref="int"/>).
+        /// </para>
+        /// <para>
+        /// When both limits are set and <paramref name="min"/> is greater than <paramref name="max"/>, the minimum wins,
+        /// as in WPF. Throwing instead would fail every layout pass from then on, so a conflicting pair set by a
+        /// style, a binding or a design-time edit would stop the whole UI.
+        /// </para>
+        /// </remarks>
+        /// <param name="value">The size to clamp.</param>
+        /// <param name="min">The lower limit, or <see cref="float.NaN"/> for none.</param>
+        /// <param name="max">The upper limit, or <see cref="float.NaN"/> for none.</param>
+        /// <returns><paramref name="value"/> constrained to whichever of the limits are set.</returns>
+        private static float ClampToLimits(float value, float min, float max)
+        {
+            if (float.IsNaN(min))
+                return float.IsNaN(max) ? value : float.Min(value, max);
+            if (float.IsNaN(max) || min > max)
+                return float.Max(value, min);
+            return float.Clamp(value, min, max);
+        }
+
+        /// <summary>
+        /// Looks up an implicit (keyless, exact-type-targeted) <see cref="Styles.Style"/> for this element's own
+        /// type, walking <see cref="Parent"/> the same way <c>{StaticResource}</c> does, then falling back to
+        /// <see cref="Canvas.Resources"/> once the ancestor chain is exhausted.
+        /// </summary>
+        /// <returns>
+        /// The implicit <see cref="Styles.Style"/> registered for this element's exact type in the nearest
+        /// ancestor's <see cref="Resources"/> (or this element's own), or in <see cref="Canvas.Resources"/> (e.g. a
+        /// theme configured via <see cref="Icy.Configuration.ThemeConfiguration"/>) when no ancestor has one -
+        /// <see langword="null"/> when none is registered anywhere along that chain either.
+        /// </returns>
+        private Style? ResolveImplicitStyle()
+        {
+            string key = ResourceDictionary.GetImplicitStyleKey(GetType());
+            for (UIElement? element = this; element != null; element = element.Parent)
+            {
+                if (element.HasResources && element.Resources.TryGetValue(key, out object? value) && value is Style style)
+                    return style;
+            }
+
+            if (Canvas != null && Canvas.Resources.TryGetValue(key, out object? canvasValue) && canvasValue is Style canvasStyle)
+                return canvasStyle;
+
+            return null;
         }
 
         private Point CalculateLocation(Rectangle containerBounds, Size effectiveSize, Thickness effectiveMargin)

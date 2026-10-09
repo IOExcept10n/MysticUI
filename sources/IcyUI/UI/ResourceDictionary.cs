@@ -47,21 +47,6 @@ namespace Icy.UI
         /// </remarks>
         public IList<ResourceDictionary> MergedDictionaries { get; } = [];
 
-        /// <summary>
-        /// Gets the reserved resource key an implicit <see cref="Styles.Style"/> targeting <paramref name="targetType"/>
-        /// registers under.
-        /// </summary>
-        /// <param name="targetType">The exact type the implicit style targets.</param>
-        /// <returns>The reserved key.</returns>
-        public static string GetImplicitStyleKey(Type targetType) => ImplicitStyleKeyPrefix + targetType.FullName;
-
-        /// <inheritdoc/>
-        public object? this[string key]
-        {
-            get => entries[key];
-            set => entries[key] = value;
-        }
-
         /// <inheritdoc/>
         public ICollection<string> Keys => entries.Keys;
 
@@ -73,6 +58,21 @@ namespace Icy.UI
 
         /// <inheritdoc/>
         public bool IsReadOnly => false;
+
+        /// <inheritdoc/>
+        public object? this[string key]
+        {
+            get => entries[key];
+            set => entries[key] = value;
+        }
+
+        /// <summary>
+        /// Gets the reserved resource key an implicit <see cref="Styles.Style"/> targeting <paramref name="targetType"/>
+        /// registers under.
+        /// </summary>
+        /// <param name="targetType">The exact type the implicit style targets.</param>
+        /// <returns>The reserved key.</returns>
+        public static string GetImplicitStyleKey(Type targetType) => ImplicitStyleKeyPrefix + targetType.FullName;
 
         /// <summary>
         /// Looks up <paramref name="key"/> in this dictionary's own entries, then in <see cref="MergedDictionaries"/>

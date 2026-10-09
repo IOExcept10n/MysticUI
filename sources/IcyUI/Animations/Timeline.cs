@@ -94,19 +94,6 @@ namespace Icy.Animations
         public bool AutoReverse { get; init; }
 
         /// <summary>
-        /// Adds a keyframe to this timeline.
-        /// </summary>
-        /// <param name="offset">The normalized position within the timeline, from 0 (start) to 1 (end).</param>
-        /// <param name="value">The value at this position.</param>
-        /// <returns>This instance, for chaining.</returns>
-        public Timeline AddKeyframe(float offset, object? value)
-        {
-            keyframes.Add(new AnimationKeyframe(offset, value));
-            keyframes.Sort(static (a, b) => a.Offset.CompareTo(b.Offset));
-            return this;
-        }
-
-        /// <summary>
         /// Creates a timeline that animates directly from one value to another - the common case, covering the vast
         /// majority of animations (a fade, a slide, a color transition).
         /// </summary>
@@ -136,6 +123,19 @@ namespace Icy.Animations
             timeline.AddKeyframe(0f, from);
             timeline.AddKeyframe(1f, to);
             return timeline;
+        }
+
+        /// <summary>
+        /// Adds a keyframe to this timeline.
+        /// </summary>
+        /// <param name="offset">The normalized position within the timeline, from 0 (start) to 1 (end).</param>
+        /// <param name="value">The value at this position.</param>
+        /// <returns>This instance, for chaining.</returns>
+        public Timeline AddKeyframe(float offset, object? value)
+        {
+            keyframes.Add(new AnimationKeyframe(offset, value));
+            keyframes.Sort(static (a, b) => a.Offset.CompareTo(b.Offset));
+            return this;
         }
     }
 }

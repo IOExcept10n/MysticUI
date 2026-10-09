@@ -91,6 +91,61 @@ namespace Icy.Data
         public string? Description { get; }
 
         /// <summary>
+        /// Enumerates every browsable property on <paramref name="target"/>'s runtime type - properties
+        /// registered via <c>[RegisterReference]</c> first, then every other public readable property found by
+        /// plain reflection - grouped by <see cref="Category"/> in first-seen order.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The two passes are deduplicated against each other by the reflected member itself - specifically by the
+        /// <c>(<see cref="MemberInfo.DeclaringType"/>, <see cref="MemberInfo.Name"/>)</c> pair - rather than by the
+        /// display string, so two distinct properties sharing one <see cref="DisplayNameAttribute"/> both survive,
+        /// while a property found by both passes is emitted once.
+        /// </para>
+        /// <para>
+        /// The <see cref="PropertyInfo"/> instance itself can't serve as that key: the registered pass resolves a
+        /// property through <see cref="IPropertyReference.OwnerType"/> (the property's <i>declaring</i> type),
+        /// while the reflected pass resolves it off <paramref name="target"/>'s <i>runtime</i> type. For a
+        /// registered property declared on a base class and merely inherited by a derived one, those are two
+        /// different <see cref="PropertyInfo"/> objects (differing in <see cref="MemberInfo.ReflectedType"/>) that
+        /// reference equality - all <see cref="HashSet{T}"/> has for <see cref="PropertyInfo"/> - never unifies, so
+        /// every such property would be listed twice. Keying on
+        /// <see cref="MemberInfo.DeclaringType"/>/<see cref="MemberInfo.Name"/> unifies them while still keeping a
+        /// derived property that shadows a base one via <see langword="new"/> distinct, since the two differ in
+        /// <see cref="MemberInfo.DeclaringType"/>.
+        /// </para>
+        /// </remarks>
+        /// <param name="target">The object to enumerate properties for.</param>
+        /// <returns>The resulting entries, grouped by <see cref="Category"/>.</returns>
+        public static IReadOnlyList<PropertyGridEntry> EnumerateFor(object target)
+        {
+            ArgumentNullException.ThrowIfNull(target);
+
+            Type type = target.GetType();
+            var seen = new HashSet<(Type? DeclaringType, string Name)>();
+            var entries = new List<PropertyGridEntry>();
+
+            foreach (IPropertyReference reference in PropertyRegistry.For(target).GetPropertyStore(type).EnumerateProperties())
+            {
+                PropertyInfo? info = reference.OwnerType.GetProperty(reference.Name, BindingFlags.Public | BindingFlags.Instance);
+                if (info == null || info.GetIndexParameters().Length > 0 || !seen.Add((info.DeclaringType, info.Name)))
+                    continue;
+                if (TryCreate(info, out PropertyGridEntry? entry))
+                    entries.Add(entry);
+            }
+
+            foreach (PropertyInfo info in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (info.GetIndexParameters().Length > 0 || !info.CanRead || !seen.Add((info.DeclaringType, info.Name)))
+                    continue;
+                if (TryCreate(info, out PropertyGridEntry? entry))
+                    entries.Add(entry);
+            }
+
+            return entries.GroupBy(e => e.Category).SelectMany(group => group).ToList();
+        }
+
+        /// <summary>
         /// Reads this property's current value from <paramref name="target"/>.
         /// </summary>
         /// <param name="target">The object to read the value from.</param>
@@ -163,61 +218,6 @@ namespace Icy.Data
 
             reason = range.Describe();
             return false;
-        }
-
-        /// <summary>
-        /// Enumerates every browsable property on <paramref name="target"/>'s runtime type - properties
-        /// registered via <c>[RegisterReference]</c> first, then every other public readable property found by
-        /// plain reflection - grouped by <see cref="Category"/> in first-seen order.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// The two passes are deduplicated against each other by the reflected member itself - specifically by the
-        /// <c>(<see cref="MemberInfo.DeclaringType"/>, <see cref="MemberInfo.Name"/>)</c> pair - rather than by the
-        /// display string, so two distinct properties sharing one <see cref="DisplayNameAttribute"/> both survive,
-        /// while a property found by both passes is emitted once.
-        /// </para>
-        /// <para>
-        /// The <see cref="PropertyInfo"/> instance itself can't serve as that key: the registered pass resolves a
-        /// property through <see cref="IPropertyReference.OwnerType"/> (the property's <i>declaring</i> type),
-        /// while the reflected pass resolves it off <paramref name="target"/>'s <i>runtime</i> type. For a
-        /// registered property declared on a base class and merely inherited by a derived one, those are two
-        /// different <see cref="PropertyInfo"/> objects (differing in <see cref="MemberInfo.ReflectedType"/>) that
-        /// reference equality - all <see cref="HashSet{T}"/> has for <see cref="PropertyInfo"/> - never unifies, so
-        /// every such property would be listed twice. Keying on
-        /// <see cref="MemberInfo.DeclaringType"/>/<see cref="MemberInfo.Name"/> unifies them while still keeping a
-        /// derived property that shadows a base one via <see langword="new"/> distinct, since the two differ in
-        /// <see cref="MemberInfo.DeclaringType"/>.
-        /// </para>
-        /// </remarks>
-        /// <param name="target">The object to enumerate properties for.</param>
-        /// <returns>The resulting entries, grouped by <see cref="Category"/>.</returns>
-        public static IReadOnlyList<PropertyGridEntry> EnumerateFor(object target)
-        {
-            ArgumentNullException.ThrowIfNull(target);
-
-            Type type = target.GetType();
-            var seen = new HashSet<(Type? DeclaringType, string Name)>();
-            var entries = new List<PropertyGridEntry>();
-
-            foreach (IPropertyReference reference in PropertyRegistry.For(target).GetPropertyStore(type).EnumerateProperties())
-            {
-                PropertyInfo? info = reference.OwnerType.GetProperty(reference.Name, BindingFlags.Public | BindingFlags.Instance);
-                if (info == null || info.GetIndexParameters().Length > 0 || !seen.Add((info.DeclaringType, info.Name)))
-                    continue;
-                if (TryCreate(info, out PropertyGridEntry? entry))
-                    entries.Add(entry);
-            }
-
-            foreach (PropertyInfo info in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (info.GetIndexParameters().Length > 0 || !info.CanRead || !seen.Add((info.DeclaringType, info.Name)))
-                    continue;
-                if (TryCreate(info, out PropertyGridEntry? entry))
-                    entries.Add(entry);
-            }
-
-            return entries.GroupBy(e => e.Category).SelectMany(group => group).ToList();
         }
 
         /// <summary>

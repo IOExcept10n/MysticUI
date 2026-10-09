@@ -4,7 +4,7 @@ namespace Icy.UI.Controls
 {
     /// <summary>
     /// A plain, always-visible, virtualizing, single-selectable list - the most direct realization of
-    /// "an <see cref="ItemsControl"/> with click-to-select."
+    /// "an <see cref="ItemsControl"/> with click-to-select.".
     /// </summary>
     /// <remarks>
     /// Overrides no virtualization geometry - a plain vertical list of selectable items is exactly

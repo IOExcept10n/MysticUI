@@ -32,7 +32,9 @@ namespace Icy.Data
             CheckReentrancy();
             var added = new List<T>(range);
             if (Items is List<T> list)
+            {
                 list.InsertRange(index, added);
+            }
             else
             {
                 for (int i = 0; i < added.Count; i++)

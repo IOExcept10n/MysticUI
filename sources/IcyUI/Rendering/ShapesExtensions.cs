@@ -217,47 +217,6 @@ namespace Icy.Rendering
                 DrawCenteredSegment(context, points[i] + offset, points[i + 1] + offset, color, thickness);
         }
 
-        private static void DrawCenteredSegment(IRenderContext context, Vector2 from, Vector2 to, Color color, float thickness)
-        {
-            Vector2 delta = to - from;
-            float length = delta.Length();
-            if (length <= 0)
-                return;
-
-            Vector2 direction = delta / length;
-            float half = thickness / 2;
-            float rotation = MathF.Atan2(direction.Y, direction.X);
-            if (rotation == 0)
-            {
-                // Unrotated: an integer rectangle the engines can snap to whole physical pixels.
-                Vector2 corner = from - new Vector2(half);
-                var snappable = new Rectangle(
-                    (int)MathF.Round(corner.X),
-                    (int)MathF.Round(corner.Y),
-                    (int)MathF.Round(length + thickness),
-                    Math.Max(1, (int)MathF.Round(thickness)));
-                context.Draw(context.WhiteTexture, new(snappable, null, color));
-                return;
-            }
-
-            // Rotated quads are never snapped, so keep their sub-pixel position: rounding each segment's corner on its own
-            // shifted neighbouring segments apart and left a seam at their shared point. The destination is anchored at a
-            // whole pixel and the origin (in texels, rotated with the quad) carries the fractional rest, putting `from` at
-            // the centerline, with the rounded-up width split evenly between the two caps.
-            int width = (int)MathF.Ceiling(length + thickness);
-            int height = Math.Max(1, (int)MathF.Round(thickness));
-            var anchor = new Vector2(MathF.Round(from.X), MathF.Round(from.Y));
-            Vector2 toFrom = from - anchor;
-            Vector2 localFrom = new((width - length) / 2, height / 2f);
-            Vector2 unrotated = new(
-                (toFrom.X * direction.X) + (toFrom.Y * direction.Y),
-                (toFrom.Y * direction.X) - (toFrom.X * direction.Y));
-            Size textureSize = context.WhiteTexture.Size;
-            Vector2 origin = (localFrom - unrotated) * new Vector2((float)textureSize.Width / width, (float)textureSize.Height / height);
-            var rect = new Rectangle((int)anchor.X, (int)anchor.Y, width, height);
-            context.Draw(context.WhiteTexture, new(rect, null, color, rotation, origin));
-        }
-
         /// <summary>
         /// Draws a rectangle.
         /// </summary>
@@ -323,6 +282,47 @@ namespace Icy.Rendering
         /// <param name="color">Color to apply for a rectangle.</param>
         public static void FillRectangle(this IRenderContext context, float x, float y, float width, float height, Color color) =>
             FillRectangle(context, new Rectangle((int)x, (int)y, (int)width, (int)height), color);
+
+        private static void DrawCenteredSegment(IRenderContext context, Vector2 from, Vector2 to, Color color, float thickness)
+        {
+            Vector2 delta = to - from;
+            float length = delta.Length();
+            if (length <= 0)
+                return;
+
+            Vector2 direction = delta / length;
+            float half = thickness / 2;
+            float rotation = MathF.Atan2(direction.Y, direction.X);
+            if (rotation == 0)
+            {
+                // Unrotated: an integer rectangle the engines can snap to whole physical pixels.
+                Vector2 corner = from - new Vector2(half);
+                var snappable = new Rectangle(
+                    (int)MathF.Round(corner.X),
+                    (int)MathF.Round(corner.Y),
+                    (int)MathF.Round(length + thickness),
+                    Math.Max(1, (int)MathF.Round(thickness)));
+                context.Draw(context.WhiteTexture, new(snappable, null, color));
+                return;
+            }
+
+            // Rotated quads are never snapped, so keep their sub-pixel position: rounding each segment's corner on its own
+            // shifted neighbouring segments apart and left a seam at their shared point. The destination is anchored at a
+            // whole pixel and the origin (in texels, rotated with the quad) carries the fractional rest, putting `from` at
+            // the centerline, with the rounded-up width split evenly between the two caps.
+            int width = (int)MathF.Ceiling(length + thickness);
+            int height = Math.Max(1, (int)MathF.Round(thickness));
+            var anchor = new Vector2(MathF.Round(from.X), MathF.Round(from.Y));
+            Vector2 toFrom = from - anchor;
+            Vector2 localFrom = new((width - length) / 2, height / 2f);
+            Vector2 unrotated = new(
+                (toFrom.X * direction.X) + (toFrom.Y * direction.Y),
+                (toFrom.Y * direction.X) - (toFrom.X * direction.Y));
+            Size textureSize = context.WhiteTexture.Size;
+            Vector2 origin = (localFrom - unrotated) * new Vector2((float)textureSize.Width / width, (float)textureSize.Height / height);
+            var rect = new Rectangle((int)anchor.X, (int)anchor.Y, width, height);
+            context.Draw(context.WhiteTexture, new(rect, null, color, rotation, origin));
+        }
 
         private static void FillArc(Span<Vector2> points, float radius, int sides, float step, float theta = 0f)
         {

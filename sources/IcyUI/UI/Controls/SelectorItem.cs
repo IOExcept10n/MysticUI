@@ -22,6 +22,14 @@ namespace Icy.UI.Controls
         private bool isSelected;
 
         /// <summary>
+        /// Occurs when this item is tapped - raised from <see cref="OnTap"/>. Used by <see cref="WrapGrid"/>/
+        /// <see cref="ListBox"/> for click-to-select, since their realized items live in the normal visual tree
+        /// (unlike <see cref="Selector"/>'s popup items, which use their own separate mechanism - see
+        /// <see cref="Selector"/>'s own remarks).
+        /// </summary>
+        public event EventHandler? Tapped;
+
+        /// <summary>
         /// Gets or sets a value indicating whether this item is the <see cref="Selector"/>'s current
         /// <see cref="SelectingItemsControl.SelectedItem"/>. Setting this sets/clears <see cref="ControlState.Selected"/>.
         /// </summary>
@@ -56,14 +64,6 @@ namespace Icy.UI.Controls
                 ControlState = value ? ControlState | ControlState.Highlighted : ControlState & ~ControlState.Highlighted;
             }
         }
-
-        /// <summary>
-        /// Occurs when this item is tapped - raised from <see cref="OnTap"/>. Used by <see cref="WrapGrid"/>/
-        /// <see cref="ListBox"/> for click-to-select, since their realized items live in the normal visual tree
-        /// (unlike <see cref="Selector"/>'s popup items, which use their own separate mechanism - see
-        /// <see cref="Selector"/>'s own remarks).
-        /// </summary>
-        public event EventHandler? Tapped;
 
         /// <inheritdoc/>
         /// <remarks>
