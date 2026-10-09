@@ -237,7 +237,7 @@ namespace Icy.Tests.Design.Editor
         private static Icy.UI.UIElement? FindEditor(PropertyGrid grid, string name)
         {
             var containers = (Dictionary<int, ItemContainer>)typeof(ItemsControl)
-                .GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetProperty("RealizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(grid)!;
             foreach (ItemContainer container in containers.Values)
             {
@@ -251,7 +251,7 @@ namespace Icy.Tests.Design.Editor
         private static string? FindEditorText(PropertyGrid grid, string name)
         {
             var containers = (Dictionary<int, ItemContainer>)typeof(ItemsControl)
-                .GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetProperty("RealizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(grid)!;
             foreach (ItemContainer container in containers.Values)
             {

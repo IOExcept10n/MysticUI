@@ -86,7 +86,7 @@ namespace Icy.UI.Controls
             int headerWidth = 0;
             for (int i = 0; i < ItemCount; i++)
             {
-                Size headerSize = realizedContainers[i].Measure();
+                Size headerSize = RealizedContainers[i].Measure();
                 headerHeight = Math.Max(headerHeight, headerSize.Height);
                 headerWidth += headerSize.Width + (i > 0 ? (int)HeaderSpacing : 0);
             }
@@ -100,12 +100,12 @@ namespace Icy.UI.Controls
         {
             int headerHeight = 0;
             for (int i = 0; i < ItemCount; i++)
-                headerHeight = Math.Max(headerHeight, realizedContainers[i].Measure().Height);
+                headerHeight = Math.Max(headerHeight, RealizedContainers[i].Measure().Height);
 
             int x = ContentBounds.X;
             for (int i = 0; i < ItemCount; i++)
             {
-                ItemContainer header = realizedContainers[i];
+                ItemContainer header = RealizedContainers[i];
                 Size headerSize = header.Measure();
                 header.InvalidateArrange();
                 header.Arrange(new Rectangle(x, ContentBounds.Y, headerSize.Width, headerHeight));

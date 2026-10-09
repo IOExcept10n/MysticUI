@@ -102,7 +102,7 @@ namespace Icy.UI.Controls
             if (ItemCount == 0)
                 return (0, 0f);
 
-            int row = (int)(verticalOffset / ItemHeight);
+            int row = (int)(VerticalOffset / ItemHeight);
             int index = Math.Clamp(row * ColumnsPerRow, 0, ItemCount - 1);
             return (index, row * ItemHeight);
         }
@@ -121,7 +121,7 @@ namespace Icy.UI.Controls
         protected override void RealizeRange(int firstIndex, float firstOffset)
         {
             int columnsPerRow = ColumnsPerRow;
-            float rangeEnd = verticalOffset + viewportHeight + ScrollAheadBuffer;
+            float rangeEnd = VerticalOffset + ViewportHeight + ScrollAheadBuffer;
             int lastRow = Math.Max(0, (int)(rangeEnd / ItemHeight));
             int lastIndex = Math.Min(ItemCount - 1, ((lastRow + 1) * columnsPerRow) - 1);
 
@@ -133,11 +133,11 @@ namespace Icy.UI.Controls
                 int column = index % columnsPerRow;
                 var targetRect = new Rectangle(
                     ContentBounds.X + (int)(column * ItemWidth),
-                    ContentBounds.Y + (int)((row * ItemHeight) - verticalOffset),
+                    ContentBounds.Y + (int)((row * ItemHeight) - VerticalOffset),
                     (int)ItemWidth,
                     (int)ItemHeight);
 
-                ItemContainer container = realizedContainers[index];
+                ItemContainer container = RealizedContainers[index];
                 container.InvalidateArrange();
                 container.Arrange(targetRect);
             }

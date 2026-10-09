@@ -239,12 +239,12 @@ namespace Icy.UI.Controls
                 if (highlightedIndex == value)
                     return;
 
-                if (realizedContainers.TryGetValue(highlightedIndex, out ItemContainer? oldContainer))
+                if (RealizedContainers.TryGetValue(highlightedIndex, out ItemContainer? oldContainer))
                     ((SelectorItem)oldContainer).IsHighlighted = false;
 
                 highlightedIndex = value;
 
-                if (realizedContainers.TryGetValue(highlightedIndex, out ItemContainer? newContainer))
+                if (RealizedContainers.TryGetValue(highlightedIndex, out ItemContainer? newContainer))
                     ((SelectorItem)newContainer).IsHighlighted = true;
             }
         }
@@ -301,14 +301,14 @@ namespace Icy.UI.Controls
             var item = (SelectorItem)container;
             item.IsSelected = index == SelectedIndex;
             item.IsHighlighted = index == HighlightedIndex;
-            containerIndices[item] = index;
+            ContainerIndices[item] = index;
             popupHost.Children.Add(container);
         }
 
         /// <inheritdoc/>
         protected override void DetachContainer(ItemContainer container)
         {
-            containerIndices.Remove((SelectorItem)container);
+            ContainerIndices.Remove((SelectorItem)container);
             popupHost.Children.Remove(container);
         }
 
@@ -546,7 +546,7 @@ namespace Icy.UI.Controls
             UIElement? hit = openedOnCanvas?.HitTest(e.Data.LastTouch);
             for (UIElement? current = hit; current != null; current = current.Parent)
             {
-                if (current is SelectorItem item && containerIndices.TryGetValue(item, out int index))
+                if (current is SelectorItem item && ContainerIndices.TryGetValue(item, out int index))
                 {
                     HighlightedIndex = index;
                     SelectedIndex = index;

@@ -41,7 +41,7 @@ namespace Icy.UI.Controls
     {
         private readonly List<object> items = [];
         private readonly List<float?> knownHeights = [];
-        protected readonly Dictionary<int, ItemContainer> realizedContainers = [];
+        private readonly Dictionary<int, ItemContainer> realizedContainers = [];
         private readonly Dictionary<DataTemplate, Stack<ItemContainer>> pools = [];
         private readonly Dictionary<ItemContainer, DataTemplate> containerTemplates = [];
 
@@ -58,22 +58,22 @@ namespace Icy.UI.Controls
         /// <summary>
         /// The horizontal scroll offset, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
         /// </summary>
-        protected float horizontalOffset;
+        private float horizontalOffset;
 
         /// <summary>
         /// The vertical scroll offset, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
         /// </summary>
-        protected float verticalOffset;
+        private float verticalOffset;
 
         /// <summary>
         /// The visible viewport width, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
         /// </summary>
-        protected float viewportWidth;
+        private float viewportWidth;
 
         /// <summary>
         /// The visible viewport height, in pixels, most recently reported via <see cref="OnViewportChanged(float, float, float, float)"/>.
         /// </summary>
-        protected float viewportHeight;
+        private float viewportHeight;
 
         // anchorIndex/anchorOffset track the item at the top of the viewport - anchorIndex is read by
         // RecordHeight's above-viewport correction (Task 5); both are read and written by LocateViewportStart's
@@ -100,6 +100,56 @@ namespace Icy.UI.Controls
 
         /// <inheritdoc/>
         public event EventHandler<float>? ScrollToVerticalOffsetRequested;
+
+        /// <summary>
+        /// Gets the containers currently realized, by item index.
+        /// </summary>
+        /// <remarks>
+        /// Derived controls that lay out their own containers (<see cref="TabControl"/>, <see cref="PropertyGrid"/>, ...)
+        /// read and index it; realize and de-realize containers through the base methods rather than editing it directly.
+        /// It's the concrete type, so enumerating it in a layout pass doesn't allocate.
+        /// </remarks>
+        protected Dictionary<int, ItemContainer> RealizedContainers => realizedContainers;
+
+        /// <summary>
+        /// Gets or sets the horizontal scroll offset, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float HorizontalOffset
+        {
+            get => horizontalOffset;
+            set => horizontalOffset = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the vertical scroll offset, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float VerticalOffset
+        {
+            get => verticalOffset;
+            set => verticalOffset = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the visible viewport width, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float ViewportWidth
+        {
+            get => viewportWidth;
+            set => viewportWidth = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the visible viewport height, in pixels, most recently reported via
+        /// <see cref="OnViewportChanged(float, float, float, float)"/>.
+        /// </summary>
+        protected float ViewportHeight
+        {
+            get => viewportHeight;
+            set => viewportHeight = value;
+        }
 
         /// <summary>
         /// Gets or sets the estimated height given to an item that hasn't been realized/measured yet - used only
@@ -364,7 +414,7 @@ namespace Icy.UI.Controls
         /// silently missing every mutation of its bound collection made while it was off-screen. Re-running
         /// <see cref="ResetItems"/> (rather than only re-subscribing) also re-enumerates <see cref="ItemsSource"/>
         /// fresh, picking up any mutations that happened while detached and unobserved, and clears
-        /// <see cref="realizedContainers"/> via <see cref="ResetRealization"/> so the height cache and anchor no
+        /// <see cref="RealizedContainers"/> via <see cref="ResetRealization"/> so the height cache and anchor no
         /// longer describe a collection that may have changed shape while unobserved - every container gets a
         /// clean re-realize pass on the next viewport update rather than trusting stale bookkeeping.
         /// </para>

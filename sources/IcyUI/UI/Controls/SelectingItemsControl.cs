@@ -21,19 +21,21 @@ namespace Icy.UI.Controls
     /// </remarks>
     public abstract class SelectingItemsControl : ItemsControl
     {
+        private readonly Dictionary<SelectorItem, int> containerIndices = [];
+
+        private int selectedIndex = -1;
+        private object? selectedItem;
+
         /// <summary>
-        /// Reverse lookup from a realized <see cref="SelectorItem"/> back to the item index it's currently
+        /// Gets the reverse lookup from a realized <see cref="SelectorItem"/> back to the item index it's currently
         /// showing, so <see cref="Container_Tapped"/> can turn a tap on the container into a
         /// <see cref="SelectedIndex"/> assignment. Kept in sync by <see cref="AttachContainer(ItemContainer, int)"/>/
-        /// <see cref="DetachContainer(ItemContainer)"/>. <c>protected</c> rather than <see langword="private"/> so
+        /// <see cref="DetachContainer(ItemContainer)"/>. Exposed to derived controls so
         /// <see cref="Selector"/> - whose own <c>AttachContainer</c>/<c>DetachContainer</c> override never calls
         /// this base implementation - can reuse the same map for its own (differently-triggered) tap handling
         /// instead of keeping a second, identically-shaped duplicate.
         /// </summary>
-        protected readonly Dictionary<SelectorItem, int> containerIndices = [];
-
-        private int selectedIndex = -1;
-        private object? selectedItem;
+        protected Dictionary<SelectorItem, int> ContainerIndices => containerIndices;
 
         /// <summary>
         /// Occurs when <see cref="SelectedIndex"/>/<see cref="SelectedItem"/> changes.
@@ -60,7 +62,7 @@ namespace Icy.UI.Controls
                 if (selectedIndex == value)
                     return;
 
-                if (realizedContainers.TryGetValue(selectedIndex, out ItemContainer? oldContainer))
+                if (RealizedContainers.TryGetValue(selectedIndex, out ItemContainer? oldContainer))
                     ((SelectorItem)oldContainer).IsSelected = false;
 
                 selectedIndex = value;
@@ -68,7 +70,7 @@ namespace Icy.UI.Controls
 
                 OnSelectionChanged();
 
-                if (realizedContainers.TryGetValue(selectedIndex, out ItemContainer? newContainer))
+                if (RealizedContainers.TryGetValue(selectedIndex, out ItemContainer? newContainer))
                     ((SelectorItem)newContainer).IsSelected = true;
 
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -102,7 +104,7 @@ namespace Icy.UI.Controls
         /// </summary>
         /// <remarks>
         /// Also wires up click-to-select: subscribes <see cref="SelectorItem.Tapped"/> (handled by
-        /// <see cref="Container_Tapped"/>) and records <paramref name="index"/> in <see cref="containerIndices"/>
+        /// <see cref="Container_Tapped"/>) and records <paramref name="index"/> in <see cref="ContainerIndices"/>
         /// so the handler can look it back up. This is inert for <see cref="Selector"/> and its subclasses
         /// (<see cref="Dropdown"/>, <see cref="ComboBox"/>), since their own <c>AttachContainer</c> override
         /// doesn't call this base implementation.

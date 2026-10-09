@@ -29,7 +29,7 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>Gets the realized containers by row index.</summary>
-        internal IReadOnlyDictionary<int, ItemContainer> Realized => realizedContainers;
+        internal IReadOnlyDictionary<int, ItemContainer> Realized => RealizedContainers;
 
         /// <summary>
         /// Gets or sets the index of the keyboard-current row, shown through <see cref="SelectorItem.IsHighlighted"/>;
@@ -43,10 +43,10 @@ namespace Icy.UI.Controls
                 if (currentIndex == value)
                     return;
 
-                if (realizedContainers.TryGetValue(currentIndex, out ItemContainer? old))
+                if (RealizedContainers.TryGetValue(currentIndex, out ItemContainer? old))
                     ((SelectorItem)old).IsHighlighted = false;
                 currentIndex = value;
-                if (realizedContainers.TryGetValue(currentIndex, out ItemContainer? current))
+                if (RealizedContainers.TryGetValue(currentIndex, out ItemContainer? current))
                     ((SelectorItem)current).IsHighlighted = true;
             }
         }

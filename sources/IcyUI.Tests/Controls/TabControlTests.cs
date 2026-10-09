@@ -138,7 +138,7 @@ namespace Icy.Tests.Controls
         }
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
-            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
+            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetProperty("RealizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(control)!;
 
         private static ContentPresenter GetContentPresenter(TabControl tabControl) =>
             (ContentPresenter)typeof(TabControl).GetField("contentPresenter", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(tabControl)!;

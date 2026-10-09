@@ -79,7 +79,7 @@ namespace Icy.Tests.Controls
         private static TextBox FindBox(PropertyGrid grid, string name)
         {
             var containers = (Dictionary<int, ItemContainer>)typeof(ItemsControl)
-                .GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetProperty("RealizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(grid)!;
             foreach (ItemContainer container in containers.Values)
             {

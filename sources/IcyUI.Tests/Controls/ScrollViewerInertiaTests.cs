@@ -230,7 +230,7 @@ namespace Icy.Tests.Controls
 
             Assert.True(list.VerticalOffset > 1000, $"offset {list.VerticalOffset}");
             int firstVisible = (int)(list.VerticalOffset / 40);
-            var realized = ((Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(items)!).Keys;
+            var realized = ((Dictionary<int, ItemContainer>)typeof(ItemsControl).GetProperty("RealizedContainers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(items)!).Keys;
             Assert.Contains(firstVisible, realized);
             Assert.DoesNotContain(0, realized);
         }

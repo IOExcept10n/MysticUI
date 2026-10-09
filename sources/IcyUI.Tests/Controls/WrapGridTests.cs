@@ -360,7 +360,7 @@ namespace Icy.Tests.Controls
         }
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
-            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
+            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetProperty("RealizedContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
 
         private static List<float?> GetKnownHeights(ItemsControl control) =>
             (List<float?>)typeof(ItemsControl).GetField("knownHeights", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;

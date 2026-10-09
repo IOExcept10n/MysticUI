@@ -637,6 +637,6 @@ namespace Icy.Tests.Controls
             typeof(ItemsControl).GetMethod("Derealize", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(control, [index]);
 
         private static Dictionary<int, ItemContainer> GetRealizedContainers(ItemsControl control) =>
-            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetField("realizedContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
+            (Dictionary<int, ItemContainer>)typeof(ItemsControl).GetProperty("RealizedContainers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
     }
 }

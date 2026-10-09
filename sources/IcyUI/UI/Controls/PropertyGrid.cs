@@ -180,7 +180,7 @@ namespace Icy.UI.Controls
                 return;
 
             UIElement? focused = Canvas?.FocusedElement;
-            foreach (ItemContainer container in realizedContainers.Values)
+            foreach (ItemContainer container in RealizedContainers.Values)
             {
                 if (container.Content is not PropertyRow row || ReferenceEquals(row.Entry, writingEntry))
                     continue;
@@ -210,16 +210,16 @@ namespace Icy.UI.Controls
         /// </remarks>
         public override void OnViewportChanged(float newHorizontalOffset, float newVerticalOffset, float newViewportWidth, float newViewportHeight)
         {
-            if (horizontalOffset == newHorizontalOffset && verticalOffset == newVerticalOffset &&
-                viewportWidth == newViewportWidth && viewportHeight == newViewportHeight)
+            if (HorizontalOffset == newHorizontalOffset && VerticalOffset == newVerticalOffset &&
+                ViewportWidth == newViewportWidth && ViewportHeight == newViewportHeight)
             {
                 return;
             }
 
-            horizontalOffset = newHorizontalOffset;
-            verticalOffset = newVerticalOffset;
-            viewportWidth = newViewportWidth;
-            viewportHeight = newViewportHeight;
+            HorizontalOffset = newHorizontalOffset;
+            VerticalOffset = newVerticalOffset;
+            ViewportWidth = newViewportWidth;
+            ViewportHeight = newViewportHeight;
 
             InvalidateArrange();
         }
@@ -279,8 +279,8 @@ namespace Icy.UI.Controls
         /// </remarks>
         protected override void ArrangeContent()
         {
-            int x = ContentBounds.X - (int)horizontalOffset;
-            int y = ContentBounds.Y - (int)verticalOffset;
+            int x = ContentBounds.X - (int)HorizontalOffset;
+            int y = ContentBounds.Y - (int)VerticalOffset;
             for (int i = 0; i < ItemCount; i++)
             {
                 ItemContainer row = GetRealizedContainer(i);
@@ -1151,11 +1151,11 @@ namespace Icy.UI.Controls
 
         /// <summary>
         /// Gets the container realized for the row at <paramref name="index"/> - a small wrapper over the
-        /// protected <c>realizedContainers</c> map <see cref="RealizeAllRows"/> guarantees is populated for every
+        /// protected <see cref="ItemsControl.RealizedContainers"/> map <see cref="RealizeAllRows"/> guarantees is populated for every
         /// index in <c>[0, <see cref="ItemsControl.ItemCount"/>)</c> before this is ever called.
         /// </summary>
         /// <param name="index">The realized row's index.</param>
-        private ItemContainer GetRealizedContainer(int index) => realizedContainers[index];
+        private ItemContainer GetRealizedContainer(int index) => RealizedContainers[index];
 
         /// <summary>
         /// What a row's editor shows: the value, the expression text, and whether Reset is offered.
