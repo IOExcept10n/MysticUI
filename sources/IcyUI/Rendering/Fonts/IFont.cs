@@ -77,7 +77,7 @@ namespace Icy.Rendering.Fonts
         /// Unlike <see cref="MeasureString"/>/<see cref="CalculateBounds"/> - which report the tightest box
         /// containing actual glyph <em>ink</em>, appropriate for auto-sizing content to what's visually drawn - this
         /// always reflects the true pen position, even past a glyph whose own ink extends beyond its own advance
-        /// width. Caret placement and "reserve room for what was typed" sizing (e.g. <see cref="TextBox"/>) must use
+        /// width. Caret placement and "reserve room for what was typed" sizing (e.g. <see cref="UI.Controls.TextBox"/>) must use
         /// this, not the ink-based measurements: a glyph that overhangs its advance can otherwise make a trailing,
         /// inkless character (like a space) appear to not move the cursor at all, because the ink-based bounds were
         /// already wider than the true cursor position.

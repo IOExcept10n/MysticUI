@@ -7,7 +7,7 @@ using Icy.UI.Styles;
 namespace Icy.UI.Controls
 {
     /// <summary>
-    /// A row of clickable tab headers, each showing/hiding its own <see cref="TabItem.Content"/> - realizes each
+    /// A row of clickable tab headers, each showing/hiding its own <see cref="ContentControl.Content"/> - realizes each
     /// <see cref="TabItem"/>'s header as a <see cref="SelectorItem"/> via the inherited
     /// <see cref="SelectingItemsControl"/> machinery, but never scrolls: unlike <see cref="ListBox"/>/
     /// <see cref="WrapGrid"/>, this control doesn't participate in <see cref="IVirtualizingScrollInfo"/>'s
@@ -29,7 +29,7 @@ namespace Icy.UI.Controls
     /// already follows - realized items are extra visual children, not <see cref="Control.Chrome"/>'s child).
     /// A second, separately-managed <see cref="ContentPresenter"/> child (outside <see cref="Control.Chrome"/>,
     /// mirroring <see cref="Expander.Content"/>'s own "extra managed child" shape) shows the selected
-    /// <see cref="TabItem.Content"/>, below the header row.
+    /// <see cref="ContentControl.Content"/>, below the header row.
     /// </para>
     /// </remarks>
     public class TabControl : SelectingItemsControl
@@ -150,9 +150,9 @@ namespace Icy.UI.Controls
         /// <inheritdoc/>
         /// <remarks>
         /// Also stamps the freshly realized header's <see cref="UIElement.IsEnabled"/> from the source
-        /// <see cref="TabItem.IsEnabled"/> - a one-time snapshot at realize time, the same "stamped once, not kept
+        /// <see cref="UIElement.IsEnabled"/> - a one-time snapshot at realize time, the same "stamped once, not kept
         /// reactively in sync" limitation <see cref="SelectingItemsControl.AttachContainer(ItemContainer, int)"/>'s
-        /// own <see cref="SelectorItem.IsSelected"/> stamp has. Toggling <see cref="TabItem.IsEnabled"/> after this
+        /// own <see cref="SelectorItem.IsSelected"/> stamp has. Toggling <see cref="UIElement.IsEnabled"/> after this
         /// tab has already been realized doesn't update its live header until the next realize pass - acceptable
         /// for this control's actual use (tabs configured once, not dynamically enabled/disabled at runtime),
         /// flagged rather than solved with new reactive plumbing this control doesn't otherwise need.

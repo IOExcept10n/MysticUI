@@ -364,6 +364,7 @@ namespace Icy.UI.Controls
         /// Gets the item at <paramref name="index"/> in <see cref="ItemsSource"/>.
         /// </summary>
         /// <param name="index">A zero-based index within <c>[0, <see cref="ItemCount"/>)</c>.</param>
+        /// <returns>The item.</returns>
         protected object GetItemAt(int index) => items[index];
 
         /// <summary>

@@ -386,10 +386,22 @@ namespace Icy.UI.Controls
         /// <param name="v">The parsed component values, in the order above.</param>
         /// <returns>The composed <see cref="Matrix4x4"/>.</returns>
         private static Matrix4x4 BuildMatrix4x4(double[] v) => new(
-            (float)v[0], (float)v[1], (float)v[2], (float)v[3],
-            (float)v[4], (float)v[5], (float)v[6], (float)v[7],
-            (float)v[8], (float)v[9], (float)v[10], (float)v[11],
-            (float)v[12], (float)v[13], (float)v[14], (float)v[15]);
+            (float)v[0],
+            (float)v[1],
+            (float)v[2],
+            (float)v[3],
+            (float)v[4],
+            (float)v[5],
+            (float)v[6],
+            (float)v[7],
+            (float)v[8],
+            (float)v[9],
+            (float)v[10],
+            (float)v[11],
+            (float)v[12],
+            (float)v[13],
+            (float)v[14],
+            (float)v[15]);
 
         /// <summary>
         /// Reads a <see cref="Matrix4x4"/>'s sixteen components back out, in the same order

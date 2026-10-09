@@ -21,7 +21,7 @@ namespace Icy.UI.Controls
     /// <remarks>
     /// <para>
     /// Realizes <see cref="SelectorItem"/>s (see <see cref="SelectingItemsControl.CreateContainer(DataTemplate, object)"/>) instead of
-    /// bare <see cref="ItemContainer"/>s. <see cref="Chrome"/> shows only the always-visible closed-state row
+    /// bare <see cref="ItemContainer"/>s. <see cref="Control.Chrome"/> shows only the always-visible closed-state row
     /// (<c>PART_ToggleButton</c>, plus <c>PART_TextBox</c> for <see cref="ComboBox"/>); realized items live in a
     /// separate popup host added to the owning <see cref="UI.Canvas"/>'s <see cref="UI.Canvas.Overlays"/> only
     /// while <see cref="IsOpen"/> - see <see cref="RealizationBounds"/>/<see cref="AttachContainer(ItemContainer, int)"/>/

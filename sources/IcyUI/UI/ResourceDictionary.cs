@@ -123,6 +123,7 @@ namespace Icy.UI
         /// <inheritdoc/>
         public bool Remove(KeyValuePair<string, object?> item) => ((ICollection<KeyValuePair<string, object?>>)entries).Remove(item);
 
+        /// <inheritdoc/>
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

@@ -15,7 +15,7 @@ namespace Icy.Markup
     /// <c>Background="Blue"</c> on <c>&lt;Style TargetType="Button"&gt;</c> isn't a property of <c>Style</c>
     /// itself - it's a setter to apply to a <c>Button</c> once the style is applied. The value is converted
     /// against the nearest enclosing <c>&lt;Style&gt;</c>'s <c>TargetType</c> (see
-    /// <see cref="MarkupLoadContext.SetterTargetType"/>) rather than against the marked type's own properties.
+    /// the loader's current setter target type) rather than against the marked type's own properties.
     /// </para>
     /// <para>
     /// Mirrors <see cref="ContentPropertyAttribute"/>'s shape and inheritance rule.

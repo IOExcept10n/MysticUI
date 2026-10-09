@@ -418,7 +418,7 @@ namespace Icy.UI
         /// </summary>
         /// <remarks>
         /// Defaults to <see langword="false"/> — most elements (decorative ones like <see cref="Border"/> or
-        /// <see cref="TextBlock"/>-like content) aren't focus targets. Interactive controls set this to
+        /// <see cref="Controls.TextBlock"/>-like content) aren't focus targets. Interactive controls set this to
         /// <see langword="true"/>.
         /// </remarks>
         [Category("Behavior")]

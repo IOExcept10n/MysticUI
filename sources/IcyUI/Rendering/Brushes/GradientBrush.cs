@@ -6,29 +6,6 @@ using System.Numerics;
 namespace Icy.Rendering.Brushes
 {
     /// <summary>
-    /// Identifies which gradient shape a <see cref="GradientBrush"/> paints.
-    /// </summary>
-    public enum GradientKind
-    {
-        /// <summary>
-        /// A straight-line gradient at <see cref="GradientBrush.Angle"/>.
-        /// </summary>
-        Linear,
-
-        /// <summary>
-        /// A gradient radiating outward from <see cref="GradientBrush.Center"/>.
-        /// </summary>
-        Radial,
-    }
-
-    /// <summary>
-    /// One color stop within a <see cref="GradientBrush"/>.
-    /// </summary>
-    /// <param name="Offset">Position along the gradient, from <c>0</c> to <c>1</c>.</param>
-    /// <param name="Color">The color at this stop.</param>
-    public readonly record struct GradientStop(float Offset, Color Color);
-
-    /// <summary>
     /// Paints a multi-stop linear or radial color gradient.
     /// </summary>
     /// <remarks>

@@ -210,6 +210,8 @@ namespace Icy.UI
             ChildrenUpdated?.Invoke(this, e);
         }
 
+        /// <inheritdoc/>
+        /// <remarks>Arranges every visible child; a derived panel overrides this to position its children itself.</remarks>
         protected override void ArrangeContent()
         {
             // Every child gets InvalidateArrange() immediately before Arrange() - Arrange(rect) no-ops when the
@@ -227,6 +229,8 @@ namespace Icy.UI
             }
         }
 
+        /// <inheritdoc/>
+        /// <remarks>Returns the size that holds the largest visible child; a derived panel overrides this with its own layout.</remarks>
         protected override Size MeasureContent()
         {
             Size result = Size.Empty;
@@ -239,6 +243,8 @@ namespace Icy.UI
             return result;
         }
 
+        /// <inheritdoc/>
+        /// <remarks>Draws the panel itself, then each visual child in order.</remarks>
         protected override void OnRender(IRenderContext context)
         {
             base.OnRender(context);

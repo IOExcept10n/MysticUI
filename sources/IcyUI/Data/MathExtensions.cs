@@ -13,6 +13,12 @@ namespace Icy.Data
     /// </summary>
     public static class MathExtensions
     {
+        /// <summary>
+        /// Gets the smallest size that contains both sizes: the larger width and the larger height.
+        /// </summary>
+        /// <param name="left">The first size.</param>
+        /// <param name="right">The second size.</param>
+        /// <returns>A size whose width and height are each the larger of the two.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Size Max(this Size left, Size right) =>
             new(
