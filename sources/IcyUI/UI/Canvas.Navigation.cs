@@ -81,14 +81,13 @@ namespace Icy.UI
 
         private void Navigation_FocusChanging(object? sender, AcceptableEventArgs<Vector2> e)
         {
-            if (!IsKeyboardNavigationEnabled)
-                return;
-
             Vector2 direction = SpatialNavigation.Snap(e.Data);
             if (direction == Vector2.Zero)
                 return;
 
-            if (RouteNavigate(direction) || MoveFocus(direction))
+            // The focused control (a text box's caret, a combo box's highlight) gets the arrow even while keyboard
+            // navigation is off; only moving the focus to another element is what the flag turns off.
+            if (RouteNavigate(direction) || (IsKeyboardNavigationEnabled && MoveFocus(direction)))
                 e.Handled = true;
         }
 

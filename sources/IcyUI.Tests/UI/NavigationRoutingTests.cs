@@ -93,8 +93,9 @@ namespace Icy.Tests.UI
         }
 
         [Fact]
-        public void WithKeyboardNavigationDisabled_NothingIsRouted()
+        public void WithKeyboardNavigationDisabled_TheFocusedControlStillGetsTheArrow()
         {
+            // A text box in an editor panel moves its caret while the editor has navigation turned off.
             (Canvas canvas, var input, _) = BringIntoViewTests.CreateCanvas();
             var probe = new Probe { Claim = true };
             canvas.Add(probe);
@@ -102,8 +103,24 @@ namespace Icy.Tests.UI
             canvas.Focus(probe);
             canvas.IsKeyboardNavigationEnabled = false;
 
+            Assert.True(input.Events.Navigation.RaiseFocusChanging(Vector2.UnitY).Handled);
+            Assert.Equal(Vector2.UnitY, probe.LastDirection);
+        }
+
+        [Fact]
+        public void WithKeyboardNavigationDisabled_AnUnclaimedArrowDoesNotMoveFocus()
+        {
+            (Canvas canvas, var input, _) = BringIntoViewTests.CreateCanvas();
+            var first = new Probe { Claim = false };
+            var second = new Probe { Claim = false, Margin = new Thickness(0, 40, 0, 0) };
+            canvas.Add(first);
+            canvas.Add(second);
+            canvas.Render();
+            canvas.Focus(first);
+            canvas.IsKeyboardNavigationEnabled = false;
+
             Assert.False(input.Events.Navigation.RaiseFocusChanging(Vector2.UnitY).Handled);
-            Assert.Null(probe.LastDirection);
+            Assert.Same(first, canvas.FocusedElement);
         }
 
         private sealed class Probe : UIElement

@@ -243,12 +243,18 @@ namespace Icy.UI
         /// <summary>
         /// Gets or sets a value indicating whether this canvas acts on keyboard and gamepad navigation: moving focus with
         /// <see cref="Input.Events.INavigationEvents.FocusNext"/>/<see cref="Input.Events.INavigationEvents.FocusPrevious"/>
-        /// and closing focus scopes with <see cref="Input.Events.INavigationEvents.CloseModal"/>.
+        /// and the arrows, and closing focus scopes with <see cref="Input.Events.INavigationEvents.CloseModal"/>.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// <see langword="true"/> by default. Tools that take over the keyboard (the design-time editor in Edit mode) and
-        /// game states such as cutscenes set it to <see langword="false"/>. Controls that handle navigation themselves
-        /// while focused (a <c>ComboBox</c>, say) aren't affected; clear <see cref="FocusedElement"/> to silence them.
+        /// game states such as cutscenes set it to <see langword="false"/>.
+        /// </para>
+        /// <para>
+        /// Controls that handle navigation themselves while focused aren't affected: an arrow still reaches the focused
+        /// control first (a text box moves its caret, a <c>ComboBox</c> its highlight), and only an arrow it doesn't
+        /// claim would have moved the focus. Clear <see cref="FocusedElement"/> to silence them.
+        /// </para>
         /// </remarks>
         public bool IsKeyboardNavigationEnabled { get; set; } = true;
 
