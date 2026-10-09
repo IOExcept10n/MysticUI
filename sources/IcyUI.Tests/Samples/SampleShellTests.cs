@@ -238,6 +238,8 @@ namespace Icy.Tests.Samples
 
             Press(shell, Keys.F4);
             Assert.Same(shell.Content, EditorSession.FindAttached(shell.Canvas)?.Scope);
+            Assert.Contains(shell.Canvas.Overlays, x => x.EnumerateVisualSubtree().OfType<Icy.Design.Editor.Panels.PropertiesPanel>().Any());
+            Assert.Contains(shell.Canvas.Overlays, x => x.EnumerateVisualSubtree().OfType<Icy.Design.Editor.Panels.EditorCommandBar>().Any());
 
             Press(shell, Keys.F4);
             Assert.Null(EditorSession.FindAttached(shell.Canvas));
@@ -264,7 +266,8 @@ namespace Icy.Tests.Samples
             Settle(shell);
             EditorSession session = EditorSession.FindAttached(shell.Canvas)!;
 
-            shell.Tap(built["One"]);
+            // The overlay's bar and docks cover the content area's edges; tap between the docks.
+            shell.Tap(built["One"], x: 400, y: 20);
             Assert.Same(built["One"], session.Selection?.Instance);
 
             // Rows: 0 = category "A", 1 = "One", 2 = "Two".
@@ -290,10 +293,32 @@ namespace Icy.Tests.Samples
             Assert.Contains(shell.Root.EnumerateVisualSubtree().OfType<TextBlock>(), t => t.Text == "The Editor demo's editor is on.");
         }
 
+        [Fact]
+        public void TheEditorWorkspaceDemo_EditsADemoPage_AndSavesItToScratch()
+        {
+            SampleEntry design = SampleCatalog.All.Single(e => e.Name == "Design");
+            SampleEntry workspaceEntry = SampleCatalog.All.Single(e => e.Name == "Editor Workspace");
+            var shell = Host([design, workspaceEntry]);
+            shell.Select("Editor Workspace");
+            Settle(shell);
+            EditorWorkspace workspace = shell.Content.EnumerateVisualSubtree().OfType<EditorWorkspace>().Single();
+            Icy.Design.DesignDocument page = workspace.Design!.Documents.Single(d => d.SourcePath == "DesignDemo");
+
+            workspace.Open(page);
+            Assert.True(workspace.IsEditing);
+            Assert.True(page.CanSave);
+            page.Save();
+
+            string? saved = workspace.Design.SourcePathResolver("DesignDemo");
+            Assert.NotNull(saved);
+            Assert.StartsWith(Path.GetFullPath(Path.GetTempPath()), Path.GetFullPath(saved!), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(page.Text, File.ReadAllText(saved!));
+        }
+
         internal SampleEntry Tracked(string category, string name) =>
             new(category, name, (configuration, _) =>
             {
-                UIElement element = new MarkupLoader(configuration).Load("<Border Width=\"200\" Height=\"100\" HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\"/>", name + ".xml");
+                UIElement element = new MarkupLoader(configuration).Load("<Border Width=\"600\" Height=\"100\" Margin=\"0,40,0,0\" HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\"/>", name + ".xml");
                 built[name] = element;
                 return element;
             });

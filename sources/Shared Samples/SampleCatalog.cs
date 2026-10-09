@@ -52,6 +52,7 @@ namespace Icy.SharedSamples
             new("Design Tools", "Property Grid", PropertyGridDemo.Build),
             new("Design Tools", "Design", DesignDemo.Build),
             new("Design Tools", "Editor", EditorDemo.Build),
+            new("Design Tools", "Editor Workspace", EditorWorkspaceDemo.Build, ScrollsItself: true),
         ];
     }
 }

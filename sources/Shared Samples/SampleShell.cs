@@ -83,7 +83,7 @@ namespace Icy.SharedSamples
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
             };
-            EditorFrame? editor = null;
+            EditorOverlay? editor = null;
             var cache = new Dictionary<SampleEntry, UIElement>();
             tree.SelectionChanged += (_, _) =>
             {
@@ -92,7 +92,7 @@ namespace Icy.SharedSamples
                     content.Content = GetOrBuild(entry);
 
                     // The editor stays on across demos; a selection on the page that left would act on nothing visible.
-                    editor?.Session.Clear();
+                    editor?.Session?.Clear();
                 }
             };
 
@@ -152,8 +152,17 @@ namespace Icy.SharedSamples
                 VerticalAlignment = VerticalAlignment.Stretch,
             };
 
-            // Arrows and the D-pad start in the sidebar.
-            root.Attached += (_, _) => root.Canvas?.Focus(tree);
+            // Arrows and the D-pad start in the sidebar. The editor overlay is created once, for the canvas the shell is on;
+            // the shell keeps F4 and the footer button, so the overlay binds no key itself.
+            root.Attached += (_, _) =>
+            {
+                root.Canvas?.Focus(tree);
+                if (editor != null || root.Canvas is not { } canvas)
+                    return;
+
+                editor = EditorOverlay.Attach(canvas, DesignDemo.SessionFor(configuration), new EditorOverlayOptions { Scope = content, ToggleKey = null });
+                editor.IsShownChanged += (_, _) => editLabel.Text = editor.IsShown ? "Stop editing (F4)" : "Edit demo (F4)";
+            };
 
             void Step(int delta)
             {
@@ -175,26 +184,11 @@ namespace Icy.SharedSamples
             // The shell's own editor works on whichever demo is shown; the sidebar stays usable with the pointer.
             void ToggleEditor()
             {
-                if (editor != null)
-                {
-                    editor.Dispose();
-                    editor = null;
-                    editLabel.Text = "Edit demo (F4)";
-                    editStatus.Text = string.Empty;
+                if (editor == null)
                     return;
-                }
 
-                if (root.Canvas is not { } canvas)
-                    return;
-                if (EditorSession.FindAttached(canvas) != null)
-                {
-                    editStatus.Text = "The Editor demo's editor is on.";
-                    return;
-                }
-
-                editor = EditorFrame.Attach(canvas, DesignDemo.SessionFor(configuration), content);
-                editLabel.Text = "Stop editing (F4)";
-                editStatus.Text = string.Empty;
+                editor.Toggle();
+                editStatus.Text = editor.IsShown || editor.LastShowError == null ? string.Empty : "The Editor demo's editor is on.";
             }
 
             editButton.Command = new ShellCommand(ToggleEditor);

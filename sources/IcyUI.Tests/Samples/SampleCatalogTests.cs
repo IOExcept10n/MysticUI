@@ -24,7 +24,7 @@ namespace Icy.Tests.Samples
         }
 
         [Fact]
-        public void All_ListsTheTwentyDemosUnderTheAgreedCategories()
+        public void All_ListsTheTwentyOneDemosUnderTheAgreedCategories()
         {
             string[][] expected =
             [
@@ -33,7 +33,7 @@ namespace Icy.Tests.Samples
                 ["Layout", "Split Pane", "Expander", "Wrap Grid", "Scaling"],
                 ["Items", "Items Control", "List Box", "Selector", "Tab Control", "Tree View"],
                 ["Dialogs & Pickers", "Dialog", "Color Picker"],
-                ["Design Tools", "Property Grid", "Design", "Editor"],
+                ["Design Tools", "Property Grid", "Design", "Editor", "Editor Workspace"],
             ];
 
             string[][] actual = SampleCatalog.All
@@ -42,13 +42,13 @@ namespace Icy.Tests.Samples
                 .ToArray();
 
             Assert.Equal(expected, actual);
-            Assert.Equal(20, SampleCatalog.All.Count);
+            Assert.Equal(21, SampleCatalog.All.Count);
             Assert.Equal(SampleCatalog.All.Count, SampleCatalog.All.Select(e => e.Name).Distinct().Count());
         }
 
         [Fact]
-        public void OnlyControlsAndStyles_ScrollThemselves() =>
-            Assert.Equal(["Controls", "Styles"], SampleCatalog.All.Where(e => e.ScrollsItself).Select(e => e.Name));
+        public void OnlyControlsStylesAndTheWorkspace_ScrollThemselves() =>
+            Assert.Equal(["Controls", "Styles", "Editor Workspace"], SampleCatalog.All.Where(e => e.ScrollsItself).Select(e => e.Name));
 
         [Theory]
         [MemberData(nameof(Names))]
