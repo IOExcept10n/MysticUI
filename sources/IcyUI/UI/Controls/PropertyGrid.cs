@@ -81,6 +81,9 @@ namespace Icy.UI.Controls
         private object? target;
         private PropertyGridValueAdapter valueAdapter = PropertyGridValueAdapter.Default;
         private PropertyGridEntry? writingEntry;
+        private PropertyRow? activeRow;
+        private string? reportedMessage;
+        private PropertyGridEntry? reportedEntry;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PropertyGrid"/> class.
@@ -90,6 +93,11 @@ namespace Icy.UI.Controls
             // See the class remarks for why pooling is disabled here.
             PoolingEnabled = false;
         }
+
+        /// <summary>
+        /// Occurs when <see cref="ActiveEntry"/> or <see cref="ActiveMessage"/> changed.
+        /// </summary>
+        public event EventHandler? ActiveMessageChanged;
 
         /// <summary>
         /// Gets or sets the object whose properties this grid displays and edits. Setting this re-enumerates
@@ -114,6 +122,7 @@ namespace Icy.UI.Controls
                 if (!SetProperty(ref target, value))
                     return;
                 ItemsSource = BuildRows(value);
+                UpdateActive();
             }
         }
 
@@ -135,6 +144,21 @@ namespace Icy.UI.Controls
                 ItemsSource = BuildRows(target);
             }
         }
+
+        /// <summary>
+        /// Gets the property of the row holding the keyboard focus, or <see langword="null"/>.
+        /// </summary>
+        public PropertyGridEntry? ActiveEntry => activeRow?.Entry;
+
+        /// <summary>
+        /// Gets the help text for <see cref="ActiveEntry"/>: why its typed value is rejected while it is, otherwise its
+        /// <see cref="PropertyGridEntry.Description"/>.
+        /// </summary>
+        /// <remarks>
+        /// Core has no tooltips, so hosts show this themselves, for example in a status line under the grid. It updates on
+        /// focus changes and keystrokes only.
+        /// </remarks>
+        public string? ActiveMessage => activeRow == null ? null : activeRow.InvalidReason ?? activeRow.Entry.Description;
 
         /// <summary>
         /// Re-reads every row's value, expression and Reset state from <see cref="Target"/> through
@@ -345,6 +369,8 @@ namespace Icy.UI.Controls
             UIElement editor = BuildEditor(row.Entry, target);
             Grid.SetColumn(editor, 1);
             row.Children.Add(editor);
+            foreach (UIElement focusable in editor.EnumerateVisualSubtree().Where(x => x.IsFocusable))
+                focusable.FocusChanged += (_, _) => UpdateActive();
 
             if (valueAdapter.CanReset(row.Entry, target))
             {
@@ -386,6 +412,34 @@ namespace Icy.UI.Controls
         }
 
         /// <summary>
+        /// Re-reads which row holds the focus and raises <see cref="ActiveMessageChanged"/> when the active entry or its
+        /// message changed.
+        /// </summary>
+        private void UpdateActive()
+        {
+            activeRow = null;
+
+            // Canvas.Focus raises FocusChanged on the element losing focus before it moves FocusedElement on, so an element
+            // that no longer reports IsFocused is already on its way out.
+            UIElement? focused = Canvas?.FocusedElement is { IsFocused: true } current ? current : null;
+            for (UIElement? element = focused; element != null; element = element.Parent)
+            {
+                if (element is PropertyRow row && IsSelfOrAncestor(this, row))
+                {
+                    activeRow = row;
+                    break;
+                }
+            }
+
+            if (ReferenceEquals(reportedEntry, ActiveEntry) && reportedMessage == ActiveMessage)
+                return;
+
+            reportedEntry = ActiveEntry;
+            reportedMessage = ActiveMessage;
+            ActiveMessageChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
         /// Marks <paramref name="box"/> <see cref="ControlState.Invalid"/> with <paramref name="reason"/>, or clears the mark
         /// when <paramref name="reason"/> is <see langword="null"/>, and records the reason on the box's row.
         /// </summary>
@@ -402,6 +456,8 @@ namespace Icy.UI.Controls
                     break;
                 }
             }
+
+            UpdateActive();
         }
 
         /// <summary>
