@@ -3,6 +3,7 @@
 using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup.Attributes;
@@ -105,9 +106,11 @@ namespace Icy.UI.Controls
         /// before anything in <see cref="ItemsSource"/> has ever been realized; once at least one item has a real
         /// measured height, the running average of known heights is used instead.
         /// </summary>
+        /// <remarks>Must be greater than 0.</remarks>
         /// <exception cref="ArgumentOutOfRangeException">The value being set is not greater than zero.</exception>
         [Category("Layout")]
         [DefaultValue(40f)]
+        [Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]
         [RegisterReference]
         public float DefaultEstimatedItemHeight
         {

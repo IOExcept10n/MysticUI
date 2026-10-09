@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.Numerics;
 using CommunityToolkit.Diagnostics;
@@ -131,8 +132,10 @@ namespace Icy.UI.Controls
         /// Gets or sets the maximum height, in pixels, the open popup grows to before an internal
         /// <see cref="ScrollViewer"/> takes over.
         /// </summary>
+        /// <remarks>Must be greater than 0.</remarks>
         [Category("Layout")]
         [DefaultValue(DefaultMaxDropDownHeight)]
+        [Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]
         [RegisterReference]
         public float MaxDropDownHeight
         {

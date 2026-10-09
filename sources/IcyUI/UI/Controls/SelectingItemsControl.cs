@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup.Attributes;
 using Icy.UI.Styles;
@@ -42,9 +43,11 @@ namespace Icy.UI.Controls
         /// <summary>
         /// Gets or sets the currently selected item's index, or <c>-1</c> for no selection.
         /// </summary>
+        /// <remarks>Must be at least -1 (no selection) and less than the item count.</remarks>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is less than <c>-1</c> or greater than or equal to the item count.</exception>
         [Category("Behavior")]
         [DefaultValue(-1)]
+        [Range(-1d, double.PositiveInfinity)]
         [RegisterReference]
         public int SelectedIndex
         {

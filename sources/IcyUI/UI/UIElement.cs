@@ -289,9 +289,11 @@ namespace Icy.UI
         /// </summary>
         /// <remarks>
         /// If set to <see cref="float.NaN"/>, the <see cref="UIElement"/> instance will size to its content.
+        /// <para>Must be at least 0; <see cref="float.NaN"/> (the default) means unset.</para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         [AffectsMeasure]
         [AffectsArrange]
@@ -627,9 +629,11 @@ namespace Icy.UI
         /// <remarks>
         /// <see cref="float.NaN"/> (the default) means no limit. A value below <see cref="MinHeight"/> is ignored: the
         /// minimum wins, so a conflicting pair never breaks layout.
+        /// <para>Must be at least 0; <see cref="float.NaN"/> (the default) means unset.</para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
@@ -657,9 +661,11 @@ namespace Icy.UI
         /// <remarks>
         /// <see cref="float.NaN"/> (the default) means no limit. A value below <see cref="MinWidth"/> is ignored: the
         /// minimum wins, so a conflicting pair never breaks layout.
+        /// <para>Must be at least 0; <see cref="float.NaN"/> (the default) means unset.</para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
@@ -707,9 +713,11 @@ namespace Icy.UI
         /// </list>
         /// Set it to <c>0</c> to let an element shrink as far as needed.
         /// </para>
+        /// <para>Must be at least 0; <see cref="float.NaN"/> (the default) means unset.</para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
@@ -757,9 +765,11 @@ namespace Icy.UI
         /// </list>
         /// Set it to <c>0</c> to let an element shrink as far as needed.
         /// </para>
+        /// <para>Must be at least 0; <see cref="float.NaN"/> (the default) means unset.</para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         [AffectsArrange]
         [AffectsMeasure]
@@ -1084,9 +1094,11 @@ namespace Icy.UI
         /// </summary>
         /// <remarks>
         /// If set to <see cref="float.NaN"/>, the <see cref="UIElement"/> will size to its content.
+        /// <para>Must be at least 0; <see cref="float.NaN"/> (the default) means unset.</para>
         /// </remarks>
         [Category("Layout")]
         [DefaultValue(float.NaN)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         [AffectsMeasure]
         [AffectsArrange]

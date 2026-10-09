@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -185,6 +186,7 @@ namespace Icy.UI.Controls
         /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
         [Category("Layout")]
         [DefaultValue(16f)]
+        [Range(0d, double.PositiveInfinity)]
         [RegisterReference]
         public float Indent
         {

@@ -1,6 +1,7 @@
 // Copyright (c) IOExcept10n (https://github.com/IOExcept10n)
 // Distributed under MIT license. See LICENSE.md file in the project root for more information
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using CommunityToolkit.Diagnostics;
 using Icy.Data.Markup.Attributes;
@@ -31,9 +32,11 @@ namespace Icy.UI.Controls
         /// <summary>
         /// Gets or sets the width, in pixels, of every realized cell.
         /// </summary>
+        /// <remarks>Must be greater than 0.</remarks>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not greater than zero.</exception>
         [Category("Layout")]
         [DefaultValue(DefaultItemSize)]
+        [Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]
         [RegisterReference]
         public float ItemWidth
         {
@@ -52,9 +55,11 @@ namespace Icy.UI.Controls
         /// <summary>
         /// Gets or sets the height, in pixels, of every realized cell.
         /// </summary>
+        /// <remarks>Must be greater than 0.</remarks>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not greater than zero.</exception>
         [Category("Layout")]
         [DefaultValue(DefaultItemSize)]
+        [Range(0d, double.PositiveInfinity, MinimumIsExclusive = true)]
         [RegisterReference]
         public float ItemHeight
         {
