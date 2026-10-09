@@ -84,6 +84,37 @@ namespace Icy.Tests.UI
             Assert.Equal(new Point(10, 20), popup.PointToSurface(Vector2.Zero));
         }
 
+        [Fact]
+        public void AnOverlayOwner_IsRecorded_AndForgottenOnRemoval()
+        {
+            (Canvas canvas, _) = CreateCanvas();
+            UIElement owner = Box(0, 0, 10, 10);
+            UIElement popup = Box(0, 0, 10, 10);
+            UIElement plain = Box(0, 0, 10, 10);
+            canvas.Add(owner);
+
+            canvas.AddOverlay(popup, owner);
+            canvas.AddOverlay(plain);
+
+            Assert.Same(owner, canvas.GetOverlayOwner(popup));
+            Assert.Null(canvas.GetOverlayOwner(plain));
+            canvas.RemoveOverlay(popup);
+            Assert.Null(canvas.GetOverlayOwner(popup));
+        }
+
+        [Fact]
+        public void AComboBoxPopup_IsOwnedByItsComboBox()
+        {
+            (Canvas canvas, _) = CreateCanvas();
+            var comboBox = new Icy.UI.Controls.ComboBox { ItemsSource = new[] { "a", "b" } };
+            canvas.Add(comboBox);
+            canvas.Render();
+
+            comboBox.IsOpen = true;
+
+            Assert.Same(comboBox, canvas.GetOverlayOwner(canvas.Overlays[^1]));
+        }
+
         private static UIElement Box(int x, int y, int width, int height) => new()
         {
             Width = width,

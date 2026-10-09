@@ -505,19 +505,73 @@ namespace Icy.Design.Editor
                 yield return companion;
         }
 
+        /// <summary>
+        /// Determines whether the frame's layers are in order and no overlay of the page sits above the capture layer.
+        /// </summary>
+        /// <remarks>
+        /// Overlays of the editor's own UI (a combo box popup in a dock or a workspace panel) may sit above the frame; see
+        /// <see cref="IsEditorOverlay"/>. Only the page's overlays make the frame raise itself again.
+        /// </remarks>
+        /// <returns><see langword="true"/> when nothing needs re-adding.</returns>
         private bool IsOnTop()
         {
             IReadOnlyList<UIElement> overlays = canvas.Overlays;
-            List<UIElement> top = [.. TopLayers()];
-            if (overlays.Count < top.Count)
-                return false;
-            for (int i = 0; i < top.Count; i++)
+            int previous = -1;
+            foreach (UIElement layer in TopLayers())
             {
-                if (!ReferenceEquals(overlays[overlays.Count - top.Count + i], top[i]))
+                int index = IndexOf(overlays, layer);
+                if (index <= previous)
+                    return false;
+                previous = index;
+            }
+
+            for (int i = IndexOf(overlays, CaptureLayer) + 1; i < overlays.Count; i++)
+            {
+                UIElement overlay = overlays[i];
+                if (!ReferenceEquals(overlay, Toolbar) && !CompanionLayers.Contains(overlay) && !IsEditorOverlay(overlay))
                     return false;
             }
 
             return true;
+
+            static int IndexOf(IReadOnlyList<UIElement> overlays, UIElement element)
+            {
+                for (int i = 0; i < overlays.Count; i++)
+                {
+                    if (ReferenceEquals(overlays[i], element))
+                        return i;
+                }
+
+                return -1;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether an overlay belongs to the editor's own UI rather than to the page being edited.
+        /// </summary>
+        /// <param name="overlay">An overlay above the capture layer.</param>
+        /// <returns>
+        /// <see langword="true"/> when its owner (see <see cref="Canvas.GetOverlayOwner"/>), followed up through parents and
+        /// the owners of enclosing popups, reaches the frame's layers or a companion layer; or, for a scoped frame, never
+        /// enters the scope. An overlay without an owner counts as the page's.
+        /// </returns>
+        private bool IsEditorOverlay(UIElement overlay)
+        {
+            UIElement? current = canvas.GetOverlayOwner(overlay);
+            if (current == null)
+                return false;
+
+            // Bounded, so a malformed owner cycle can't hang a frame.
+            for (int steps = 0; current != null && steps < 1024; steps++)
+            {
+                if (Session.Scope != null && ReferenceEquals(current, Session.Scope))
+                    return false;
+                if (Session.OwnLayers.Contains(current) || CompanionLayers.Contains(current))
+                    return true;
+                current = current.Parent ?? canvas.GetOverlayOwner(current);
+            }
+
+            return Session.Scope != null;
         }
 
         private void BringToTop()

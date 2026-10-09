@@ -128,6 +128,26 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void APopupOfAWorkspacePanel_StaysAboveTheEditor()
+        {
+            (EditorTestHost host, EditorWorkspace workspace) = Create();
+            using (host)
+            {
+                workspace.Open(host.Document);
+                EditorSession.FindAttached(host.Canvas)!.Select((Icy.UI.UIElement)Icy.Markup.MarkupNameScope.GetScope(workspace.Preview!)!.Find("b")!);
+                host.Render();
+                ComboBox combo = workspace.EnumerateVisualSubtree().OfType<ComboBox>().First();
+
+                combo.IsOpen = true;
+                host.Render();
+                host.Render();
+
+                Assert.True(combo.IsOpen);
+                Assert.Same(combo, host.Canvas.GetOverlayOwner(host.Canvas.Overlays[^1]));
+            }
+        }
+
+        [Fact]
         public void OpenFile_TracksANewDocument()
         {
             (EditorTestHost host, EditorWorkspace workspace) = Create();

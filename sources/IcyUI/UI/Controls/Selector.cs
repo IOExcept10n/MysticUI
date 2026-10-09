@@ -496,7 +496,7 @@ namespace Icy.UI.Controls
 
             openedOnCanvas = Canvas;
             PositionPopup();
-            Canvas.AddOverlay(popupRoot);
+            Canvas.AddOverlay(popupRoot, this);
             ((IVirtualizingScrollInfo)this).OnViewportChanged(0, popupScrollViewer.VerticalOffset, popupScrollViewer.ViewportWidth, popupScrollViewer.ViewportHeight);
 
             // The first PositionPopup above sized the popup from ExtentHeight while every item was still an

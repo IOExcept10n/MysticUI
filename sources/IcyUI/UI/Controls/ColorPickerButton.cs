@@ -171,7 +171,7 @@ namespace Icy.UI.Controls
 
             openedOnCanvas = Canvas;
             PositionPopup();
-            Canvas.AddOverlay(popupRoot);
+            Canvas.AddOverlay(popupRoot, this);
 
             // The first PositionPopup above sized/flipped the popup from popupRoot.Measure() before popupRoot was
             // actually in the visual tree - its content (the internal ColorPicker) isn't fully measured/realized

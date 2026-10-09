@@ -32,6 +32,7 @@ namespace Icy.UI
         private readonly Stopwatch frameTime = new();
         private readonly List<Action> afterRootLayout = [];
         private readonly List<UIElement> overlayElements = [];
+        private readonly Dictionary<UIElement, UIElement> overlayOwners = new(ReferenceEqualityComparer.Instance);
         private readonly List<UIElement> rootElements = [];
         private readonly Dictionary<UIElement, UIElement?> scopeReturnFocus = [];
         private IBrush? background;
@@ -363,11 +364,39 @@ namespace Icy.UI
         /// Adds an element to <see cref="Overlays"/> and wires its <see cref="UIElement.Canvas"/>.
         /// </summary>
         /// <param name="element">The element to add.</param>
-        public void AddOverlay(UIElement element)
+        public void AddOverlay(UIElement element) => AddOverlay(element, null);
+
+        /// <summary>
+        /// Adds an element to <see cref="Overlays"/> on behalf of <paramref name="owner"/>, and wires its
+        /// <see cref="UIElement.Canvas"/>.
+        /// </summary>
+        /// <param name="element">The element to add, such as a popup's root.</param>
+        /// <param name="owner">
+        /// The element the overlay belongs to, such as the <c>ComboBox</c> whose popup it is, or <see langword="null"/>
+        /// for none. See <see cref="GetOverlayOwner"/>.
+        /// </param>
+        /// <remarks>
+        /// An overlay has no visual parent, so the owner is the only way to tell which part of the UI opened it. Tools
+        /// that layer themselves over the UI use it: a design-time editor keeps the page's popups beneath itself but its
+        /// own panels' popups above.
+        /// </remarks>
+        public void AddOverlay(UIElement element, UIElement? owner)
         {
             overlayElements.Add(element);
+            if (owner != null)
+                overlayOwners[element] = owner;
             element.Canvas = this;
         }
+
+        /// <summary>
+        /// Gets the element an overlay was added on behalf of.
+        /// </summary>
+        /// <param name="overlay">An element of <see cref="Overlays"/>.</param>
+        /// <returns>
+        /// The owner passed to <see cref="AddOverlay(UIElement, UIElement?)"/>, or <see langword="null"/> when there was
+        /// none or <paramref name="overlay"/> isn't an overlay of this canvas.
+        /// </returns>
+        public UIElement? GetOverlayOwner(UIElement overlay) => overlayOwners.GetValueOrDefault(overlay);
 
         /// <summary>
         /// Removes an element from <see cref="Overlays"/> and clears its <see cref="UIElement.Canvas"/>.
@@ -378,6 +407,7 @@ namespace Icy.UI
         {
             if (overlayElements.Remove(element))
             {
+                overlayOwners.Remove(element);
                 element.Canvas = null;
                 return true;
             }

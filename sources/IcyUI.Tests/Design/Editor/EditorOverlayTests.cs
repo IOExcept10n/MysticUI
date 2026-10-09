@@ -122,6 +122,44 @@ namespace Icy.Tests.Design.Editor
         }
 
         [Fact]
+        public void APopupOpenedInADock_StaysOpenAcrossFrames()
+        {
+            using var host = new EditorTestHost(Page, attachSession: false);
+            using EditorOverlay overlay = EditorOverlay.Attach(host.Canvas, host.Design);
+            overlay.Show();
+            overlay.Session!.Select(host.Named<Button>("b"));
+            host.Render();
+            var properties = overlay.Panels.OfType<PropertiesPanel>().Single();
+            ComboBox combo = properties.EnumerateVisualSubtree().OfType<ComboBox>().First();
+
+            combo.IsOpen = true;
+            host.Render();
+            host.Render();
+
+            Assert.True(combo.IsOpen);
+            Assert.Same(combo, host.Canvas.GetOverlayOwner(host.Canvas.Overlays[^1]));
+        }
+
+        [Fact]
+        public void APopupOfThePage_IsStillCoveredByTheEditor()
+        {
+            const string WithCombo = """<StackPanel HorizontalAlignment="Left" VerticalAlignment="Top"><ComboBox x:Name="c" Width="80"/></StackPanel>""";
+            using var host = new EditorTestHost(WithCombo, attachSession: false);
+            using EditorOverlay overlay = EditorOverlay.Attach(host.Canvas, host.Design);
+            overlay.Show();
+            host.Render();
+            var combo = host.Named<ComboBox>("c");
+            combo.ItemsSource = new[] { "a", "b" };
+
+            combo.IsOpen = true;
+            host.Render();
+
+            int popup = host.Canvas.Overlays.ToList().FindIndex(x => host.Canvas.GetOverlayOwner(x) == combo);
+            int capture = host.Canvas.Overlays.ToList().FindIndex(x => x is EditorCaptureLayer);
+            Assert.True(popup >= 0 && popup < capture, $"popup {popup}, capture layer {capture}");
+        }
+
+        [Fact]
         public void Hiding_DisconnectsThePanels()
         {
             using var host = new EditorTestHost(Page, attachSession: false);
