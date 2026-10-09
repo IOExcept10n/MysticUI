@@ -46,6 +46,8 @@ namespace Icy.Design
         private FragmentFrame? fragment;
         private int recordingSuppressed;
         private string parsedText;
+        private string savedText;
+        private bool lastModified;
         private List<object>? building;
         private DocumentSyntax liveSyntax;
         private bool rootProblem;
@@ -58,6 +60,7 @@ namespace Icy.Design
             SourcePath = sourcePath;
             this.text = new MarkupText(text);
             parsedText = text;
+            savedText = text;
             syntax = Parse(text);
             liveSyntax = syntax;
             lineMap = new LineMap(text);
@@ -91,6 +94,11 @@ namespace Icy.Design
         /// Occurs when <see cref="IsInSync"/> or <see cref="LiveErrors"/> changed.
         /// </summary>
         public event EventHandler? SyncStateChanged;
+
+        /// <summary>
+        /// Occurs when <see cref="IsModified"/> changed.
+        /// </summary>
+        public event EventHandler? ModifiedChanged;
 
         /// <summary>
         /// Gets the session tracking this document.
@@ -148,6 +156,33 @@ namespace Icy.Design
         /// Gets the editor that changes this document and mirrors every change onto its live pages.
         /// </summary>
         public MarkupEditor Editor { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the text differs from what was last loaded or saved.
+        /// </summary>
+        /// <remarks>
+        /// It compares the text itself, not the undo position, so undoing back to the saved text makes it
+        /// <see langword="false"/> again even when the undo stack coalesced several edits into one step.
+        /// </remarks>
+        public bool IsModified => lastModified;
+
+        /// <summary>
+        /// Gets a value indicating whether <see cref="Save"/> has a file to write.
+        /// </summary>
+        public bool CanSave => SaveBlockedReason == null;
+
+        /// <summary>
+        /// Gets why <see cref="Save"/> can't write, or <see langword="null"/> when it can.
+        /// </summary>
+        /// <remarks>
+        /// The reason is either that the page has no <see cref="SourcePath"/>, or that
+        /// <see cref="DesignSession.SourcePathResolver"/> doesn't resolve it to a file (see
+        /// <see cref="DesignSession.UseSourceRoot(string)"/>).
+        /// </remarks>
+        public string? SaveBlockedReason =>
+            SourcePath == null ? "The page has no source path."
+            : Session.SourcePathResolver(SourcePath) == null ? $"'{SourcePath}' doesn't resolve to a file. Set the source root."
+            : null;
 
         internal int ParseCount { get; private set; }
 
@@ -215,10 +250,7 @@ namespace Icy.Design
         {
             string? path = SourcePath != null ? Session.SourcePathResolver(SourcePath) : null;
             if (path == null)
-            {
-                throw new InvalidOperationException(
-                    $"'{SourcePath ?? "(no source path)"}' doesn't resolve to a file. Use SaveAs, or set DesignSession.SourcePathResolver.");
-            }
+                throw new InvalidOperationException(SaveBlockedReason ?? $"'{SourcePath}' doesn't resolve to a file.");
 
             SaveAs(path);
         }
@@ -233,6 +265,7 @@ namespace Icy.Design
         {
             ArgumentException.ThrowIfNullOrEmpty(filePath);
             File.WriteAllText(filePath, Text, Utf8WithoutBom);
+            MarkSaved();
         }
 
         /// <summary>
@@ -289,6 +322,7 @@ namespace Icy.Design
                 return false;
 
             ApplyText(File.ReadAllText(path));
+            MarkSaved();
             return true;
         }
 
@@ -336,7 +370,7 @@ namespace Icy.Design
                 inverseActions.Add(step.Actions[i].CreateInverse(context));
             inverse = new EditStep(step.Change.Invert(before.Text.Text), inverseActions, step.Description);
 
-            Changed?.Invoke(this, new DocumentChangedEventArgs(step.Change, Version));
+            RaiseChanged(new DocumentChangedEventArgs(step.Change, Version));
             if (before.Syntax.Diagnostics.Count != syntax.Diagnostics.Count)
                 DiagnosticsChanged?.Invoke(this, EventArgs.Empty);
 
@@ -493,7 +527,7 @@ namespace Icy.Design
             if (!syntax.HasErrors)
                 MirrorText();
 
-            Changed?.Invoke(this, new DocumentChangedEventArgs(new TextChangeSet([change]), Version));
+            RaiseChanged(new DocumentChangedEventArgs(new TextChangeSet([change]), Version));
             if (diagnosticsBefore != syntax.Diagnostics.Count)
                 DiagnosticsChanged?.Invoke(this, EventArgs.Empty);
             UpdateSyncState();
@@ -611,7 +645,7 @@ namespace Icy.Design
             text = new MarkupText(patch.Apply(text.Text), text.Version + 1);
             originalRaw = currentRaw;
 
-            Changed?.Invoke(this, new DocumentChangedEventArgs(patch, Version));
+            RaiseChanged(new DocumentChangedEventArgs(patch, Version));
             result = EditResult.Success();
             return true;
         }
@@ -1045,6 +1079,32 @@ namespace Icy.Design
             XElement fragment = Session.Builder.ParseFragment($"<{element.Name} {name}={quote}{raw}{quote}/>", syntax.GetNamespacesInScope(element, includeSelf: true));
             using (SuppressRecording())
                 Session.Builder.ApplyAttribute(scope, instance, fragment.Attributes().Single(x => !x.IsNamespaceDeclaration));
+        }
+
+        /// <summary>
+        /// Raises <see cref="Changed"/>, then <see cref="ModifiedChanged"/> when the change crossed the saved text.
+        /// </summary>
+        /// <param name="args">The change.</param>
+        private void RaiseChanged(DocumentChangedEventArgs args)
+        {
+            bool wasModified = lastModified;
+            lastModified = !string.Equals(text.Text, savedText, StringComparison.Ordinal);
+            Changed?.Invoke(this, args);
+            if (wasModified != lastModified)
+                ModifiedChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Records the current text as saved, clearing <see cref="IsModified"/>.
+        /// </summary>
+        private void MarkSaved()
+        {
+            savedText = text.Text;
+            if (lastModified)
+            {
+                lastModified = false;
+                ModifiedChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         private sealed record FragmentFrame(int BaseOffset, LineMap LineMap);

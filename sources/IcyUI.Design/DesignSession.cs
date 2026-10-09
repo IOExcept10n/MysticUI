@@ -102,6 +102,43 @@ namespace Icy.Design
         }
 
         /// <summary>
+        /// Finds a source folder by walking up from <see cref="AppContext.BaseDirectory"/> to the first directory that
+        /// contains <paramref name="marker"/>.
+        /// </summary>
+        /// <param name="marker">A file name that marks the project folder, such as <c>MyGame.csproj</c>.</param>
+        /// <param name="relative">The path from that folder to the markup files, such as <c>Assets/UI</c>.</param>
+        /// <returns>The combined path, or <see langword="null"/> when no ancestor contains the marker.</returns>
+        /// <example>
+        /// <code>
+        /// if (DesignSession.FindSourceRoot("MyGame.csproj", "Assets/UI") is { } root)
+        ///     session.UseSourceRoot(root);
+        /// </code>
+        /// </example>
+        public static string? FindSourceRoot(string marker, string relative = "") =>
+            FindSourceRoot(AppContext.BaseDirectory, marker, relative);
+
+        /// <summary>
+        /// Finds a source folder by walking up from <paramref name="startDirectory"/> to the first directory that contains
+        /// <paramref name="marker"/>.
+        /// </summary>
+        /// <param name="startDirectory">The directory to start from.</param>
+        /// <param name="marker">A file name that marks the project folder.</param>
+        /// <param name="relative">The path from that folder to the markup files.</param>
+        /// <returns>The combined path, or <see langword="null"/> when no ancestor contains the marker.</returns>
+        public static string? FindSourceRoot(string startDirectory, string marker, string relative)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(startDirectory);
+            ArgumentException.ThrowIfNullOrEmpty(marker);
+            for (DirectoryInfo? directory = new(startDirectory); directory != null; directory = directory.Parent)
+            {
+                if (File.Exists(Path.Combine(directory.FullName, marker)))
+                    return Path.Combine(directory.FullName, relative ?? string.Empty).TrimEnd(Path.DirectorySeparatorChar);
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Finds the document a live object was built from, and the markup element it was built from.
         /// </summary>
         /// <param name="instance">A live object, typically a <see cref="Icy.UI.UIElement"/> of a tracked page.</param>
@@ -123,6 +160,62 @@ namespace Icy.Design
 
             node = default;
             return null;
+        }
+
+        /// <summary>
+        /// Saves every modified document that can be saved.
+        /// </summary>
+        /// <returns>
+        /// The modified documents that weren't saved, with the reason: <see cref="DesignDocument.SaveBlockedReason"/>,
+        /// or the message of the I/O error that stopped the write. Never throws for one document's failure.
+        /// </returns>
+        /// <exception cref="ObjectDisposedException">The session was disposed.</exception>
+        public IReadOnlyList<(DesignDocument Document, string Reason)> SaveAll()
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            var skipped = new List<(DesignDocument, string)>();
+            foreach (DesignDocument document in Documents)
+            {
+                if (!document.IsModified)
+                    continue;
+                if (document.SaveBlockedReason is { } reason)
+                {
+                    skipped.Add((document, reason));
+                    continue;
+                }
+
+                try
+                {
+                    document.Save();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    skipped.Add((document, ex.Message));
+                }
+            }
+
+            return skipped;
+        }
+
+        /// <summary>
+        /// Makes <see cref="DesignDocument.Save"/> write each page to <paramref name="root"/> combined with its source
+        /// path, for pages loaded by asset name such as <c>UI/MainMenu.xml</c>.
+        /// </summary>
+        /// <param name="root">The folder holding the source markup files, usually inside the game project.</param>
+        /// <remarks>
+        /// Only existing files resolve, so a typo in the root disables Save with a reason instead of creating files in the
+        /// wrong place. Use <see cref="FindSourceRoot(string, string)"/> to locate the folder from the running game.
+        /// </remarks>
+        /// <exception cref="ArgumentException"><paramref name="root"/> is <see langword="null"/> or empty.</exception>
+        public void UseSourceRoot(string root)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(root);
+            string full = Path.GetFullPath(root);
+            SourcePathResolver = path =>
+            {
+                string candidate = Path.GetFullPath(Path.Combine(full, path));
+                return File.Exists(candidate) ? candidate : null;
+            };
         }
 
         /// <summary>
