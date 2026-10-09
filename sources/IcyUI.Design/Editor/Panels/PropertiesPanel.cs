@@ -32,6 +32,7 @@ namespace Icy.Design.Editor.Panels
         private DesignDocument? watched;
         private MarkupPropertyAdapter? adapter;
         private MarkupValueFormatter? formatter;
+        private string? lastError;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PropertiesPanel"/> class.
@@ -39,6 +40,7 @@ namespace Icy.Design.Editor.Panels
         public PropertiesPanel()
         {
             Grid = new PropertyGrid();
+            Grid.ActiveMessageChanged += (_, _) => ShowStatus();
             var layout = new UI.Controls.Grid { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
             layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
@@ -65,7 +67,8 @@ namespace Icy.Design.Editor.Panels
         public PropertyGrid Grid { get; }
 
         /// <summary>
-        /// Gets the status line: why the last edit was refused, or empty.
+        /// Gets the status line: the editor's last refusal, or the focused row's validation reason or description, or
+        /// empty.
         /// </summary>
         public string StatusText => status.Text;
 
@@ -136,14 +139,16 @@ namespace Icy.Design.Editor.Panels
             Grid.Target = selection.Instance;
             string name = selection.Instance.Name is { Length: > 0 } n ? $" \"{n}\"" : string.Empty;
             header.Text = $"{selection.Instance.GetType().Name}{name} — {selection.Document.SourcePath ?? "(no source)"}";
-            status.Text = string.Empty;
+            lastError = null;
+            ShowStatus();
         }
 
         private void ShowEmpty()
         {
             Grid.Target = null;
             header.Text = "Nothing selected";
-            status.Text = string.Empty;
+            lastError = null;
+            ShowStatus();
         }
 
         private void SetAdapter(MarkupPropertyAdapter? value)
@@ -166,7 +171,14 @@ namespace Icy.Design.Editor.Panels
                 watched.Changed += OnDocumentChanged;
         }
 
-        private void OnErrorChanged(string? error) => status.Text = error ?? string.Empty;
+        private void OnErrorChanged(string? error)
+        {
+            lastError = error;
+            ShowStatus();
+        }
+
+        // The editor's own refusal (a value with no markup form, a failed edit) wins over the grid's help text.
+        private void ShowStatus() => status.Text = lastError ?? Grid.ActiveMessage ?? string.Empty;
 
         private void OnDocumentChanged(object? sender, DocumentChangedEventArgs e) => Grid.Refresh();
     }

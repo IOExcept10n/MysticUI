@@ -19,7 +19,8 @@ namespace Icy.SharedSamples
     /// <see cref="PropertyGrid.Target"/> between two differently-shaped objects in place - the visually
     /// inspectable counterpart of <c>PropertyGridTests.Target_ReassignedToDifferentlyShapedObject_*</c>, which
     /// exercises the same reassignment with <see cref="ItemsControl.PoolingEnabled"/> off (see
-    /// <see cref="Icy.UI.Controls.PropertyGrid"/>'s own remarks for why) purely through unit assertions.
+    /// <see cref="Icy.UI.Controls.PropertyGrid"/>'s own remarks for why) purely through unit assertions. Focus a row to
+    /// see its description, or why a typed value is rejected, under the grid.
     /// </summary>
     /// <remarks>
     /// Like <see cref="ColorPickerDemo"/>, this demo's <see cref="Character"/>/<see cref="WorldSettings"/> model
@@ -45,6 +46,7 @@ namespace Icy.SharedSamples
                 <ScrollViewer Width="420" Height="360" HorizontalAlignment="Left">
                   <PropertyGrid x:Name="Grid"/>
                 </ScrollViewer>
+                <TextBlock x:Name="Help" FontSize="13" Foreground="Silver" Margin="0,8,0,0" Width="420" HorizontalAlignment="Left"/>
               </StackPanel>
             </Border>
             """;
@@ -82,6 +84,9 @@ namespace Icy.SharedSamples
             PropertyGrid grid = root.FindRequiredControl<PropertyGrid>("Grid");
             grid.Target = character;
 
+            TextBlock help = root.FindRequiredControl<TextBlock>("Help");
+            grid.ActiveMessageChanged += (_, _) => help.Text = grid.ActiveMessage ?? string.Empty;
+
             bool showingCharacter = true;
             root.FindRequiredControl<Button>("SwapButton").Click += (_, _) =>
             {
@@ -116,6 +121,7 @@ namespace Icy.SharedSamples
             /// Gets or sets the character's name.
             /// </summary>
             [Category("Identity")]
+            [Description("The name shown above the character.")]
             public string Name { get; set; } = "Aria";
 
             /// <summary>
@@ -138,6 +144,7 @@ namespace Icy.SharedSamples
             /// </summary>
             [Category("Stats")]
             [Range(0, 100)]
+            [Description("Hit points, from 0 (down) to 100.")]
             public int Health { get; set; } = 75;
 
             /// <summary>

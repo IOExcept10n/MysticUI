@@ -194,6 +194,46 @@ namespace Icy.Tests.Design.Editor
             }
         }
 
+        [Fact]
+        public void TypingAnInvalidWidth_ShowsTheRule_AndThrowsNothing()
+        {
+            (EditorTestHost host, PropertiesPanel panel) = Create();
+            using (host)
+            {
+                host.Session.Select(host.Named<Button>("b"));
+                host.Render();
+                var box = (TextBox)FindEditor(panel.Grid, "Width")!;
+                host.Canvas.Focus(box);
+
+                // Count only this thread's exceptions: the suite runs other test classes in parallel.
+                int thread = Environment.CurrentManagedThreadId;
+                int thrown = 0;
+                void Count(object? sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs e)
+                {
+                    if (Environment.CurrentManagedThreadId == thread)
+                        thrown++;
+                }
+
+                AppDomain.CurrentDomain.FirstChanceException += Count;
+                try
+                {
+                    foreach (string text in new[] { "-", "-5", "1e40", "abc" })
+                        box.Text = text;
+                }
+                finally
+                {
+                    AppDomain.CurrentDomain.FirstChanceException -= Count;
+                }
+
+                Assert.Equal(0, thrown);
+                Assert.Equal("Enter a number.", panel.StatusText);
+                Assert.Contains("Width=\"40\"", host.Document.Text);
+
+                box.Text = "-5";
+                Assert.Equal("Must be at least 0.", panel.StatusText);
+            }
+        }
+
         private static Icy.UI.UIElement? FindEditor(PropertyGrid grid, string name)
         {
             var containers = (Dictionary<int, ItemContainer>)typeof(ItemsControl)
