@@ -72,7 +72,6 @@ namespace Icy.MonoGame.Configuration
                    .UseMonoGameImporters(game);
         }
 
-
         /// <summary>
         /// Adds MonoGame-specific importers to the asset configuration builder.
         /// </summary>
@@ -82,5 +81,4 @@ namespace Icy.MonoGame.Configuration
         public static IAssetConfigurationBuilder UseMonoGameImporters(this IAssetConfigurationBuilder builder, Game game) =>
             builder.AddImporter(new TextureImporter(game));
     }
-
 }

@@ -1,0 +1,9 @@
+<Project>
+  <!-- The shipped libraries (IcyShippedLibrary=true) build without warnings. Release builds, which produce the packages,
+       turn any new warning into an error; Debug builds keep them as warnings so work in progress still compiles.
+       NuGet's audit warnings stay warnings: a feed that's unreachable off-network mustn't fail a release build. -->
+  <PropertyGroup Condition="'$(IcyShippedLibrary)' == 'true' and '$(Configuration)' == 'Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>

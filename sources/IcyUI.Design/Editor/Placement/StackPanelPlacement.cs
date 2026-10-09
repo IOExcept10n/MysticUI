@@ -53,6 +53,7 @@ namespace Icy.Design.Editor.Placement
         {
             ArgumentNullException.ThrowIfNull(context);
             bool vertical = ((StackPanel)context.Container).Orientation == Orientation.Vertical;
+
             // A stack sizes its slots to the children, on the cross axis too: only an explicit size grows a stretched child.
             return new Resize(context, handle, anchorHorizontal: !vertical, anchorVertical: vertical, sizeStretched: true);
         }

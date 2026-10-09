@@ -1,6 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IcyShippedLibrary>true</IcyShippedLibrary>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <RootNamespace>Icy.MonoGame</RootNamespace>
   </PropertyGroup>
 

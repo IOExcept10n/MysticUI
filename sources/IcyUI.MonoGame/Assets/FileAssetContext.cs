@@ -25,7 +25,7 @@ namespace Icy.MonoGame.Assets
         /// <summary>
         /// Gets the path for the file to access.
         /// </summary>
-        /// <param name="relativePath">Path part relative to the current <see cref="rootPath"/>.</param>
+        /// <param name="relativePath">Path part relative to the current <see cref="MonoGameAssetContext.RootPath"/>.</param>
         /// <returns>Full path to access the file.</returns>
         private string GetPath(string? relativePath = null) => new Uri(RootPath, relativePath).LocalPath;
     }
