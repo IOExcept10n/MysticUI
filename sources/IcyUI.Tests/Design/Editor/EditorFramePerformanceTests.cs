@@ -10,6 +10,16 @@ using Xunit.Abstractions;
 
 namespace Icy.Tests.Design.Editor
 {
+    /// <summary>
+    /// Runs timing-sensitive tests alone, after the parallel ones, so other test classes don't skew their measurements.
+    /// </summary>
+    [CollectionDefinition(Name, DisableParallelization = true)]
+    public sealed class TimingCollection
+    {
+        public const string Name = "Timing";
+    }
+
+    [Collection(TimingCollection.Name)]
     public class EditorFramePerformanceTests(ITestOutputHelper output)
     {
         [Fact]
