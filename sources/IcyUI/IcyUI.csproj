@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IcyShippedLibrary>true</IcyShippedLibrary>
+    <Description>Engine-agnostic game UI library: controls, layout, XML markup, styles and templates, data binding, animations and input routing. Use it through an engine package such as IcyUI.Stride or IcyUI.MonoGame.</Description>
+    <PackageTags>ui;gui;game;gamedev;controls;markup;binding;stride;monogame</PackageTags>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
     <RootNamespace>Icy</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -22,12 +22,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\LICENSE">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\Themes\DefaultTheme.xml" />

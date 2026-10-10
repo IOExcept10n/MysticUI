@@ -6,4 +6,30 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
   </PropertyGroup>
+
+  <!-- Only the shipped libraries are packages. This lives here, not in Directory.Build.props, because projects set
+       IcyShippedLibrary in their own body, which MSBuild evaluates after the props file and before this one.
+       Per-package values (Description, PackageTags) stay in each project; the shared ones below win on purpose. -->
+  <PropertyGroup Condition="'$(IcyShippedLibrary)' != 'true'">
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IcyShippedLibrary)' == 'true'">
+    <IsPackable>true</IsPackable>
+    <Version>0.1.0-alpha.1</Version>
+    <Authors>Ivan Olyanishin</Authors>
+    <Copyright>Copyright (c) Ivan Olyanishin</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/IOExcept10n/MysticUI</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/IOExcept10n/MysticUI</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IcyShippedLibrary)' == 'true'">
+    <None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>

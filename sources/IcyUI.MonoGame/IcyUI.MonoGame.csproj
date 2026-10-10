@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <IcyShippedLibrary>true</IcyShippedLibrary>
+    <Description>MonoGame integration for IcyUI: rendering, input and asset loading. Backend-neutral: reference MonoGame.Framework.DesktopGL or MonoGame.Framework.WindowsDX 3.8.5 or later yourself.</Description>
+    <PackageTags>ui;gui;game;gamedev;monogame;xna;icyui</PackageTags>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <RootNamespace>Icy.MonoGame</RootNamespace>
   </PropertyGroup>

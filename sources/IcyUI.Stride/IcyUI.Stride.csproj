@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <IcyShippedLibrary>true</IcyShippedLibrary>
+    <RootNamespace>Icy.Stride</RootNamespace>
+    <Description>Stride integration for IcyUI: a scene renderer overlay, input and asset loading.</Description>
+    <PackageTags>ui;gui;game;gamedev;stride;icyui</PackageTags>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
   </PropertyGroup>

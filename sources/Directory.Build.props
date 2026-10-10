@@ -7,4 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <!-- Release builds produce the packages: map source paths to /_/ so the packed PDBs hold no machine paths and SourceLink
+       maps them to GitHub. Set here: from Directory.Build.targets it comes too late for the SDK to apply the path map. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
 </Project>
