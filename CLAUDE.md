@@ -26,7 +26,7 @@ The built-in theme lives in `sources/IcyUI/Resources/Themes/DefaultTheme.xml` (e
 
 Everything targets `net10.0` (the sample hosts use `net10.0-windows`). The SDK is pinned via the root `global.json` (10.0.x, `latestFeature`). Shared properties live in `sources/Directory.Build.props` (`IcyTargetFramework`, `Nullable`, `ImplicitUsings`), and **all package versions** in `sources/Directory.Packages.props` (Central Package Management). Never put `Version=` on a `PackageReference`.
 
-No CI and no build scripts. Use plain `dotnet` commands:
+CI (`.github/workflows/ci.yml`) builds, tests and packs on x64 and ARM64 Windows for every push to `main`/`platform-independent` and every PR. The only scripts are the two checks in `.github/scripts/` (test results, release tag). Locally, use plain `dotnet` commands:
 
 ```
 dotnet build "sources/IcyUI.sln"
@@ -43,17 +43,35 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 
 The four shipped libraries are packages; everything else is `IsPackable=false` (`sources/Directory.Build.targets`). The version lives there too: one `<Version>` for all four, `0.1.0-alpha.N`. nuget.org never accepts the same version twice.
 
-Pack only from a clean tree whose commit is already pushed (`git status` empty, `git push` done): SourceLink and the nuspec point at that commit on GitHub, so unpushed or uncommitted sources break source stepping for consumers.
+Releases go through `.github/workflows/release.yml` with nuget.org trusted publishing: no API key exists anywhere.
+
+1. Bump `<Version>` in `sources/Directory.Build.targets`, commit, push, and wait for green CI.
+2. `git tag v<version>` and `git push origin v<version>`.
+3. In the Actions run, approve the `nuget` deployment. The workflow checks that the tag matches `<Version>` and that the commit is on `origin/main` or `origin/platform-independent`, then builds, tests, packs and publishes (`.snupkg` symbols included). Finally it creates a GitHub Release with the packages attached.
+
+A manual run of `release.yml` is a dry run: it builds, tests and packs, and never publishes. To try packages locally:
 
 ```
 rm -rf artifacts
 dotnet pack "sources/IcyUI.sln" -c Release -o artifacts
-dotnet nuget push "artifacts/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key <key>
 ```
 
-The push uploads the `.snupkg` symbol packages next to the `.nupkg` files. Release packing inherits the zero-warning rule. Release builds set `ContinuousIntegrationBuild` (`sources/Directory.Build.props`), so PDB paths are `/_/...` and SourceLink maps them to GitHub.
+Release builds set `ContinuousIntegrationBuild` (`sources/Directory.Build.props`), so PDB paths are `/_/...` and SourceLink maps them to the commit on GitHub. `PackageProjectUrl` and the package READMEs link to the `platform-independent` tree; switch them to the repository root when it merges into `main`.
 
-`PackageProjectUrl` and the package READMEs link to the `platform-independent` tree; switch them to the repository root when it merges into `main`.
+#### One-time publishing setup (Ivan)
+
+1. **nuget.org → your profile → Trusted Publishing → new policy:**
+   - repository owner `IOExcept10n`, repository `IcyUI`;
+   - workflow file `release.yml`, environment `nuget`;
+   - scopes: push new packages and push new versions, package glob `IcyUI*`.
+2. **GitHub → IcyUI → Settings → Environments → New environment `nuget`:**
+   - required reviewer: yourself;
+   - deployment branches and tags: "Selected branches and tags", add the tag rule `v*`;
+   - environment secret `NUGET_USER`: your nuget.org profile name (not your email).
+3. **First release:**
+   1. Push `platform-independent` and check that CI is green on both runners.
+   2. Run `release.yml` manually from `platform-independent` (the dry run) and check that its `packages` artifact holds 4 `.nupkg` and 4 `.snupkg` files.
+   3. Push the tag `v0.1.0-alpha.1` and approve the deployment.
 
 ## Conventions
 
