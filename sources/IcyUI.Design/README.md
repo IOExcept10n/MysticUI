@@ -11,5 +11,5 @@ Use it in development builds or tools. A shipped game doesn't need it at runtime
 
 **Status:** early alpha (0.1.0-alpha). APIs may change between alphas.
 
-Source and samples: https://github.com/IOExcept10n/MysticUI/tree/platform-independent
-Issues: https://github.com/IOExcept10n/MysticUI/issues
+Source and samples: https://github.com/IOExcept10n/IcyUI/tree/platform-independent
+Issues: https://github.com/IOExcept10n/IcyUI/issues

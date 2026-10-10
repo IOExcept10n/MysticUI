@@ -83,4 +83,4 @@ The push uploads the `.snupkg` symbol packages next to the `.nupkg` files. Relea
 
 ## Naming history
 
-The project was renamed MysticUI → AquaUI → IcyUI. The GitHub repo and local folder are still named `MysticUI`. Remaining old-name references outside historical docs are bugs, so flag them.
+The project was renamed MysticUI → AquaUI → IcyUI. The GitHub repository was renamed to `IOExcept10n/IcyUI` on 2026-10-10; only the local folder is still named `MysticUI`. Remaining old-name references outside historical docs are bugs, so flag them.
