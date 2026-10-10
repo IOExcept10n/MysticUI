@@ -26,7 +26,7 @@ The built-in theme lives in `sources/IcyUI/Resources/Themes/DefaultTheme.xml` (e
 
 Everything targets `net10.0` (the sample hosts use `net10.0-windows`). The SDK is pinned via the root `global.json` (10.0.x, `latestFeature`). Shared properties live in `sources/Directory.Build.props` (`IcyTargetFramework`, `Nullable`, `ImplicitUsings`), and **all package versions** in `sources/Directory.Packages.props` (Central Package Management). Never put `Version=` on a `PackageReference`.
 
-CI (`.github/workflows/ci.yml`) builds, tests and packs on x64 and ARM64 Windows for every push to `main`/`platform-independent` and every PR. The only scripts are the two checks in `.github/scripts/` (test results, release tag). Locally, use plain `dotnet` commands:
+CI (`.github/workflows/ci.yml`) builds and tests on x64 and ARM64 Windows, and packs on x64, for every push to `main`/`platform-independent` and every PR. The only scripts are the two checks in `.github/scripts/` (test results, release tag). Locally, use plain `dotnet` commands:
 
 ```
 dotnet build "sources/IcyUI.sln"
@@ -47,9 +47,9 @@ Releases go through `.github/workflows/release.yml` with nuget.org trusted publi
 
 1. Bump `<Version>` in `sources/Directory.Build.targets`, commit, push, and wait for green CI.
 2. `git tag v<version>` and `git push origin v<version>`.
-3. In the Actions run, approve the `nuget` deployment. The workflow checks that the tag matches `<Version>` and that the commit is on `origin/main` or `origin/platform-independent`, then builds, tests, packs and publishes (`.snupkg` symbols included). Finally it creates a GitHub Release with the packages attached.
+3. The workflow's build job checks that the tag matches `<Version>` and that the commit is on `origin/main` or `origin/platform-independent`, then builds, tests and packs. Once it's green, approve the `nuget` deployment in the Actions run: the publish job pushes the packages (`.snupkg` symbols included), and a last job creates a GitHub Release with the packages attached.
 
-A manual run of `release.yml` is a dry run: it builds, tests and packs, and never publishes. To try packages locally:
+A manual run of `release.yml` is a dry run, even when started from a tag: it builds, tests and packs, and never publishes. To try packages locally:
 
 ```
 rm -rf artifacts

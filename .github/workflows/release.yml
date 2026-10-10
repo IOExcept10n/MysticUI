@@ -39,7 +39,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Check the tag against the version and the pushed branches
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         run: bash .github/scripts/check-release-tag.sh "$GITHUB_REF_NAME"
 
       - name: Build
@@ -68,7 +68,8 @@ jobs:
   publish:
     name: Publish to nuget.org
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Tag pushes only: a manual run is a dry run even when started from a tag ref.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     environment: nuget
     permissions:
