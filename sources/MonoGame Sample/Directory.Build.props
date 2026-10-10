@@ -1,0 +1,16 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- The MonoGame backend this sample runs on: WindowsDX (D3D11, default) or DesktopGL (OpenGL/SDL).
+       Build the other one with: dotnet build "MonoGame Sample" -p:MonoGameBackend=DesktopGL.
+       Each backend gets its own bin/obj, so switching never leaves the other backend's files in the output; it must be
+       set here, before the SDK fixes the intermediate path. The backend package's own targets set MonoGamePlatform,
+       which the content builder passes as /platform. -->
+  <PropertyGroup>
+    <MonoGameBackend Condition="'$(MonoGameBackend)' == ''">WindowsDX</MonoGameBackend>
+    <BaseOutputPath>bin\$(MonoGameBackend)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj\$(MonoGameBackend)\</BaseIntermediateOutputPath>
+    <!-- The SDK only excludes the current backend's bin/obj from the default globs; exclude the others too. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

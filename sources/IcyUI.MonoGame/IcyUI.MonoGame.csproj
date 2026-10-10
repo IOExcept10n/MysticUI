@@ -9,7 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" />
+    <!-- Compile-time only: every MonoGame backend ships the same MonoGame.Framework API, and the host picks one
+         (DesktopGL or WindowsDX, 3.8.5+). PrivateAssets keeps it out of the package and out of referencing projects. -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" PrivateAssets="all" />
     <PackageReference Include="StyleCop.Analyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

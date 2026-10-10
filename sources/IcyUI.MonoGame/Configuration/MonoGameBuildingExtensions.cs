@@ -14,6 +14,18 @@ namespace Icy.MonoGame.Configuration
     /// <summary>
     /// Provides extension methods for configuring the IcyUI in MonoGame applications.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// IcyUI.MonoGame doesn't depend on a MonoGame backend. The host references one of:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><c>MonoGame.Framework.DesktopGL</c> (OpenGL/SDL), 3.8.5 or later;</description></item>
+    /// <item><description><c>MonoGame.Framework.WindowsDX</c> (Direct3D 11), 3.8.5 or later.</description></item>
+    /// </list>
+    /// <para>
+    /// On DesktopGL, touch input isn't reported, and on Windows-on-ARM64 <see cref="Game.Dispose()"/> can hang on shutdown.
+    /// </para>
+    /// </remarks>
     public static class MonoGameBuildingExtensions
     {
         /// <summary>
