@@ -1,0 +1,80 @@
+# Builds, tests and packs IcyUI on x64 and ARM64 Windows for every push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main, platform-independent]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('sources/Directory.Packages.props', 'sources/**/*.csproj', 'sources/MonoGame Sample/.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Build (Release, shipped libraries warning-free)
+        run: dotnet build "sources/IcyUI.sln" -c Release
+
+      - name: Build the MonoGame sample on DesktopGL
+        run: dotnet build "sources/MonoGame Sample/MonoGame Sample.csproj" -c Release -p:MonoGameBackend=DesktopGL
+
+      - name: Test
+        run: dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj" -c Release --no-build --logger "trx;LogFileName=results.trx" --results-directory test-results
+
+      - name: Check test results
+        if: always()
+        run: bash .github/scripts/check-trx.sh test-results/results.trx
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ matrix.os }}
+          path: test-results/
+          if-no-files-found: warn
+
+      - name: Pack
+        if: matrix.os == 'windows-latest'
+        run: |
+          for project in IcyUI IcyUI.Design IcyUI.MonoGame IcyUI.Stride; do
+            dotnet pack "sources/$project/$project.csproj" -c Release --no-build -o artifacts
+          done
+
+      - name: Upload packages
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: artifacts/
+          if-no-files-found: error

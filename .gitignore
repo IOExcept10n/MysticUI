@@ -411,3 +411,6 @@ FodyWeavers.xsd
 
 # MonoGame Content Builder per-build statistics
 *.mgstats
+
+# Test results written by CI-form test runs (dotnet test --results-directory test-results)
+test-results/
