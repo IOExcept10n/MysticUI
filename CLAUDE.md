@@ -13,7 +13,7 @@ IcyUI is a cross-engine game UI library: an engine-agnostic core plus thin per-e
 |---|---|---|
 | `IcyUI` | Core | RootNamespace `Icy`. Controls, layout, markup, styles/templates, binding, animations, input routing, rendering abstractions. Must not reference any engine types. |
 | `IcyUI.Design` | Dev-time tooling | Markup design document, edit engine, editor frame, panels, overlay and workspace (Phase 10). References only `IcyUI`; games never need it at runtime. |
-| `IcyUI.MonoGame` | Primary integration | Backend-neutral: compiles against DesktopGL privately; hosts reference DesktopGL or WindowsDX 3.8.5+. |
+| `IcyUI.MonoGame` | Primary integration | Backend-neutral: compiles against DesktopGL privately; hosts reference DesktopGL or WindowsDX 3.8.5.1+. |
 | `IcyUI.Stride` | Real integration | References `Stride.Core`/`Stride.Engine`. |
 | `IcyUI.FNA` | Stub | Only the SDK template `Class1.cs`. Treat FNA work as greenfield, modelled on `IcyUI.MonoGame`. |
 | `IcyUI.Tests` | xUnit | Links some `Shared Samples` demos so their markup is exercised by tests. |
@@ -43,12 +43,17 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 
 The four shipped libraries are packages; everything else is `IsPackable=false` (`sources/Directory.Build.targets`). The version lives there too: one `<Version>` for all four, `0.1.0-alpha.N`. nuget.org never accepts the same version twice.
 
+Pack only from a clean tree whose commit is already pushed (`git status` empty, `git push` done): SourceLink and the nuspec point at that commit on GitHub, so unpushed or uncommitted sources break source stepping for consumers.
+
 ```
+rm -rf artifacts
 dotnet pack "sources/IcyUI.sln" -c Release -o artifacts
 dotnet nuget push "artifacts/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key <key>
 ```
 
 The push uploads the `.snupkg` symbol packages next to the `.nupkg` files. Release packing inherits the zero-warning rule. Release builds set `ContinuousIntegrationBuild` (`sources/Directory.Build.props`), so PDB paths are `/_/...` and SourceLink maps them to GitHub.
+
+`PackageProjectUrl` and the package READMEs link to the `platform-independent` tree; switch them to the repository root when it merges into `main`.
 
 ## Conventions
 

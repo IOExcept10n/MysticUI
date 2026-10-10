@@ -19,7 +19,8 @@
     <Authors>Ivan Olyanishin</Authors>
     <Copyright>Copyright (c) Ivan Olyanishin</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/IOExcept10n/MysticUI</PackageProjectUrl>
+    <!-- Until the MVP merge, main still holds the old pre-rewrite code; point visitors at the development branch. -->
+    <PackageProjectUrl>https://github.com/IOExcept10n/MysticUI/tree/platform-independent</PackageProjectUrl>
     <RepositoryUrl>https://github.com/IOExcept10n/MysticUI</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>

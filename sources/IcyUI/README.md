@@ -12,4 +12,5 @@ dotnet add package IcyUI.MonoGame --prerelease
 
 **Status:** early alpha (0.1.0-alpha). APIs may change between alphas.
 
-Source, samples and issues: https://github.com/IOExcept10n/MysticUI
+Source and samples: https://github.com/IOExcept10n/MysticUI/tree/platform-independent
+Issues: https://github.com/IOExcept10n/MysticUI/issues
