@@ -49,7 +49,7 @@ Releases go through `.github/workflows/release.yml` with nuget.org trusted publi
 2. `git tag v<version>` and `git push origin v<version>`.
 3. The workflow's build job checks that the tag matches `<Version>` and that the commit is on `origin/main` or `origin/platform-independent`, then builds, tests and packs. Once it's green, approve the `nuget` deployment in the Actions run: the publish job pushes the packages (`.snupkg` symbols included), and a last job creates a GitHub Release with the packages attached.
 
-A manual run of `release.yml` is a dry run, even when started from a tag: it builds, tests and packs, and never publishes. To try packages locally:
+Every release has a built-in dry run: the publish job waits for approval, so download the build job's `packages` artifact and check it first; rejecting the deployment publishes nothing. CI's `packages` artifact is the same build for any pushed commit. A manual run of `release.yml` never publishes either, but GitHub offers manual runs only for workflows on the default branch, so it's available once `platform-independent` merges into `main`. To try packages locally:
 
 ```
 rm -rf artifacts
@@ -70,8 +70,8 @@ Release builds set `ContinuousIntegrationBuild` (`sources/Directory.Build.props`
    - environment secret `NUGET_USER`: your nuget.org profile name (not your email).
 3. **First release:**
    1. Push `platform-independent` and check that CI is green on both runners.
-   2. Run `release.yml` manually from `platform-independent` (the dry run) and check that its `packages` artifact holds 4 `.nupkg` and 4 `.snupkg` files.
-   3. Push the tag `v0.1.0-alpha.1` and approve the deployment.
+   2. Push the tag `v0.1.0-alpha.1`.
+   3. When the run waits for review, download the build job's `packages` artifact and check it holds 4 `.nupkg` and 4 `.snupkg` files at `0.1.0-alpha.1`. Then approve the deployment, or reject it to publish nothing.
 
 ## Conventions
 
