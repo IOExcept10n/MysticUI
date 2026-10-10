@@ -13,12 +13,12 @@ IcyUI is a cross-engine game UI library: an engine-agnostic core plus thin per-e
 |---|---|---|
 | `IcyUI` | Core | RootNamespace `Icy`. Controls, layout, markup, styles/templates, binding, animations, input routing, rendering abstractions. Must not reference any engine types. |
 | `IcyUI.Design` | Dev-time tooling | Markup design document, edit engine, editor frame, panels, overlay and workspace (Phase 10). References only `IcyUI`; games never need it at runtime. |
-| `IcyUI.MonoGame` | Primary integration | References `MonoGame.Framework.DesktopGL`. |
+| `IcyUI.MonoGame` | Primary integration | Backend-neutral: compiles against DesktopGL privately; hosts reference DesktopGL or WindowsDX 3.8.5+. |
 | `IcyUI.Stride` | Real integration | References `Stride.Core`/`Stride.Engine`. |
 | `IcyUI.FNA` | Stub | Only the SDK template `Class1.cs`. Treat FNA work as greenfield, modelled on `IcyUI.MonoGame`. |
 | `IcyUI.Tests` | xUnit | Links some `Shared Samples` demos so their markup is exercised by tests. |
 | `Shared Samples` | Demo source | `*Demo.cs` files linked into both sample hosts. |
-| `MonoGame Sample`, `Stride Sample` | Sample hosts | Every new demo is registered in **both** hosts' `SampleGame.cs`. |
+| `MonoGame Sample`, `Stride Sample` | Sample hosts | Every new demo is registered in **both** hosts' `SampleGame.cs`. `MonoGame Sample` runs on WindowsDX by default; `-p:MonoGameBackend=DesktopGL` switches it (each backend has its own `bin/<backend>`, `obj/<backend>`). |
 
 The built-in theme lives in `sources/IcyUI/Resources/Themes/DefaultTheme.xml` (embedded resource). New controls get an entry there.
 
@@ -39,6 +39,17 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 - The MonoGame packages and the `mgcb` tools in `MonoGame Sample/.config/dotnet-tools.json` must stay on the same version.
 - Development happens on both x64 and Windows-on-ARM64 machines. Engine package versions must provide `win-arm64` natives (Stride >= 4.3; MonoGame DesktopGL/WindowsDX 3.8.5 do). Missing natives fail only at runtime, not at build time.
 
+### Release
+
+The four shipped libraries are packages; everything else is `IsPackable=false` (`sources/Directory.Build.targets`). The version lives there too: one `<Version>` for all four, `0.1.0-alpha.N`. nuget.org never accepts the same version twice.
+
+```
+dotnet pack "sources/IcyUI.sln" -c Release -o artifacts
+dotnet nuget push "artifacts/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key <key>
+```
+
+The push uploads the `.snupkg` symbol packages next to the `.nupkg` files. Release packing inherits the zero-warning rule. Release builds set `ContinuousIntegrationBuild` (`sources/Directory.Build.props`), so PDB paths are `/_/...` and SourceLink maps them to GitHub.
+
 ## Conventions
 
 - **Every public API gets complete XML documentation.** The DocFX site (`docfx/`) is generated from it. Use `<see cref>`/`<see langword>`, `<list>`, `<para>`, etc.
@@ -57,13 +68,13 @@ dotnet test "sources/IcyUI.Tests/IcyUI.Tests.csproj"
 
 ## Known issues
 
-- **High priority, scheduled for the graphics-API discussion right after Tier-2:** on Windows-on-ARM64, MonoGame DesktopGL deadlocks on shutdown. `Game.Dispose()` → `SdlGameWindow.Dispose` never returns, because OpenGL there runs through Microsoft's `OpenGLOn12` layer (Snapdragon has no native GL driver). The window closes but the process stays alive. Stride (D3D11) is unaffected.
+- **High priority, scheduled for the graphics-API discussion right after Tier-2:** on Windows-on-ARM64, MonoGame **DesktopGL** deadlocks on shutdown. `Game.Dispose()` → `SdlGameWindow.Dispose` never returns, because OpenGL there runs through Microsoft's `OpenGLOn12` layer (Snapdragon has no native GL driver). The window closes but the process stays alive. Stride (D3D11) is unaffected. WindowsDX has no SDL layer; whether the WindowsDX sample exits cleanly on WoA is for Ivan's smoke test.
 - UI scaling (`Canvas.EffectiveScale`, `IcyConfiguration.Scaling`) follows the host's DPI awareness: a host without a PerMonitorV2 `app.manifest` reports `DisplayScale = 1` and is bitmap-stretched by Windows. Both sample hosts ship the manifest.
 - **No touch on MonoGame desktop; decide during the MonoGame backend-consistency pass:**
   - The core gesture recognizer works, but MonoGame DesktopGL never fills `TouchPanel`. Its SDL layer declares the finger event types but never reads finger data.
   - SDL2 itself tracks fingers, so polling `SDL_GetTouchFinger` from the connector is a known way out (same `SDL2.dll` as `MonoGameNativeWindow`).
-  - The backends are mixed: `IcyUI.MonoGame` references DesktopGL and `MonoGame Sample` references WindowsDX, but the sample's output ends up with the DesktopGL `MonoGame.Framework.dll`.
-  - Settle the backend before applying engine-binary-dependent fixes like this one.
+  - `IcyUI.MonoGame` is backend-neutral and `MonoGame Sample` defaults to WindowsDX (`-p:MonoGameBackend=DesktopGL` for the other). The touch gap is DesktopGL's; WindowsDX touch is unverified.
+  - An SDL touch fix would apply to DesktopGL hosts only.
 
 ## Naming history
 
